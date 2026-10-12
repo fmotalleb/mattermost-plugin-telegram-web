@@ -1,0 +1,73 @@
+{
+    "id": "com.telegramweb.ui",
+    "name": "Telegram Web UI",
+    "description": "Replaces the Mattermost web app UI with a Telegram Web style client. Chats, contacts, groups, custom groups and the chat screen are rendered from your existing Mattermost data (channels, DMs, group messages, channel categories, teams).",
+    "homepage_url": "https://github.com/example/mattermost-plugin-telegram-web",
+    "support_url": "https://github.com/example/mattermost-plugin-telegram-web/issues",
+    "release_notes_url": "https://github.com/example/mattermost-plugin-telegram-web/releases",
+    "icon_path": "assets/icon.svg",
+    "version": "1.0.0",
+    "min_server_version": "9.5.0",
+    "webapp": {
+        "bundle_path": "webapp/dist/main.js"
+    },
+    "settings_schema": {
+        "header": "Server side defaults for the Telegram Web UI plugin. Users can override these in the plugin's own settings screen inside the UI.",
+        "footer": "* These settings only provide defaults. They are read from the web app through the client config.",
+        "settings": [
+            {
+                "key": "DefaultMode",
+                "display_name": "Enable Telegram Web UI by default",
+                "type": "bool",
+                "help_text": "When true, the Telegram Web UI is active for every user as soon as the page loads.",
+                "default": false
+            },
+            {
+                "key": "DefaultTheme",
+                "display_name": "Default theme",
+                "type": "dropdown",
+                "help_text": "Default theme for users that did not pick one yet.",
+                "default": "light",
+                "options": [
+                    {
+                        "display_name": "Light",
+                        "value": "light"
+                    },
+                    {
+                        "display_name": "Dark",
+                        "value": "dark"
+                    }
+                ]
+            },
+            {
+                "key": "DefaultAccent",
+                "display_name": "Default accent color",
+                "type": "dropdown",
+                "help_text": "Accent color used for buttons, links and outgoing message bubbles.",
+                "default": "blue",
+                "options": [
+                    {
+                        "display_name": "Blue",
+                        "value": "blue"
+                    },
+                    {
+                        "display_name": "Violet",
+                        "value": "violet"
+                    },
+                    {
+                        "display_name": "Green",
+                        "value": "green"
+                    },
+                    {
+                        "display_name": "Orange",
+                        "value": "orange"
+                    },
+                    {
+                        "display_name": "Red",
+                        "value": "red"
+                    }
+                ]
+            }
+        ]
+    }
+}

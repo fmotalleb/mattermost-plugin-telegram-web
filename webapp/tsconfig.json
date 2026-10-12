@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "target": "es2019",
+        "lib": ["dom", "dom.iterable", "es2020"],
+        "jsx": "react",
+        "module": "esnext",
+        "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "allowJs": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "baseUrl": "src",
+        "types": ["react", "react-dom", "node"]
+    },
+    "include": ["src/**/*", "../plugin.json"]
+}
