@@ -47,7 +47,7 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 3. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0.tar.gz`.
 4. **Enable** the plugin. Reload the web app.
 
-**From source** (Node 18+; no Go required)
+**From source** (Node 24+ — the minimum tested version; no Go required)
 
 ```bash
 make release         # npm install + webpack build + package
