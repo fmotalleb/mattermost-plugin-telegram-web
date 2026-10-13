@@ -42,9 +42,10 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 
 **From the packaged release**
 
-1. Open **System Console → Plugin Management → Plugin Management**.
-2. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0.tar.gz`.
-3. **Enable** the plugin. Reload the web app.
+1. Download the latest release from [Releases](./releases) in github
+2. Open **System Console → Plugin Management → Plugin Management**.
+3. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0.tar.gz`.
+4. **Enable** the plugin. Reload the web app.
 
 **From source** (Node 18+; no Go required)
 
@@ -180,5 +181,7 @@ every call):
   takes over instead of breaking the chat screen.
 * File attachments are rendered from the server's public file URLs, so they need the same
   authentication/session the web app itself uses.
-* The plugin ships without a third-party license header; add the license of your choice before
-  distributing it.
+
+## Licensing
+
+This plugins is distributed under [MIT license](./LICENSE).
