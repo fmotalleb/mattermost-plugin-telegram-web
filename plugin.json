@@ -6,7 +6,7 @@
     "support_url": "https://github.com/example/mattermost-plugin-telegram-web/issues",
     "release_notes_url": "https://github.com/example/mattermost-plugin-telegram-web/releases",
     "icon_path": "assets/icon.svg",
-    "version": "1.0.0",
+    "version": "0.0.0",
     "min_server_version": "9.5.0",
     "webapp": {
         "bundle_path": "webapp/dist/main.js"
