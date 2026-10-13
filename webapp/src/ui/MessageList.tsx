@@ -18,6 +18,7 @@ import {
     formatDuration,
     formatTime,
     isSameDay,
+    isVoiceFileName,
     toPlainPreview,
 } from '../mm/utils';
 import {useTg} from './context';
@@ -428,6 +429,16 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
     const kind = fileKindOf(file.mime_type || file.name);
     const url = api.fileURL(file.id);
     const thumbnail = api.fileURL(file.id, true);
+    const voice = post.props?.voice as {fileId?: string; durationMs?: number; levels?: number[]} | undefined;
+
+    // The server re-detects our webm recordings as video/webm, so anything that is audio, was
+    // recorded by us (voice-message-* name) or is referenced from post.props.voice keeps the
+    // voice player no matter what the stored mime type says.
+    if (kind === 'audio' || isVoiceFileName(file.name) || (voice && voice.fileId === file.id)) {
+        // Audio attachments render as a Telegram-style voice player (waveform + duration) driven
+        // by the recorded metadata in post.props.voice, with the file itself as the audio source.
+        return <VoiceMessage file={file} voice={voice}/>;
+    }
 
     if (kind === 'image') {
         return (
@@ -443,11 +454,6 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
                 <video src={url} controls preload="metadata"/>
             </div>
         );
-    }
-    if (kind === 'audio') {
-        // Audio attachments render as a Telegram-style voice player (waveform + duration) driven
-        // by the recorded metadata in post.props.voice, with the file itself as the audio source.
-        return <VoiceMessage file={file} voice={post.props?.voice}/>;
     }
     return (
         <a className="tgw-attachment-file" href={`${url}?download=1`} target="_blank" rel="noopener noreferrer">

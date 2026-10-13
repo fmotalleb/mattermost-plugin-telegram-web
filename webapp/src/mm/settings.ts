@@ -22,7 +22,6 @@ export interface PluginSettings {
     accent: AccentName;
     showPreviews: boolean;
     compactMode: boolean;
-    syncRoute: boolean;
     animations: boolean;
     folderTabs: boolean;
 }
@@ -33,7 +32,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     accent: 'blue',
     showPreviews: true,
     compactMode: false,
-    syncRoute: false,
     animations: true,
     folderTabs: true,
 };

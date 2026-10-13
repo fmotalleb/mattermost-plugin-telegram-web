@@ -118,7 +118,7 @@ function placeholderFor(summary: ChatSummary): string {
     if (summary.type === 'G') {
         return `${summary.memberCount} members`;
     }
-    return summary.subtitle || 'Channel';
+    return summary.subtitle || 'Group';
 }
 
 export interface ChatListProps {

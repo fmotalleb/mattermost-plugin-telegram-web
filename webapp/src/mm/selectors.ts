@@ -355,9 +355,9 @@ export function getCategory(state: MMState, categoryId: string): MMChannelCatego
 
 const CATEGORY_LABELS: Record<string, string> = {
     favorites: 'Favorites',
-    channels: 'Channels',
+    channels: 'Groups',
     direct_messages: 'Chats',
-    managed: 'Channels',
+    managed: 'Groups',
     custom: '',
 };
 

@@ -45,13 +45,14 @@ const root = ReactDOMClient.createRoot(container);
 root.render(React.createElement(TelegramUI));
 
 (async () => {
-    await tick(80);
+    // Wait for the first paint: cold-start module loading can outlast a fixed tick.
+    await waitFor(() => document.body.innerHTML.includes('Alice Anderson'));
 
     const body = document.body.innerHTML;
     console.log('\n== render ==');
     ok(body.includes('tgw-root'), 'root overlay rendered');
     ok(body.includes('Alice Anderson'), 'DM chat row shows the peer name');
-    ok(body.includes('Town Square'), 'public channel listed');
+    ok(body.includes('Town Square'), 'public group listed');
     ok(body.includes('Work stuff'), 'custom Mattermost category exposed as a folder');
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
 
@@ -221,6 +222,7 @@ root.render(React.createElement(TelegramUI));
             }
             await waitFor(() => document.querySelectorAll('.tgw-voice').length >= 2);
             ok(document.querySelectorAll('.tgw-voice').length >= 2, 'sent voice message renders in the chat');
+            ok(!document.querySelector('.tgw-attachment-video'), 'server-classified video/webm voice take still uses the voice player, not the video player');
             ok(!document.querySelector('.tgw-voice-recording'), 'composer returns to normal after the voice message was sent');
         }
     }
@@ -233,6 +235,17 @@ root.render(React.createElement(TelegramUI));
         await tick(60);
         ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square', 'clicking a chat opens it');
         ok(calls.some((call) => call.includes('/channels/channel-town/posts')), 'posts of the opened chat requested');
+        ok(dom.window.__historyPushes.includes('/demo/channels/town-square'), 'opening a chat pushes its Mattermost URL');
+
+        // Info panel members must come from the REST list, not the sparse host Redux copy.
+        document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-members'));
+        const memberNames = Array.from(document.querySelectorAll('.tgw-member-name')).map((node) => node.textContent);
+        ok(memberNames.includes('Nina Novak'), 'member list shows people the host store never loaded');
+        ok(memberNames.length === 3, `member list renders every member (${memberNames.length})`);
+        ok(document.body.innerHTML.includes('3 members'), 'member count label matches the list');
+        document.querySelector('.tgw-info-header .tgw-icon-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(30);
     }
 
     const textarea = document.querySelector('.tgw-composer textarea');
@@ -298,6 +311,18 @@ root.render(React.createElement(TelegramUI));
     ok(!!rootEl && rootEl.classList.contains('tgw-accent-violet'), 'accent setting is applied to the root element');
     ok(!!rootEl && rootEl.classList.contains('tgw-compact'), 'compact mode is applied to the root element');
     ok(!!rootEl && rootEl.classList.contains('tgw-theme-dark'), 'theme setting is applied to the root element');
+
+    console.log('\n== url sync ==');
+    // Leave search mode first so the normal chat list is back.
+    document.querySelector('.tgw-search-clear')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await tick(30);
+    const dmRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
+    ok(!!dmRow, 'dm row found for the url sync check');
+    if (dmRow) {
+        dmRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson');
+        ok(dom.window.__historyPushes.includes('/demo/messages/@alice'), 'switching chats pushes the new URL');
+    }
 
     console.log('\n== api calls observed ==');
     calls.slice(0, 12).forEach((call) => console.log(`  ${call}`));

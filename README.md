@@ -9,7 +9,7 @@ server component is installed, and a single button switches back to the stock UI
 ┌──────────────────────────────────┬─────────────────────────────────────────────────────────┐
 │ ☰  Search                  ✎     │  Alice Anderson            ⌕  ⋯  ⓘ                      │
 ├──────────────────────────────────┴─────────────────────────────────────────────────────────┤
-│ [ All ] [ Unread ] [ Channels ] [ Work stuff ] [ Contacts ]                                │
+│ [ All ] [ Unread ] [ Groups ] [ Work stuff ] [ Contacts ]                                │
 ├────────────────────────────────────────────────────────────────────────────────────────────┤
 │  (A) Alice Anderson         10:16 │  ┌────────────────────────────────────────┐            │
 │      Doing great, thanks 😄   (2) │  │ Hey! How are you?                      │            │

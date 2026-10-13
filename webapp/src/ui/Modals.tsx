@@ -161,10 +161,6 @@ export function SettingsModal() {
                         <input type="checkbox" checked={settings.folderTabs} onChange={(event) => updateSettings({folderTabs: event.target.checked})}/>
                         <span>Show folders (Mattermost categories)</span>
                     </label>
-                    <label className="tgw-field tgw-field-check">
-                        <input type="checkbox" checked={settings.syncRoute} onChange={(event) => updateSettings({syncRoute: event.target.checked})}/>
-                        <span>Sync the browser URL with the open chat (also keeps Mattermost state in sync)</span>
-                    </label>
                 </div>
 
                 <div className="tgw-settings-section">
@@ -299,7 +295,7 @@ export function NewChannelModal() {
 
     const create = async () => {
         if (!name.trim()) {
-            actions.toast('A channel name is required', 'error');
+            actions.toast('A group name is required', 'error');
             return;
         }
         setBusy(true);
@@ -317,19 +313,19 @@ export function NewChannelModal() {
             actions.closeModal();
             actions.openChat(channel.id);
         } catch (error: any) {
-            actions.toast(error?.message || 'Could not create the channel', 'error');
+            actions.toast(error?.message || 'Could not create the group', 'error');
         }
         setBusy(false);
     };
 
     return (
         <ModalShell
-            title="New channel"
+            title="New group"
             onClose={actions.closeModal}
-            footer={<button type="button" className="tgw-button" disabled={busy || !name.trim()} onClick={create}>Create channel</button>}
+            footer={<button type="button" className="tgw-button" disabled={busy || !name.trim()} onClick={create}>Create group</button>}
         >
-            <input className="tgw-input" value={displayNameValue} placeholder="Channel display name" onChange={(event) => setDisplayNameValue(event.target.value)}/>
-            <input className="tgw-input" value={name} placeholder="channel-name (lowercase, no spaces)" onChange={(event) => setName(event.target.value)}/>
+            <input className="tgw-input" value={displayNameValue} placeholder="Group display name" onChange={(event) => setDisplayNameValue(event.target.value)}/>
+            <input className="tgw-input" value={name} placeholder="group-name (lowercase, no spaces)" onChange={(event) => setName(event.target.value)}/>
             <textarea className="tgw-input" rows={2} value={purpose} placeholder="Purpose (optional)" onChange={(event) => setPurpose(event.target.value)}/>
             <div className="tgw-segmented tgw-segmented-full">
                 <button type="button" className={!isPrivate ? 'active' : ''} onClick={() => setIsPrivate(false)}>Public</button>
@@ -343,8 +339,29 @@ export function NewChannelModal() {
 export function AddMembersModal({payload}: {payload?: {channelId: string}}) {
     const {actions, me} = useTg();
     const [selected, setSelected] = useState<string[]>([]);
-    const members = useSelector((state) => Object.keys(state.entities?.channels?.membersInChannel?.[payload?.channelId || ''] || {}));
+    const storeMembers = useSelector((state) => Object.keys(state.entities?.channels?.membersInChannel?.[payload?.channelId || ''] || {}));
+    const [restMembers, setRestMembers] = useState<string[]>([]);
     const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        if (!payload?.channelId) {
+            return undefined;
+        }
+        let cancelled = false;
+        api.getChannelMembers(payload.channelId, 0, 200)
+            .then((members) => {
+                if (!cancelled && Array.isArray(members)) {
+                    setRestMembers(members.map((member: {user_id?: string}) => member.user_id).filter(Boolean));
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [payload?.channelId]);
+
+    // The store copy is often sparse (only whoever the host webapp loaded), so merge in the REST list.
+    const members = Array.from(new Set([...storeMembers, ...restMembers]));
 
     const add = async () => {
         if (!payload?.channelId || !selected.length) {
@@ -393,16 +410,16 @@ export function ChannelInfoModal({payload}: {payload?: {channelId: string}}) {
         try {
             await api.updateChannel(payload.channelId, {display_name: displayNameValue, purpose, header});
             actions.closeModal();
-            actions.toast('Channel updated', 'success');
+            actions.toast('Group updated', 'success');
         } catch (error: any) {
-            actions.toast(error?.message || 'Could not update the channel', 'error');
+            actions.toast(error?.message || 'Could not update the group', 'error');
         }
         setBusy(false);
     };
 
     return (
         <ModalShell
-            title="Channel details"
+            title="Group details"
             onClose={actions.closeModal}
             footer={<button type="button" className="tgw-button" disabled={busy} onClick={save}>Save</button>}
         >

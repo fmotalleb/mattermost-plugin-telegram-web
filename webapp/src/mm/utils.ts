@@ -230,13 +230,21 @@ export function fileKindOf(nameOrMime = ''): FileKind {
     return 'file';
 }
 
+/**
+ * True for files our recorder produced. The Mattermost server re-detects the webm container of
+ * voice takes as video/webm, so the name (and post.props.voice) is the only reliable signal.
+ */
+export function isVoiceFileName(name = ''): boolean {
+    return name.toLowerCase().startsWith('voice-message');
+}
+
 /** Short stand-in text for a post that carries attachments but little or no message. */
 export function attachmentSummary(files?: MMFileInfo[] | null): string {
     if (!files?.length) {
         return '';
     }
     const kinds = files.map((file) => fileKindOf(file.mime_type || file.name));
-    if (kinds.includes('audio')) {
+    if (kinds.includes('audio') || files.some((file) => isVoiceFileName(file.name))) {
         return '🎤 Voice message';
     }
     if (kinds.includes('image') && files.length === 1) {

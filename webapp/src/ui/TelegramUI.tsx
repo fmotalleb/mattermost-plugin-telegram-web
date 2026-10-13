@@ -110,18 +110,21 @@ export function TelegramUI() {
         setTimeout(() => setToasts((current) => current.filter((entry) => entry.id !== id)), 4000);
     }, []);
 
+    // Push the Mattermost route for the open chat so reloads, deep links, notifications and the
+    // back button all agree with what the overlay is showing.
     const syncRoute = useCallback((target?: MMChannel) => {
-        if (!getSettings().syncRoute || !target) {
+        if (!target) {
             return;
         }
         try {
             const webapp = (window as any).WebappUtils;
-            const history = webapp?.browserHistory;
+            const history = webapp?.browserHistory || (window as any).browserHistory;
             if (!history?.push) {
                 return;
             }
             const state = getState();
-            const team = state.entities?.teams?.teams?.[target.team_id];
+            // Direct/group messages carry no team_id of their own; they live under the current team.
+            const team = state.entities?.teams?.teams?.[target.team_id] || state.entities?.teams?.teams?.[state.entities?.teams?.currentTeamId];
             const basename = (window as any).basename || '';
             let path = '';
             if (target.type === 'D') {
@@ -222,16 +225,28 @@ export function TelegramUI() {
     }), [openChat, setUI, toast]);
 
     // Keep the selected chat in sync with the Mattermost app (notification clicks, deep links).
+    const hostSyncPrimed = useRef(false);
     useEffect(() => {
         if (!mmCurrentChannelId) {
             return;
+        }
+        if (!hostSyncPrimed.current) {
+            hostSyncPrimed.current = true;
+            // The first host channel is whatever the host webapp had open before the overlay
+            // loaded — it must not stomp the chat restored from the previous session. Later
+            // host-side navigations (notifications, deep links, URL edits) still follow.
+            if (ui.selectedChannelId && ui.selectedChannelId !== mmCurrentChannelId) {
+                return;
+            }
         }
         const state = getState();
         const isMember = !!state.entities?.channels?.myMembers?.[mmCurrentChannelId];
         if (!isMember) {
             return;
         }
+        writeLocal('tgw.lastChannel', mmCurrentChannelId);
         setUIState((current) => (current.selectedChannelId === mmCurrentChannelId ? current : {...current, selectedChannelId: mmCurrentChannelId}));
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to host channel changes; the mount-time selection is read on the first run
     }, [mmCurrentChannelId]);
 
     // Pick a sensible chat on first paint.

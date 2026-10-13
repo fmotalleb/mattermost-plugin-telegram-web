@@ -194,7 +194,7 @@ export function Sidebar() {
         const position = menuPositionFromElement(menuButtonRef.current);
         const items: MenuEntry[] = [
             {key: 'new-group', label: 'New Group', icon: <IconNewChat size={18}/>, onClick: () => actions.openModal('newGroup')},
-            {key: 'new-channel', label: 'New Channel', icon: <IconUsersIcon/>, onClick: () => actions.openModal('newChannel')},
+            {key: 'new-channel', label: 'New Group', icon: <IconUsersIcon/>, onClick: () => actions.openModal('newChannel')},
             {key: 'contacts', label: 'Contacts', onClick: () => actions.setTab('__contacts')},
             'separator',
         ];
@@ -222,7 +222,7 @@ export function Sidebar() {
             items: [
                 {key: 'chat', label: 'New Message', onClick: () => actions.openModal('newContact')},
                 {key: 'group', label: 'New Group', onClick: () => actions.openModal('newGroup')},
-                {key: 'channel', label: 'New Channel', onClick: () => actions.openModal('newChannel')},
+                {key: 'channel', label: 'New Group', onClick: () => actions.openModal('newChannel')},
             ],
         });
     };
@@ -304,7 +304,7 @@ export function Sidebar() {
             'separator',
             {
                 key: 'leave',
-                label: summary.type === 'D' ? 'Close conversation' : 'Leave channel',
+                label: summary.type === 'D' ? 'Close conversation' : 'Leave group',
                 danger: true,
                 onClick: () => {
                     actions.askConfirm({

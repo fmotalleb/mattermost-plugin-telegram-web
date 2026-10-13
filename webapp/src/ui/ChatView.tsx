@@ -165,7 +165,7 @@ export function ChatView() {
         }
         const position = menuPositionFromElement(headerMoreRef.current, 'right');
         const items: MenuEntry[] = [
-            {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Channel info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true})},
+            {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Group info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true})},
             {key: 'search', label: 'Search in chat', icon: <IconSearch size={18}/>, onClick: () => setSearchOpen(true)},
             {
                 key: 'favorite',
@@ -201,18 +201,18 @@ export function ChatView() {
             'separator',
             {
                 key: 'permalink',
-                label: 'Copy channel link',
+                label: 'Copy group link',
                 icon: <IconLink size={16}/>,
                 onClick: () => {
                     const basename = (window as any).basename || '';
                     const path = channel.type === 'D' || channel.type === 'G' ? `messages/${channel.name}` : `channels/${channel.name}`;
                     const url = `${window.location.origin}${basename}/${teamName ? `${teamName}/` : ''}${path}`;
-                    copyToClipboard(url).then(() => actions.toast('Channel link copied', 'success'));
+                    copyToClipboard(url).then(() => actions.toast('Group link copied', 'success'));
                 },
             },
             {
                 key: 'leave',
-                label: channel.type === 'D' ? 'Close conversation' : 'Leave channel',
+                label: channel.type === 'D' ? 'Close conversation' : 'Leave group',
                 danger: true,
                 onClick: () => {
                     actions.askConfirm({
@@ -232,7 +232,7 @@ export function ChatView() {
             <section className="tgw-chat tgw-chat-empty">
                 <div className="tgw-empty-chat">
                     <div className="tgw-empty-chat-title">Select a chat to start messaging</div>
-                    <div className="tgw-empty-chat-body">Your Mattermost channels, direct messages, groups and custom folders are all here.</div>
+                    <div className="tgw-empty-chat-body">Your Mattermost groups, direct messages and custom folders are all here.</div>
                 </div>
             </section>
         );

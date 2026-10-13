@@ -18,6 +18,7 @@ export function InfoPanel() {
     const peers = useSelector((state) => (channel && channel.type === 'D' ? getPeersOfDirectChannel(state, channel) : []));
     const storeMembers = useSelector((state) => (channel ? state.entities?.channels?.membersInChannel?.[channel.id] : undefined));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
+    const [memberIds, setMemberIds] = useState<string[]>([]);
     const [fetchedProfiles, setFetchedProfiles] = useState<Record<string, MMUser>>({});
     const [memberMenu, setMemberMenu] = useState<{x: number; y: number; items: MenuEntry[]} | null>(null);
     const channelMemberCount = useSelector((state) => (channel ? getMemberCount(state, channel.id) : 0));
@@ -27,37 +28,56 @@ export function InfoPanel() {
             return undefined;
         }
         let cancelled = false;
-        api.getChannelMembers(channel.id, 0, 100)
-            .then(async (members) => {
-                const ids: string[] = (members || []).map((member: any) => member.user_id).filter((id: string) => !profiles[id]);
-                if (!ids.length) {
+        (async () => {
+            setMemberIds([]);
+            setFetchedProfiles({});
+            try {
+                // The Redux store only knows about members the host webapp happened to load
+                // (often just yourself), so the REST list is the source of truth here.
+                const ids: string[] = [];
+                for (let page = 0; page < 5; page++) {
+                    const members = await api.getChannelMembers(channel.id, page, 200);
+                    if (!Array.isArray(members) || !members.length) {
+                        break;
+                    }
+                    ids.push(...members.map((member: {user_id?: string}) => member.user_id).filter(Boolean));
+                    if (members.length < 200) {
+                        break;
+                    }
+                }
+                if (cancelled || !ids.length) {
                     return;
                 }
-                const users = await api.getUsersByIds(ids);
-                if (cancelled || !users) {
-                    return;
-                }
+                setMemberIds(Array.from(new Set(ids)));
+
+                // Profiles in the Redux cache may be missing people, so fetch all of them.
                 const map: Record<string, MMUser> = {};
-                users.forEach((user) => {
-                    map[user.id] = user;
-                });
-                setFetchedProfiles((current) => ({...current, ...map}));
-            })
-            .catch(() => undefined);
+                for (let index = 0; index < ids.length; index += 100) {
+                    const users = await api.getUsersByIds(ids.slice(index, index + 100));
+                    if (cancelled || !users) {
+                        return;
+                    }
+                    users.forEach((user) => {
+                        map[user.id] = user;
+                    });
+                }
+                setFetchedProfiles(map);
+            } catch {
+                // Fall back to whatever the host app already has in its store (see members memo).
+            }
+        })();
         return () => {
             cancelled = true;
         };
     }, [channel?.id]);
 
     const members = useMemo(() => {
-        const ids = Object.keys(storeMembers || {});
-        const extra = Object.keys(fetchedProfiles);
-        const all = Array.from(new Set([...ids, ...extra]));
-        return all
+        const ids = memberIds.length ? memberIds : Object.keys(storeMembers || {});
+        return Array.from(new Set(ids))
             .map((id) => ({id, user: fetchedProfiles[id] || profiles?.[id]}))
             .filter((entry) => !!entry.user && entry.user.delete_at === 0)
             .sort((a, b) => displayName(a.user).localeCompare(displayName(b.user)));
-    }, [storeMembers, fetchedProfiles, profiles]);
+    }, [memberIds, storeMembers, fetchedProfiles, profiles]);
 
     if (!channel || !summary) {
         return null;
@@ -95,7 +115,7 @@ export function InfoPanel() {
         if (!isDirect) {
             items.push({
                 key: 'promote',
-                label: 'Remove from channel',
+                label: 'Remove from group',
                 danger: true,
                 onClick: () => actions.askConfirm({
                     title: `Remove ${displayName(user)} from ${summary.title}?`,
@@ -113,7 +133,7 @@ export function InfoPanel() {
     return (
         <aside className="tgw-info-panel">
             <header className="tgw-info-header">
-                <span className="tgw-info-title">{isDirect ? 'Contact info' : isChannel ? 'Channel info' : 'Group info'}</span>
+                <span className="tgw-info-title">{isDirect ? 'Contact info' : 'Group info'}</span>
                 <button type="button" className="tgw-icon-button" onClick={() => actions.setUI({infoOpen: false})} title="Close">
                     <IconClose size={20}/>
                 </button>
@@ -132,7 +152,7 @@ export function InfoPanel() {
                 <div className="tgw-info-sub">
                     {isDirect
                         ? statusLabel(summary.status, 0, timeFormat)
-                        : memberCountLabel(memberCount) || 'channel'}
+                        : memberCountLabel(memberCount) || 'group'}
                 </div>
             </div>
 
@@ -156,7 +176,7 @@ export function InfoPanel() {
                     </button>
                 )}
                 {isChannel && (
-                    <button type="button" className="tgw-info-action" onClick={() => actions.openModal('channelInfo', {channelId: channel.id})} title="Edit channel">
+                    <button type="button" className="tgw-info-action" onClick={() => actions.openModal('channelInfo', {channelId: channel.id})} title="Edit group">
                         <IconEdit size={22}/>
                         <span>Edit</span>
                     </button>
@@ -213,7 +233,7 @@ export function InfoPanel() {
 
             {!isDirect && members.length > 0 && (
                 <div className="tgw-info-block">
-                    <div className="tgw-info-block-title">{members.length} members</div>
+                    <div className="tgw-info-block-title">{memberCountLabel(Math.max(memberCount, members.length))}</div>
                     <div className="tgw-members">
                         {members.map(({id, user}) => (
                             <button type="button" className="tgw-member" key={id} onContextMenu={(event) => openMemberMenu(event, user)} onClick={() => actions.openModal('newContact', {userId: id})}>

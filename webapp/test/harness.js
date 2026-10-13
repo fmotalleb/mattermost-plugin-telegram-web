@@ -40,6 +40,15 @@ dom.window.requestAnimationFrame = global.requestAnimationFrame;
 dom.window.cancelAnimationFrame = global.cancelAnimationFrame;
 global.IS_REACT_ACT_ENVIRONMENT = true;
 window.basename = '';
+// WebappUtils with a recording history so the plugin's route syncing is observable in tests.
+window.__historyPushes = [];
+window.WebappUtils = {
+    browserHistory: {
+        push: (path) => {
+            window.__historyPushes.push(path);
+        },
+    },
+};
 
 // --------------------------------------------------------------------------- media mocks
 // jsdom has no media stack; the voice recorder (getUserMedia + MediaRecorder + AudioContext)
@@ -121,6 +130,7 @@ const ReactDOMClient = require('react-dom/client');
 // --------------------------------------------------------------------------- fetch stub
 const ME = 'user-me';
 const OTHER = 'user-other';
+const THIRD = 'user-third';
 const TEAM = 'team-1';
 const DM = 'channel-dm';
 const TOWN = 'channel-town';
@@ -128,6 +138,8 @@ const TOWN = 'channel-town';
 const users = {
     [ME]: {id: ME, username: 'me', first_name: 'Mia', last_name: 'Meyer', delete_at: 0},
     [OTHER]: {id: OTHER, username: 'alice', first_name: 'Alice', last_name: 'Anderson', delete_at: 0, last_picture_update: 42},
+    // Present in the REST member list of Town Square but not in the (sparse) Redux copy.
+    [THIRD]: {id: THIRD, username: 'nina', first_name: 'Nina', last_name: 'Novak', delete_at: 0},
 };
 
 const channels = {
@@ -152,7 +164,7 @@ const posts = {
         props: {voice: {fileId: 'file-voice', durationMs: 7000, levels: [0.2, 0.55, 0.9, 0.4, 0.75, 1, 0.6, 0.3, 0.45, 0.8, 0.35, 0.65]}},
         metadata: {
             files: [
-                {id: 'file-voice', name: 'voice-message.ogg', mime_type: 'audio/ogg', extension: 'ogg', size: 18432, user_id: OTHER, create_at: 1_700_000_700_000, update_at: 1_700_000_700_000, delete_at: 0},
+                {id: 'file-voice', name: 'voice-message-2023-11-15.webm', mime_type: 'video/webm', extension: 'webm', size: 18432, user_id: OTHER, create_at: 1_700_000_700_000, update_at: 1_700_000_700_000, delete_at: 0},
             ],
         },
     },
@@ -187,6 +199,10 @@ global.fetch = async (url, options = {}) => {
         const form = options.body;
         const file = form && typeof form.get === 'function' ? form.get('files') : null;
         const name = (file && file.name) || 'upload.bin';
+        const declared = (file && file.type) || 'application/octet-stream';
+        // The Mattermost server sniffs the container, so our audio/webm voice takes come back
+        // as video/webm — the UI must still recognise them as voice messages.
+        const mime = declared === 'audio/webm' ? 'video/webm' : declared;
         return json({
             file_infos: [{
                 id: `file-up-${calls.length}`,
@@ -198,7 +214,7 @@ global.fetch = async (url, options = {}) => {
                 delete_at: 0,
                 name,
                 extension: name.includes('.') ? name.split('.').pop() : '',
-                mime_type: (file && file.type) || 'application/octet-stream',
+                mime_type: mime,
                 size: (file && file.size) || 0,
                 client_id: form && typeof form.get === 'function' ? form.get('client_ids') : '',
             }],
@@ -209,6 +225,26 @@ global.fetch = async (url, options = {}) => {
         return json(users[ME]);
     }
     if (p === '/users/me/preferences') {
+        return json([]);
+    }
+    if (p === '/users/ids' && options.method === 'POST') {
+        const ids = Array.isArray(post) ? post : [];
+        return json(ids.map((id) => users[id]).filter(Boolean));
+    }
+    if (/^\/channels\/[^/]+\/members$/.test(p)) {
+        const id = p.split('/')[2];
+        if (id === TOWN) {
+            // Deliberately wider than the sparse membersInChannel copy in the store: the info
+            // panel must render the REST list, not whatever the host webapp happened to load.
+            return json([
+                {channel_id: TOWN, user_id: ME},
+                {channel_id: TOWN, user_id: OTHER},
+                {channel_id: TOWN, user_id: THIRD},
+            ]);
+        }
+        if (id === DM) {
+            return json([{channel_id: DM, user_id: ME}, {channel_id: DM, user_id: OTHER}]);
+        }
         return json([]);
     }
     if (p === `/channels/${DM}/posts`) {
@@ -275,7 +311,7 @@ const state = {
         users: {
             currentUserId: ME,
             profiles: users,
-            profilesInTeam: {[TEAM]: new Set([ME, OTHER])},
+            profilesInTeam: {[TEAM]: new Set([ME, OTHER, THIRD])},
             profilesInChannel: {},
             statuses: {[ME]: 'online', [OTHER]: 'away'},
         },
@@ -290,9 +326,11 @@ const state = {
             },
             membersInChannel: {
                 [DM]: {[ME]: {channel_id: DM, user_id: ME}, [OTHER]: {channel_id: DM, user_id: OTHER}},
-                [TOWN]: {[ME]: {channel_id: TOWN, user_id: ME}, [OTHER]: {channel_id: TOWN, user_id: OTHER}},
+                // Sparse on purpose: the host webapp only loaded the current user. The info
+                // panel must still list everyone from the REST endpoint.
+                [TOWN]: {[ME]: {channel_id: TOWN, user_id: ME}},
             },
-            stats: {[DM]: {member_count: 2}, [TOWN]: {member_count: 2}},
+            stats: {[DM]: {member_count: 2}, [TOWN]: {member_count: 3}},
             manuallyUnread: {},
         },
         channelCategories: {
