@@ -78,28 +78,44 @@ export function ensureViewStats(postIds: string[]): void {
 
 /** Record that the given post is currently visible to the user (batched + debounced). */
 export function markPostVisible(postId: string): void {
-    if (viewsDisabled || reported.has(postId) || pendingReport.has(postId)) {
+    markPostsSeen([postId]);
+}
+
+/** Record posts as seen without an on-screen check (e.g. opening the channel in the stock UI). */
+export function markPostsSeen(postIds: string[]): void {
+    if (viewsDisabled) {
         return;
     }
-    pendingReport.add(postId);
-    if (reportTimer) {
+    let queued = false;
+    postIds.forEach((id) => {
+        if (id && !reported.has(id) && !pendingReport.has(id)) {
+            pendingReport.add(id);
+            queued = true;
+        }
+    });
+    if (!queued || reportTimer) {
         return;
     }
-    reportTimer = setTimeout(() => {
-        reportTimer = null;
-        const ids = Array.from(pendingReport);
-        pendingReport.clear();
-        api.recordPostViews(ids).
-            then(() => {
-                ids.forEach((id) => reported.add(id));
-                bumpOwnViews(ids);
-            }).
-            catch((error) => {
-                if (error instanceof APIError && (error.status === 404 || error.status === 501)) {
-                    viewsDisabled = true;
-                }
-            });
-    }, 800);
+    reportTimer = setTimeout(flushReport, 800);
+}
+
+function flushReport(): void {
+    reportTimer = null;
+    const ids = Array.from(pendingReport);
+    pendingReport.clear();
+    if (ids.length === 0) {
+        return;
+    }
+    api.recordPostViews(ids).
+        then(() => {
+            ids.forEach((id) => reported.add(id));
+            bumpOwnViews(ids);
+        }).
+        catch((error) => {
+            if (error instanceof APIError && (error.status === 404 || error.status === 501)) {
+                viewsDisabled = true;
+            }
+        });
 }
 
 function bumpOwnViews(postIds: string[]): void {

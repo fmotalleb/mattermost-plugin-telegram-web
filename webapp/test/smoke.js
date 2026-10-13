@@ -12,13 +12,14 @@
 
 const {
     dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
-    store, state, posts, ids, tick, ok, fail, report,
+    store, state, posts, ids, tick, ok, fail, report, notifyStoreChange,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings, getSettings} = require('../src/mm/settings');
 const {handleSocketEvent} = require('../src/mm/socket');
+const {startStockUIViewTracking} = require('../src/mm/stock-views');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 
 setStore(store);
@@ -95,6 +96,17 @@ root.render(React.createElement(TelegramUI));
     const viewsLabel = (document.querySelector('.tgw-msg-views')?.textContent || '').trim();
     ok(/[1-9]/.test(viewsLabel), `view count rendered next to the message (${viewsLabel})`);
     ok(document.querySelector('.tgw-msg-views svg'), 'view count shows the eye icon');
+    const p3row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p3');
+    const p3views = (p3row?.querySelector('.tgw-msg-views')?.textContent || '').trim();
+    ok(p3views === '2', `own view is excluded from the count (p3 shows ${p3views || 'nothing'})`);
+    // Checkmark receipts: p2 (mine) was seen by another user, so it must show two checks;
+    // a fresh outgoing post nobody else saw keeps a single check (asserted in the reply section).
+    await waitFor(() => {
+        const p2 = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
+        return p2?.querySelector('.tgw-msg-status svg path[d^="M19.6"]');
+    });
+    const p2row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
+    ok(!!p2row?.querySelector('.tgw-msg-status svg path[d^="M19.6"]'), 'message seen by someone else shows two checkmarks');
     await waitFor(() => calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 3000);
     ok(calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 'visible posts reported as seen to the plugin API');
     ok(calls.some((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')), 'view counts fetched from the plugin API');
@@ -117,6 +129,8 @@ root.render(React.createElement(TelegramUI));
             const replyPayload = payloads.find((entry) => entry.path === '/posts' && entry.body && entry.body.root_id);
             ok(!!replyPayload && !String(replyPayload.body.root_id).startsWith('pending-'), `reply was posted with the real root_id (got: ${JSON.stringify((payloads.filter((entry) => entry.path === '/posts').pop() || {}).body)})`);
             ok(!!document.querySelector('.tgw-msg-reply-preview'), 'sent reply renders with the reply preview');
+            const replyRow = Array.from(document.querySelectorAll('.tgw-msg-out')).pop();
+            ok(!!replyRow?.querySelector('.tgw-msg-status svg path[d^="M9.6"]'), 'reply nobody else saw shows a single checkmark');
             ok(document.body.innerHTML.includes('this is a threaded reply'), 'threaded reply message rendered');
             ok(!document.querySelector('.tgw-reply-bar'), 'reply bar closes after the reply was sent');
         } else {
@@ -334,6 +348,17 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson');
         ok(dom.window.__historyPushes.includes('/demo/messages/@alice'), 'switching chats pushes the new URL');
     }
+
+    console.log('\n== stock UI view tracking ==');
+    // A user on the stock Mattermost UI never scrolls our message list: opening a channel there
+    // must still report its recent posts as seen through the plugin API. Turn the overlay off
+    // and poke the host store the way a channel switch in the stock sidebar would.
+    updateSettings({mode: 'off'});
+    const stockCallsBefore = calls.length;
+    startStockUIViewTracking();
+    notifyStoreChange();
+    await waitFor(() => calls.slice(stockCallsBefore).some((call) => call === `GET /channels/${ids.DM}/posts`), 3000);
+    ok(calls.slice(stockCallsBefore).some((call) => call === `GET /channels/${ids.DM}/posts`), 'opening a channel in the stock UI fetches its recent posts');
 
     console.log('\n== api calls observed ==');
     calls.slice(0, 12).forEach((call) => console.log(`  ${call}`));

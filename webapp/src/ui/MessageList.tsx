@@ -279,6 +279,9 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     const myId = me?.id || '';
     const mentionKeys = useMemo(() => buildMentionKeys(me), [me]);
     const views = usePostViews(post.id);
+    // Views by other people only: my own view never counts towards the tally or the read
+    // receipt (Telegram counts "somebody else looked at it", not "I am looking at it").
+    const otherViewCount = views ? Math.max(0, views.count - (views.seen ? 1 : 0)) : 0;
     const rowRef = useRef<HTMLDivElement | null>(null);
 
     // View tracking: fetch the stored counts and report this post as seen once it is actually
@@ -358,15 +361,15 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
                     <span className="tgw-msg-time">{formatTime(post.create_at, timeFormat)}</span>
-                    {views && views.count > 0 && (
-                        <span className="tgw-msg-views" title="Views">
+                    {otherViewCount > 0 && (
+                        <span className="tgw-msg-views" title="Views by others">
                             <IconEye size={14}/>
-                            {views.count}
+                            {otherViewCount}
                         </span>
                     )}
                     {meta.isOutgoing && (
                         <span className="tgw-msg-status">
-                            {post._failed ? <IconWarning size={14}/> : post._pending ? <IconClock size={14}/> : reactions.length ? <IconCheckDouble size={16}/> : <IconCheck size={16}/>}
+                            {post._failed ? <IconWarning size={14}/> : post._pending ? <IconClock size={14}/> : otherViewCount > 0 ? <IconCheckDouble size={16}/> : <IconCheck size={16}/>}
                         </span>
                     )}
                 </div>

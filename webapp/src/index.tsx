@@ -10,6 +10,7 @@ import {api} from './mm/api';
 import {clearCache} from './mm/posts';
 import {handleSocketEvent} from './mm/socket';
 import {setStore} from './mm/store';
+import {startStockUIViewTracking} from './mm/stock-views';
 import {TelegramUI} from './ui/TelegramUI';
 import './styles.css';
 
@@ -84,6 +85,9 @@ class TelegramWebPlugin {
         // Warm up the session so the first REST call is authenticated through the session cookie
         // and the CSRF token is available for writes.
         api.getMe().catch(() => undefined);
+
+        // Reads in the stock Mattermost UI still count as views for the plugin's tallies.
+        startStockUIViewTracking();
     }
 
     toggle() {

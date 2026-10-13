@@ -177,6 +177,7 @@ const payloads = [];
 const viewTracking = new Map([
     ['p3', new Set([OTHER, THIRD])],
     ['p1', new Set([OTHER])],
+    ['p2', new Set([OTHER])], // an outgoing post someone else already saw: two checkmarks
 ]);
 global.fetch = async (url, options = {}) => {
     const parsed = new URL(url, 'https://mattermost.example.com');
