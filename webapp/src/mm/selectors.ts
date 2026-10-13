@@ -376,9 +376,12 @@ export function getTabs(state: MMState): ChatTab[] {
             if (!hasChannels && category.type !== 'custom') {
                 return;
             }
+            // The server calls the built-in category "Channels"; this UI works with groups, so
+            // relabel it. Custom categories keep the user's own name.
+            const isBuiltInChannels = category.type === 'channels' || category.type === 'managed';
             tabs.push({
                 id: category.id,
-                label: category.display_name || CATEGORY_LABELS[category.type] || 'Folder',
+                label: isBuiltInChannels ? 'Groups' : (category.display_name || CATEGORY_LABELS[category.type] || 'Folder'),
                 kind: 'category',
                 type: category.type,
                 sortOrder: 10 + index,
