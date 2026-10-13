@@ -88,6 +88,17 @@ root.render(React.createElement(TelegramUI));
         ok(document.querySelector('.tgw-reaction')?.textContent.includes('1'), 'reaction count drops back without a reload');
     }
 
+    console.log('\n== view counts ==');
+    // The plugin server component seeds two viewers on the deploy post; the UI must render the
+    // tally and report the visible posts back through POST /plugins/.../api/v1/views.
+    await waitFor(() => document.querySelector('.tgw-msg-views'));
+    const viewsLabel = (document.querySelector('.tgw-msg-views')?.textContent || '').trim();
+    ok(/[1-9]/.test(viewsLabel), `view count rendered next to the message (${viewsLabel})`);
+    ok(document.querySelector('.tgw-msg-views svg'), 'view count shows the eye icon');
+    await waitFor(() => calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 3000);
+    ok(calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 'visible posts reported as seen to the plugin API');
+    ok(calls.some((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')), 'view counts fetched from the plugin API');
+
     console.log('\n== reply ==');
     const replyButton = Array.from(document.querySelectorAll('.tgw-msg-toolbar button[title="Reply"]'))[0];
     ok(!!replyButton, 'reply action available on a message');

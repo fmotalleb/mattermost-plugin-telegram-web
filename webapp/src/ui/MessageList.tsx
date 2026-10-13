@@ -7,6 +7,7 @@ import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm
 import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
+import {ensureViewStats, markPostVisible, usePostViews} from '../mm/views';
 import {
     attachmentSummary,
     colorForKey,
@@ -24,7 +25,7 @@ import {
 import {useTg} from './context';
 import type {ContextTarget} from './context';
 import {MessageBody} from './render';
-import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
+import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconEye, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -277,6 +278,30 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     const files = filesOfPost(post);
     const myId = me?.id || '';
     const mentionKeys = useMemo(() => buildMentionKeys(me), [me]);
+    const views = usePostViews(post.id);
+    const rowRef = useRef<HTMLDivElement | null>(null);
+
+    // View tracking: fetch the stored counts and report this post as seen once it is actually
+    // on screen. jsdom (tests) has no IntersectionObserver — mounted counts as visible there.
+    useEffect(() => {
+        if (isSystem) {
+            return undefined;
+        }
+        ensureViewStats([post.id]);
+        const element = rowRef.current;
+        if (!element || typeof IntersectionObserver === 'undefined') {
+            markPostVisible(post.id);
+            return undefined;
+        }
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+                markPostVisible(post.id);
+                observer.disconnect();
+            }
+        }, {threshold: 0.6});
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, [post.id, isSystem]);
 
     if (isSystem) {
         return (
@@ -290,6 +315,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
 
     return (
         <div
+            ref={rowRef}
             className={`tgw-msg-row ${meta.isOutgoing ? 'tgw-msg-out' : 'tgw-msg-in'} ${highlighted ? 'tgw-post-highlight' : ''}`}
             data-post-id={post.id}
             onContextMenu={(event) => onContextMenu(event, post)}
@@ -332,6 +358,12 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
                     <span className="tgw-msg-time">{formatTime(post.create_at, timeFormat)}</span>
+                    {views && views.count > 0 && (
+                        <span className="tgw-msg-views" title="Views">
+                            <IconEye size={14}/>
+                            {views.count}
+                        </span>
+                    )}
                     {meta.isOutgoing && (
                         <span className="tgw-msg-status">
                             {post._failed ? <IconWarning size={14}/> : post._pending ? <IconClock size={14}/> : reactions.length ? <IconCheckDouble size={16}/> : <IconCheck size={16}/>}

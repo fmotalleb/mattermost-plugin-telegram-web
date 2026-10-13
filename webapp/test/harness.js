@@ -173,6 +173,11 @@ const posts = {
 const calls = [];
 // Request bodies, so tests can assert what was actually sent (e.g. root_id on a reply).
 const payloads = [];
+// In-memory stand-in for the plugin server component's tg_webui_user_view_tracking table.
+const viewTracking = new Map([
+    ['p3', new Set([OTHER, THIRD])],
+    ['p1', new Set([OTHER])],
+]);
 global.fetch = async (url, options = {}) => {
     const parsed = new URL(url, 'https://mattermost.example.com');
     const p = parsed.pathname.replace('/api/v4', '');
@@ -194,6 +199,35 @@ global.fetch = async (url, options = {}) => {
         }
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
+
+    // View tracking (server component of the plugin): records who saw which post and reports
+    // counts, mirroring server/plugin.go.
+    if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/views')) {
+        if (options.method === 'POST') {
+            const ids = (post && Array.isArray(post.post_ids) ? post.post_ids : []);
+            ids.forEach((id) => {
+                if (!viewTracking.has(id)) {
+                    viewTracking.set(id, new Set());
+                }
+                viewTracking.get(id).add(ME);
+            });
+            return json({recorded: ids.length});
+        }
+        if (options.method === 'GET') {
+            const ids = (parsed.searchParams.get('post_ids') || '').split(',').filter(Boolean);
+            const counts = {};
+            const seenByMe = {};
+            ids.forEach((id) => {
+                const viewers = viewTracking.get(id);
+                if (viewers) {
+                    counts[id] = viewers.size;
+                    seenByMe[id] = viewers.has(ME);
+                }
+            });
+            return json({counts, seen: seenByMe});
+        }
+        return json({message: 'method not allowed'}, 405);
+    }
 
     if (p === '/files' && options.method === 'POST') {
         const form = options.body;

@@ -12,7 +12,7 @@ interface IconProps {
     filled?: boolean;
 }
 
-const make = (path: string, opts: {filled?: boolean; viewBox?: string} = {}) => {
+const make = (path: string, opts: {filled?: boolean; viewBox?: string; fillRule?: 'evenodd' | 'nonzero'} = {}) => {
     return function Icon({size = 24, className, filled}: IconProps) {
         const isFilled = filled === undefined ? opts.filled : filled;
         return (
@@ -22,6 +22,7 @@ const make = (path: string, opts: {filled?: boolean; viewBox?: string} = {}) => 
                 height={size}
                 viewBox={opts.viewBox || '0 0 24 24'}
                 fill={isFilled ? 'currentColor' : 'none'}
+                fillRule={opts.fillRule}
                 stroke={isFilled ? 'none' : 'currentColor'}
                 strokeWidth={isFilled ? 0 : 2}
                 strokeLinecap="round"
@@ -59,6 +60,9 @@ export const IconUsers = make('M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 0a3 3 0 1 
 export const IconTrash = make('M9 3v1H4v2h16V4h-5V3H9ZM6 7v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6Zm3 2h2v10H9V9Zm4 0h2v10h-2V9Z', {filled: true});
 export const IconEdit = make('M3 17.3V21h3.7L18.1 9.6l-3.7-3.7L3 17.3ZM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7L20.7 7Z', {filled: true});
 export const IconReply = make('M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z', {filled: true});
+
+// Telegram's view tally: a solid eye with the iris knocked out (evenodd keeps the pupil).
+export const IconEye = make('M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7Zm0 11.5A4.5 4.5 0 1 0 12 7.5a4.5 4.5 0 0 0 0 9Zm0-2a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z', {filled: true, fillRule: 'evenodd'});
 export const IconPin = make('M16 3 8 11H6l-2 2 3 3-5 5 5-5 3 3 2-2v-2l8-8-4-4Z', {filled: true});
 export const IconSettings = make('M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9.4 5.5.1-1.5-.1-1.5-2.2-.5a7 7 0 0 0-.7-1.7l1.2-1.9-2.1-2.1-1.9 1.2a7 7 0 0 0-1.7-.7L15.5 3h-2.9l-.5 2.2a7 7 0 0 0-1.7.7L8.5 4.7 6.4 6.8l1.2 1.9a7 7 0 0 0-.7 1.7L4.7 11v3l2.2.5c.2.6.4 1.2.7 1.7l-1.2 1.9 2.1 2.1 1.9-1.2c.5.3 1.1.5 1.7.7l.5 2.3h2.9l.5-2.3c.6-.2 1.2-.4 1.7-.7l1.9 1.2 2.1-2.1-1.2-1.9c.3-.5.5-1.1.7-1.7l2.2-.5Z', {filled: true});
 export const IconLink = make('M3.9 12a3 3 0 0 1 3-3h3V7h-3a5 5 0 0 0 0 10h3v-2h-3a3 3 0 0 1-3-3Zm4.1 1h8v-2H8v2Zm6-6h-3v2h3a3 3 0 0 1 0 6h-3v2h3a5 5 0 0 0 0-10Z', {filled: true});

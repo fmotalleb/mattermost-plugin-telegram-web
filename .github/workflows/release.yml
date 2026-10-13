@@ -28,6 +28,11 @@ jobs:
           cache: npm
           cache-dependency-path: webapp/package-lock.json
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
       - name: Apply the tag as the plugin version
         run: make version VERSION="${GITHUB_REF_NAME}"
 

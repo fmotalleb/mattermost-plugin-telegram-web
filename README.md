@@ -2,8 +2,9 @@
 
 Gives the Mattermost web app a Telegram Web (K) style client: a chat list with **contacts**,
 **groups** and **custom groups**, and a Telegram look for the **chat screen** — all built from the
-data and state the Mattermost web app already has. Nothing is imported from outside Mattermost, no
-server component is installed, and a single button switches back to the stock UI.
+data and state the Mattermost web app already has. Nothing is imported from outside Mattermost, a
+small optional server component only tracks Telegram-style message view counts, and a single
+button switches back to the stock UI.
 
 ```
 ┌──────────────────────────────────┬─────────────────────────────────────────────────────────┐
@@ -34,7 +35,7 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 | --- | --- |
 | Target Mattermost | **v11.11.x** (built and verified against the `mattermost/mattermost` v11 source tree); the webapp plugin API it uses is stable back to 9.5 |
 | `min_server_version` | `9.5.0` |
-| Server component | none — the plugin is webapp-only, so there is no binary per OS/arch to build |
+| Server component | small Go binary (`server/`) — records who saw which post so the web app can show Telegram-style view counts; only linux-amd64/arm64 builds ship |
 | Bundle | `webapp/dist/main.js` (a single ~190 KB minified file, CSS inlined) |
 | React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance |
 
@@ -47,11 +48,11 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 3. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0.tar.gz`.
 4. **Enable** the plugin. Reload the web app.
 
-**From source** (Node 24+ — the minimum tested version; no Go required)
+**From source** (Node 24+ and Go 1.26+ — the minimum tested versions)
 
 ```bash
-make release         # npm install + webpack build + package
-# → release/com.telegramweb.ui-1.0.0.tar.gz   (plugin.json + assets/ + webapp/dist/main.js)
+make release         # npm install + webpack build + go build (linux amd64/arm64) + package
+# → release/com.telegramweb.ui-1.0.0.tar.gz   (plugin.json + assets/ + webapp/dist/main.js + server/dist/)
 ```
 
 **Cutting a release** — push a version tag. GitHub Actions applies the tag as the version in
@@ -113,7 +114,7 @@ the data:
 ```
 plugin.json                     plugin manifest (id, settings_schema, webapp.bundle_path)
 assets/icon.svg                 plugin icon
-Makefile                        build + package (webapp-only, no Go)
+Makefile                        build + package (webapp + Go server component)
 release/                        installable tarball
 webapp/
   webpack.config.js             entry, css loaders, host-global externals
@@ -173,9 +174,10 @@ every call):
 ## Notes and limitations
 
 * The plugin is a client-side overlay: it renders only for users who have it enabled, and the stock
-  Mattermost UI stays one click away.
-* Because there is no server component, the plugin state that must survive a reload (a user's
-  settings) is stored as a Mattermost user preference rather than in plugin KV storage.
+  Mattermost UI stays one click away. The Go server component only records message view counts for
+  this plugin's own UI; the stock Mattermost UI never reads or shows that data.
+* User settings survive a reload by being stored as a Mattermost user preference rather than in
+  plugin KV storage.
 * Message rendering prefers the host's `formatText`/`messageHtmlToComponent`; if a future release
   stops exposing them, the built-in fallback renderer (markdown-lite, links, shortcodes, mentions)
   takes over instead of breaking the chat screen.

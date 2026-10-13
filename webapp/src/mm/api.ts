@@ -87,6 +87,17 @@ export class MattermostAPI {
     }
 
     async request<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+        return this.fetchJSON<T>(this.getURL(path), options);
+    }
+
+    // Calls the server component of this plugin (/plugins/<id>/...), which hosts the view
+    // tracking API. Fails with 404/501 when that component is not installed — callers treat
+    // that as "feature unavailable", not as an error.
+    async pluginRequest<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+        return this.fetchJSON<T>(`${getBasename()}/plugins/com.telegramweb.ui${path}`, options);
+    }
+
+    private async fetchJSON<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
         const method = options.method || 'GET';
         const headers: Record<string, string> = {
             'X-Requested-With': 'XMLHttpRequest',
@@ -114,7 +125,7 @@ export class MattermostAPI {
             }
         }
 
-        const response = await fetch(this.getURL(`${path}${buildQuery(options.query)}`), {
+        const response = await fetch(`${url}${buildQuery(options.query)}`, {
             method,
             headers,
             body,
@@ -402,6 +413,18 @@ export class MattermostAPI {
 
     getTeamMembersForUser(userId: string): Promise<any[]> {
         return this.request(`/users/${userId}/teams/members`);
+    }
+
+    // ---------------------------------------------------------------- view tracking (server component)
+
+    /** Records that the current user has seen the given posts (POST /plugins/.../api/v1/views). */
+    recordPostViews(postIds: string[]): Promise<{recorded: number}> {
+        return this.pluginRequest('/api/v1/views', {method: 'POST', body: {post_ids: postIds}});
+    }
+
+    /** View counts for the given posts plus whether the current user has seen each one. */
+    getPostViewStats(postIds: string[]): Promise<{counts: Record<string, number>; seen: Record<string, boolean>}> {
+        return this.pluginRequest('/api/v1/views', {query: {post_ids: postIds.join(',')}});
     }
 }
 

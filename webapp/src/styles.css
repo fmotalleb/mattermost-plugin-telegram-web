@@ -39,6 +39,7 @@
     inset: 0;
     z-index: 400;
     display: flex;
+    overflow: hidden;
     font-family: var(--tgw-font);
     font-size: 14px;
     color: var(--tgw-text);
@@ -710,6 +711,7 @@
 .tgw-messages {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 16px 4% 12px;
     display: flex;
     flex-direction: column;
@@ -1247,7 +1249,8 @@ img.tgw-reaction-emoji {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-width: 240px;
+    /* min() keeps the player from forcing the bubble wider than the message column allows. */
+    min-width: min(240px, 100%);
     max-width: 340px;
     padding: 2px 0;
 }
@@ -1286,17 +1289,22 @@ img.tgw-reaction-emoji {
 .tgw-voice-wave {
     display: flex;
     align-items: center;
+    justify-content: space-evenly;
     gap: 2px;
     height: 26px;
     cursor: pointer;
+    min-width: 0;
+    /* Bars compress to the available width; clip as a hard stop for extreme cases. */
+    overflow: hidden;
 }
 
 .tgw-voice-bar {
-    width: 3px;
-    min-width: 3px;
+    /* Growable only up to 3px: the strip always fits inside the bubble. */
+    flex: 1 1 0;
+    min-width: 2px;
+    max-width: 3px;
     border-radius: 3px;
     background: var(--tgw-voice-bar);
-    flex: 0 0 auto;
 }
 
 .tgw-voice-bar-on {
@@ -2518,10 +2526,18 @@ img.tgw-reaction-emoji {
     .tgw-shell-mobile .tgw-sidebar {
         width: 100%;
         max-width: none;
+        min-width: 0;
         border-right: none;
     }
 
     .tgw-shell-mobile .tgw-chat {
+        display: none;
+        width: 100%;
+    }
+
+    /* Touch screens have no hover: the per-message toolbar only wastes a strip of every
+       row, and on narrow phones it pushed the row wider than the screen. */
+    .tgw-shell-mobile .tgw-msg-toolbar {
         display: none;
     }
 
@@ -2673,6 +2689,21 @@ body.tgw-root-active {
 .tgw-msg-time {
     flex: 0 0 auto;
     white-space: nowrap;
+}
+
+/* Telegram-style view tally under the bubble (filled eye + count). */
+.tgw-msg-views {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--tgw-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.tgw-msg-views svg {
+    color: var(--tgw-text-tertiary);
 }
 
 .tgw-status-offline {
