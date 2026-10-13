@@ -8,6 +8,7 @@
 #   make bundle     # only build webapp/dist/main.js
 #   make test       # type check + smoke/bundle tests (needs a previous `make bundle`)
 #   make release    # package release/<id>-<version>.tar.gz
+#   make version VERSION=1.2.3   # apply a version to plugin.json + webapp/package.json
 #   make clean      # remove build output
 
 PLUGIN_ID      := $(shell node -e "process.stdout.write(require('./plugin.json').id)")
@@ -21,32 +22,36 @@ BUNDLE_PATH := $(WEBAPP_DIR)/dist/main.js
 # Files that go into the installable tarball, laid out the way a Mattermost server expects them.
 PACKAGE_FILES := plugin.json assets $(BUNDLE_PATH)
 
-.PHONY: all bundle node_modules test test-smoke test-bundle check-types lint release clean
+.PHONY: all bundle test test-smoke test-bundle check-types release version clean
 
 all: release
 
 # --------------------------------------------------------------------------- webapp bundle
 
-node_modules: $(WEBAPP_DIR)/package.json
+$(WEBAPP_DIR)/node_modules: $(WEBAPP_DIR)/package.json
 	cd $(WEBAPP_DIR) && npm install
 
-bundle: node_modules
+bundle: $(WEBAPP_DIR)/node_modules
 	cd $(WEBAPP_DIR) && npx webpack --mode=production
 
 # --------------------------------------------------------------------------- checks
 
-check-types: node_modules
+check-types: $(WEBAPP_DIR)/node_modules
 	cd $(WEBAPP_DIR) && npx tsc --noEmit
 
 test: check-types test-smoke test-bundle
 
-test-smoke: node_modules
+test-smoke: $(WEBAPP_DIR)/node_modules
 	cd $(WEBAPP_DIR) && node test/smoke.js
 
 test-bundle: bundle
 	cd $(WEBAPP_DIR) && node test/bundle.js
 
 # --------------------------------------------------------------------------- package
+
+# Apply a version (e.g. from a git tag) to plugin.json and webapp/package.json.
+version:
+	@node scripts/version.js $(VERSION)
 
 release: bundle
 	@rm -rf $(RELEASE_DIR)

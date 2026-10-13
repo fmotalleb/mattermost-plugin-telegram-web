@@ -53,6 +53,20 @@ make release         # npm install + webpack build + package
 # → release/com.telegramweb.ui-1.0.0.tar.gz   (plugin.json + assets/ + webapp/dist/main.js)
 ```
 
+**Cutting a release** — push a version tag. GitHub Actions applies the tag as the version in
+`plugin.json` and `webapp/package.json` (plus the lockfile), runs the checks, packages
+`release/com.telegramweb.ui-<version>.tar.gz` and attaches it and its `checksums.txt` to the
+GitHub release for that tag:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Every push and pull request also runs the same checks (type check, smoke tests, bundle tests,
+packaging) via `.github/workflows/ci.yml`. The version stamping alone is available locally as
+`make version VERSION=1.2.3`.
+
 ## Using it
 
 * **Turn it on / off** — the paper-plane icon in the channel header, **Main Menu → Telegram Web UI**,

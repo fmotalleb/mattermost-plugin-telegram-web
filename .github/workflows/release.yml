@@ -1,0 +1,60 @@
+# Release build, triggered by pushing a version tag (e.g. `git tag v1.2.3 && git push origin v1.2.3`).
+#
+# The tag becomes the plugin version: it is stamped into plugin.json (what Mattermost reads) and
+# webapp/package.json (the node app) before the tests and the packaging run, so the tarball is
+# named release/com.telegramweb.ui-<version>.tar.gz and ships a manifest with that version.
+# The tarball and its checksum are attached to the GitHub release for the tag.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Apply the tag as the plugin version
+        run: make version VERSION="${GITHUB_REF_NAME}"
+
+      - name: Show the version being released
+        run: |
+          node -e "console.log('plugin.json     ', require('./plugin.json').version)"
+          node -e "console.log('webapp/package.json', require('./webapp/package.json').version)"
+
+      - name: Install dependencies
+        run: make webapp/node_modules
+
+      - name: Type check + smoke tests + bundle tests
+        run: make test
+
+      - name: Package the plugin tarball
+        run: make release
+
+      - name: Checksums
+        run: sha256sum release/*.tar.gz > release/checksums.txt
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/*.tar.gz release/checksums.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/*.tar.gz release/checksums.txt \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi

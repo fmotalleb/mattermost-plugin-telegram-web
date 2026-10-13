@@ -1,0 +1,31 @@
+# Builds and tests every push and pull request. Tag pushes are handled by release.yml.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Type check, tests, bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: make webapp/node_modules
+
+      - name: Type check + smoke tests + bundle tests
+        run: make test
+
+      - name: Package the plugin tarball
+        run: make release
