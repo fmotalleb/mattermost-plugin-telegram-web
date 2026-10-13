@@ -228,8 +228,10 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 <button type="button" title="Code" onClick={() => insertMarkdown('`', '`', 'code')}><IconCode size={18}/></button>
                 <button type="button" title="Code block" onClick={() => insertMarkdown('```\n', '\n```', 'code')}><IconQuote size={18}/></button>
                 <button type="button" title="Link" onClick={() => insertMarkdown('[', '](https://)', 'link')}><IconLink size={18}/></button>
-                <button type="button" title="Attach a file" onClick={() => fileInputRef.current?.click()}><IconAttach size={18}/></button>
-                <button type="button" title="Emoji" onClick={() => setShowEmoji((value) => !value)}><IconEmoji size={18}/></button>
+            </div>
+
+            <div className="tgw-composer-input">
+                <button type="button" className="tgw-composer-icon" title="Attach a file" onClick={() => fileInputRef.current?.click()}><IconAttach size={20}/></button>
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -240,9 +242,6 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                         event.target.value = '';
                     }}
                 />
-            </div>
-
-            <div className="tgw-composer-input">
                 <textarea
                     ref={textareaRef}
                     value={message}
@@ -255,7 +254,37 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                         typingRef.current();
                     }}
                     onKeyDown={onKeyDown}
+                    onPaste={(event) => {
+                        // Screenshots and copied images arrive as files on the clipboard; a
+                        // textarea would silently drop them, so hand them to the upload path.
+                        const items = event.clipboardData?.items;
+                        if (!items) {
+                            return;
+                        }
+                        const pasted: File[] = [];
+                        for (const item of Array.from(items)) {
+                            if (item.kind === 'file') {
+                                const file = item.getAsFile();
+                                if (file && (file.size || file.type)) {
+                                    pasted.push(file);
+                                }
+                            }
+                        }
+                        if (!pasted.length) {
+                            return;
+                        }
+                        event.preventDefault();
+                        uploadFiles(pasted);
+                    }}
                 />
+                <button
+                    type="button"
+                    className="tgw-composer-icon"
+                    title="Emoji"
+                    onClick={() => setShowEmoji((value) => !value)}
+                >
+                    <IconEmoji size={20}/>
+                </button>
                 <button
                     type="button"
                     className={`tgw-send-button ${message.trim() || files.length ? 'tgw-send-button-active' : ''}`}
@@ -263,7 +292,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                     disabled={sending}
                     title={editing ? 'Save changes' : 'Send'}
                 >
-                    {editing ? <IconEdit size={22}/> : <IconSend size={22}/>}
+                    {editing ? <IconEdit size={18}/> : <IconSend size={18}/>}
                 </button>
             </div>
 

@@ -305,7 +305,16 @@ export function receiveReaction(reaction: MMReaction, added: boolean) {
     if (!block) {
         return;
     }
-    const map = block.reactions[reaction.post_id] || (block.reactions[reaction.post_id] = {});
+    let map = block.reactions[reaction.post_id];
+    if (!map) {
+        // Seed from Redux / post metadata first: getReactions() prefers the local map once it
+        // exists, so starting from an empty map would hide reactions the post already carries.
+        map = {};
+        getReactions(block, reaction.post_id).forEach((known) => {
+            map[`${known.user_id}-${known.emoji_name}`] = known;
+        });
+        block.reactions[reaction.post_id] = map;
+    }
     const key = `${reaction.user_id}-${reaction.emoji_name}`;
     if (added) {
         map[key] = reaction;
@@ -409,6 +418,19 @@ export function useChannelPosts(channelId?: string | null): UsePostsResult {
         loadingOlder: !!block?.loadingOlder,
         hasMoreOlder: block ? block.hasMoreOlder : true,
     };
+}
+
+/**
+ * Re-renders the component on every local cache change (new posts, reactions, edits).
+ * Components that read the cache through getBlock()/getReactions() need this: those helpers
+ * mutate the block in place, so a plain selector never notices the change.
+ */
+export function usePostRevision(): number {
+    const [revision, setRevision] = useState(0);
+    useEffect(() => {
+        return subscribe(() => setRevision((n) => n + 1));
+    }, []);
+    return revision;
 }
 
 export function clearCache() {

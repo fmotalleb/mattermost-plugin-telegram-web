@@ -121,21 +121,23 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
                 })}
             </div>
             <div className="tgw-thread-composer">
-                <textarea
-                    value={reply}
-                    rows={1}
-                    placeholder="Reply to thread"
-                    onChange={(event) => setReply(event.target.value)}
-                    onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            send();
-                        }
-                    }}
-                />
-                <button type="button" className="tgw-send-button tgw-send-button-active" onClick={send} title="Send reply">
-                    <IconSend size={20}/>
-                </button>
+                <div className="tgw-composer-input">
+                    <textarea
+                        value={reply}
+                        rows={1}
+                        placeholder="Reply to thread"
+                        onChange={(event) => setReply(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                                event.preventDefault();
+                                send();
+                            }
+                        }}
+                    />
+                    <button type="button" className="tgw-send-button tgw-send-button-active" onClick={send} title="Send reply">
+                        <IconSend size={18}/>
+                    </button>
+                </div>
             </div>
         </aside>
     );

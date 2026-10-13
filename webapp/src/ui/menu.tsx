@@ -2,6 +2,7 @@
 
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {overlayRoot} from './portal';
 
 export interface MenuItem {
     key: string;
@@ -70,10 +71,9 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
         };
     }, [onClose]);
 
-    // Portal into the overlay root when present so the menu inherits the --tgw-* theme
-    // variables (background, border, shadow). Portalling to body made every var() invalid
-    // at computed-value time, which fell back to a fully transparent background.
-    const container = (typeof document !== 'undefined' && document.querySelector('.tgw-root')) || document.body;
+    // Portal into the overlay root so the menu inherits the --tgw-* theme variables
+    // (background, border, shadow) - see portal.ts.
+    const container = overlayRoot();
 
     return createPortal(
         <div

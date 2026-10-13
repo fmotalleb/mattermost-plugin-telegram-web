@@ -2,7 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {api} from '../mm/api';
-import {addOptimistic, loadChannel, markFailed, receivePost, useChannelPosts} from '../mm/posts';
+import {addOptimistic, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
@@ -124,10 +124,17 @@ export function ChatView() {
             return;
         }
         const mine = reaction.user_id === myId;
+        const optimistic: MMReaction = {user_id: myId, post_id: post.id, emoji_name: reaction.emoji_name, create_at: Date.now()};
+        // Apply the change locally right away; the websocket echo overwrites it with the
+        // authoritative record and the failure branch below puts it back if the API says no.
+        receiveReaction(optimistic, !mine);
         const call = mine
             ? api.removeReaction(myId, post.id, reaction.emoji_name)
             : api.addReaction(myId, post.id, reaction.emoji_name);
-        call.catch(() => actions.toast('Could not update the reaction', 'error'));
+        call.catch(() => {
+            receiveReaction(optimistic, mine);
+            actions.toast('Could not update the reaction', 'error');
+        });
     }, [me, actions]);
 
     const addReaction = (post: MMPost, emojiName: string) => {
@@ -135,7 +142,12 @@ export function ChatView() {
         if (!myId) {
             return;
         }
-        api.addReaction(myId, post.id, emojiName).catch(() => actions.toast('Could not add the reaction', 'error'));
+        const optimistic: MMReaction = {user_id: myId, post_id: post.id, emoji_name: emojiName, create_at: Date.now()};
+        receiveReaction(optimistic, true);
+        api.addReaction(myId, post.id, emojiName).catch(() => {
+            receiveReaction(optimistic, false);
+            actions.toast('Could not add the reaction', 'error');
+        });
     };
 
     const openHeaderMenu = () => {

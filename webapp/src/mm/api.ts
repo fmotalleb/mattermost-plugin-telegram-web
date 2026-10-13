@@ -7,6 +7,7 @@
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
 import type {MMChannel, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMUser} from './types';
+import {getState} from './store';
 
 declare const window: any;
 
@@ -249,8 +250,20 @@ export class MattermostAPI {
         return this.request(`/channels/${channelId}/members/${userId}/notify_props`, {method: 'PUT', body: props});
     }
 
+    /**
+     * View a channel as the current user (clears its unread badge).
+     * Mattermost only registers POST /channels/{channel_id}/members/{user_id}/view - the shorter
+     * /channels/{channel_id}/view matches no route and comes back as api.context.404.app_error.
+     */
     viewChannel(channelId: string, prevChannelId?: string): Promise<any> {
-        return this.request(`/channels/${channelId}/view`, {method: 'POST', body: {channel_id: channelId, prev_channel_id: prevChannelId}});
+        const userId = getState().entities?.users?.currentUserId || '';
+        if (!channelId || !userId) {
+            return Promise.resolve(null);
+        }
+        return this.request(`/channels/${channelId}/members/${userId}/view`, {
+            method: 'POST',
+            body: {channel_id: channelId, prev_channel_id: prevChannelId},
+        });
     }
 
     /**

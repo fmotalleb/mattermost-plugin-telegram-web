@@ -6,6 +6,10 @@
 .tgw-root {
     --tgw-accent: #3390ec;
     --tgw-accent-hover: #2f85dc;
+    --tgw-accent-soft: rgba(51, 144, 236, 0.14);
+    /* Link/URL text follows the accent in light mode. */
+    --tgw-link: var(--tgw-accent);
+    --tgw-link-hover: var(--tgw-accent-hover);
     --tgw-bg: #ffffff;
     --tgw-bg-secondary: #ffffff;
     --tgw-sidebar: #ffffff;
@@ -20,6 +24,10 @@
     --tgw-in-bubble: #ffffff;
     --tgw-out-bubble: #eeffde;
     --tgw-reaction: #f1f1f1;
+    /* Telegram-style message box: a soft bar with a white (or lighter) rounded pill on top. */
+    --tgw-composer-bar: #f4f4f4;
+    --tgw-composer-input-bg: #ffffff;
+    --tgw-composer-input-border: rgba(0, 0, 0, 0.08);
     --tgw-shadow: 0 1px 2px rgba(16, 35, 47, 0.1);
     --tgw-shadow-strong: 0 4px 24px rgba(16, 35, 47, 0.18);
     --tgw-radius: 12px;
@@ -57,6 +65,13 @@
     --tgw-in-bubble: #212121;
     --tgw-out-bubble: #766ac8;
     --tgw-reaction: #2b2b2b;
+    --tgw-accent-soft: rgba(106, 178, 242, 0.16);
+    /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #212121. */
+    --tgw-link: #6ab3f3;
+    --tgw-link-hover: #8bc7f8;
+    --tgw-composer-bar: #212121;
+    --tgw-composer-input-bg: #2b2b2b;
+    --tgw-composer-input-border: #3a3a3a;
     --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
@@ -185,7 +200,7 @@
 }
 
 .tgw-folder-active {
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     background: var(--tgw-accent-soft);
 }
 
@@ -635,7 +650,7 @@
 }
 
 .tgw-typing-label {
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
 }
 
 .tgw-chat-header-actions {
@@ -866,7 +881,7 @@
 }
 
 .tgw-message-text a {
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     text-decoration: none;
 }
 
@@ -910,7 +925,7 @@
 
 .tgw-mention {
     background: var(--tgw-accent-soft);
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     border-radius: 4px;
     padding: 0 3px;
     font-weight: 500;
@@ -977,7 +992,7 @@
 .tgw-msg-reply-author {
     font-size: 13px;
     font-weight: 600;
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
 }
 
 .tgw-msg-reply-text {
@@ -1044,7 +1059,7 @@
 
 .tgw-reaction-mine {
     background: var(--tgw-accent-soft);
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
 }
 
 .tgw-reaction-emoji {
@@ -1062,7 +1077,7 @@ img.tgw-reaction-emoji {
     display: block;
     border: none;
     background: transparent;
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     font-size: 13px;
     font-weight: 500;
     padding: 4px 0 0;
@@ -1226,9 +1241,9 @@ img.tgw-reaction-emoji {
 .tgw-composer {
     position: relative;
     flex: 0 0 auto;
-    background: var(--tgw-bg-secondary);
+    background: var(--tgw-composer-bar);
     border-top: 1px solid var(--tgw-border);
-    padding: 6px 12px 10px;
+    padding: 8px 10px 10px;
 }
 
 .tgw-composer-editing {
@@ -1239,7 +1254,7 @@ img.tgw-reaction-emoji {
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 2px 0;
+    padding: 0 2px 6px;
 }
 
 .tgw-composer-toolbar button {
@@ -1256,14 +1271,24 @@ img.tgw-reaction-emoji {
 }
 
 .tgw-composer-toolbar button:hover {
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     background: var(--tgw-hover);
 }
 
+/* Telegram-style message box: a rounded pill with the attach icon inside on the left and
+   the emoji + send buttons inside on the right. */
 .tgw-composer-input {
     display: flex;
-    align-items: flex-end;
-    gap: 8px;
+    align-items: center;
+    gap: 2px;
+    background: var(--tgw-composer-input-bg);
+    border: 1px solid var(--tgw-composer-input-border);
+    border-radius: 13px;
+    padding: 3px 4px;
+}
+
+.tgw-composer-input:focus-within {
+    border-color: var(--tgw-accent);
 }
 
 .tgw-composer-input textarea {
@@ -1276,16 +1301,16 @@ img.tgw-reaction-emoji {
     font-size: 14.5px;
     line-height: 1.4;
     color: var(--tgw-text);
-    padding: 6px 0;
+    padding: 7px 4px;
     max-height: 320px;
 }
 
-.tgw-send-button {
+.tgw-composer-icon {
     border: none;
     background: transparent;
     color: var(--tgw-text-tertiary);
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     cursor: pointer;
     display: inline-flex;
@@ -1295,12 +1320,39 @@ img.tgw-reaction-emoji {
     transition: color 0.15s ease, background 0.15s ease;
 }
 
+.tgw-composer-icon:hover {
+    color: var(--tgw-link);
+    background: var(--tgw-hover);
+}
+
+.tgw-send-button {
+    border: none;
+    background: transparent;
+    color: var(--tgw-text-tertiary);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.tgw-send-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .tgw-send-button-active {
-    color: var(--tgw-accent);
+    background: var(--tgw-accent);
+    color: #ffffff;
 }
 
 .tgw-send-button-active:hover {
-    background: var(--tgw-accent-soft);
+    background: var(--tgw-accent-hover);
+    color: #ffffff;
 }
 
 .tgw-reply-bar {
@@ -1327,7 +1379,7 @@ img.tgw-reaction-emoji {
     gap: 5px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
 }
 
 .tgw-reply-bar-text {
@@ -1644,10 +1696,8 @@ img.tgw-reaction-emoji {
 }
 
 .tgw-thread-composer {
-    display: flex;
-    align-items: flex-end;
-    gap: 6px;
     border-top: 1px solid var(--tgw-border);
+    background: var(--tgw-composer-bar);
     padding: 8px 10px;
 }
 
@@ -1658,10 +1708,11 @@ img.tgw-reaction-emoji {
     outline: none;
     background: transparent;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 14.5px;
+    line-height: 1.4;
     color: var(--tgw-text);
     max-height: 160px;
-    padding: 6px 0;
+    padding: 7px 4px;
 }
 
 /* ------------------------------------------------------------------ menus, modals, pickers */
@@ -1889,7 +1940,7 @@ img.tgw-reaction-emoji {
     gap: 6px;
     border: none;
     background: var(--tgw-accent-soft);
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     border-radius: 14px;
     padding: 4px 10px;
     font-size: 13px;
@@ -1923,7 +1974,7 @@ img.tgw-reaction-emoji {
 
 .tgw-segmented button.active {
     background: var(--tgw-bg-secondary);
-    color: var(--tgw-accent);
+    color: var(--tgw-link);
     font-weight: 600;
     box-shadow: var(--tgw-shadow);
 }
@@ -2270,7 +2321,6 @@ img.tgw-reaction-emoji {
 .tgw-root.tgw-accent-blue {
     --tgw-accent: #3390ec;
     --tgw-accent-hover: #2f85dc;
-    --tgw-accent-soft: var(--tgw-accent-soft);
     --tgw-out-bubble: #eeffde;
 }
 

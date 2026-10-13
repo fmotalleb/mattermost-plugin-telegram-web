@@ -10,6 +10,7 @@ import {useSelector} from '../mm/store';
 import type {MMUser} from '../mm/types';
 import {displayName, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
+import {overlayRoot} from './portal';
 import {Avatar, IconClose} from './primitives';
 
 export function ModalShell({title, children, footer, width = 460, onClose}: {title: string; children: React.ReactNode; footer?: React.ReactNode; width?: number; onClose: () => void}) {
@@ -36,7 +37,7 @@ export function ModalShell({title, children, footer, width = 460, onClose}: {tit
                 {footer && <footer className="tgw-modal-footer">{footer}</footer>}
             </div>
         </div>,
-        document.body,
+        overlayRoot(),
     );
 }
 
@@ -483,6 +484,6 @@ export function ImageViewer() {
                 <div className="tgw-image-viewer-caption">{toPlainPreview(post.message, 300)}</div>
             </div>
         </div>,
-        document.body,
+        overlayRoot(),
     );
 }

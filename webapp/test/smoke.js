@@ -48,8 +48,18 @@ root.render(React.createElement(TelegramUI));
     ok(document.body.innerHTML.includes('https://example.com/run'), 'links rendered');
     ok(document.querySelector('.tgw-messages').innerHTML.includes('😄') || document.body.innerHTML.includes(':smile:'), 'emoji shortcode rendered');
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
-    ok(calls.some((call) => call.includes('/channels/channel-dm/view')), 'channel marked as read');
+    ok(calls.some((call) => call.includes('/channels/channel-dm/members/user-me/view')), 'channel marked as read');
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
+
+    // Reaction toggles must update the local cache immediately, not after a reload.
+    const reactionChip = document.querySelector('.tgw-reaction');
+    if (reactionChip) {
+        ok(reactionChip.textContent.includes('1'), 'reaction starts with a single user');
+        reactionChip.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(60);
+        ok(calls.some((call) => call.includes('/reactions')), 'reaction toggle requested through the API');
+        ok(document.querySelector('.tgw-reaction')?.textContent.includes('2'), 'reaction count updated without a reload');
+    }
 
     console.log('\n== interactions ==');
     const townRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));

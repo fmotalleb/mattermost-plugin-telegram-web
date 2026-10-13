@@ -3,7 +3,7 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {emojiChar} from '../mm/emoji';
-import {getBlock, getPost, getReactions, loadOlder} from '../mm/posts';
+import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
 import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
@@ -256,11 +256,17 @@ interface MessageRowProps {
 }
 
 function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, onReact, onToggleReaction, onOpenThread}: MessageRowProps) {
-    const {timeFormat, actions, me} = useTg();
+    const {timeFormat, actions, me, settings} = useTg();
+    // Compact mode narrows .tgw-msg-avatar to 28px; rendering the regular 40px avatar there
+    // overflows the slot and lets the bubble paint over the face.
+    const avatarSize = settings.compactMode ? 28 : 40;
     const author = useSelector((state) => state.entities?.users?.profiles?.[post.user_id]);
     const customEmoji = useSelector(getCustomEmoji);
-    const reactionBlock = useSelector(() => getBlock(channel.id));
-    const reactions = useMemo(() => getReactions(reactionBlock, post.id), [reactionBlock, post.id]);
+    // The reaction cache lives outside the Mattermost store and mutates in place, so a plain
+    // selector never sees the change: subscribe to the cache itself instead.
+    const revision = usePostRevision();
+    const reactionBlock = getBlock(channel.id);
+    const reactions = useMemo(() => getReactions(reactionBlock, post.id), [reactionBlock, revision, post.id]);
     const isSystem = !!post.type && post.type.startsWith('system_');
     const files = filesOfPost(post);
     const myId = me?.id || '';
@@ -284,7 +290,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
         >
             <div className="tgw-msg-avatar">
                 {meta.showAvatar && !meta.isOutgoing && (
-                    <Avatar userId={post.user_id} name={author ? displayName(author) : ''} size={40} status="">
+                    <Avatar userId={post.user_id} name={author ? displayName(author) : ''} size={avatarSize} status="">
                     </Avatar>
                 )}
             </div>
