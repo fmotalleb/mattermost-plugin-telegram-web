@@ -48,7 +48,7 @@ root.render(React.createElement(TelegramUI));
     ok(document.body.innerHTML.includes('https://example.com/run'), 'links rendered');
     ok(document.querySelector('.tgw-messages').innerHTML.includes('😄') || document.body.innerHTML.includes(':smile:'), 'emoji shortcode rendered');
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
-    ok(calls.some((call) => call.includes('/channels/channel-dm/members/user-me/view')), 'channel marked as read');
+    ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
 
     // Reaction toggles must update the local cache immediately, not after a reload.

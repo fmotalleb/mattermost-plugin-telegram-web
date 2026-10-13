@@ -252,15 +252,17 @@ export class MattermostAPI {
 
     /**
      * View a channel as the current user (clears its unread badge).
-     * Mattermost only registers POST /channels/{channel_id}/members/{user_id}/view - the shorter
-     * /channels/{channel_id}/view matches no route and comes back as api.context.404.app_error.
+     * The route is POST /channels/members/{user_id}/view - the channel id travels in the body,
+     * exactly like Client4.ViewChannel does. There is no /channels/{channel_id}/view and no
+     * /channels/{channel_id}/members/{user_id}/view; those miss the router and come back as
+     * api.context.404.app_error.
      */
     viewChannel(channelId: string, prevChannelId?: string): Promise<any> {
         const userId = getState().entities?.users?.currentUserId || '';
         if (!channelId || !userId) {
             return Promise.resolve(null);
         }
-        return this.request(`/channels/${channelId}/members/${userId}/view`, {
+        return this.request(`/channels/members/${userId}/view`, {
             method: 'POST',
             body: {channel_id: channelId, prev_channel_id: prevChannelId},
         });
@@ -279,7 +281,10 @@ export class MattermostAPI {
         urgent_mention_count: number;
         last_viewed_at: number;
     }> {
-        return this.request(`/users/${userId}/posts/${postId}/set_unread`, {method: 'POST'});
+        return this.request(`/users/${userId}/posts/${postId}/set_unread`, {
+            method: 'POST',
+            body: {collapsed_threads_supported: true},
+        });
     }
 
     searchChannels(teamId: string, term: string): Promise<MMChannel[]> {
@@ -393,10 +398,6 @@ export class MattermostAPI {
 
     getTeamMembersForUser(userId: string): Promise<any[]> {
         return this.request(`/users/${userId}/teams/members`);
-    }
-
-    setActiveChannel(channelId: string): Promise<any> {
-        return this.request(`/users/me/active_channel`, {method: 'PUT', body: {channel_id: channelId}}).catch(() => null);
     }
 }
 
