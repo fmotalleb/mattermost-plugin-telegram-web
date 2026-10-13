@@ -70,6 +70,11 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
         };
     }, [onClose]);
 
+    // Portal into the overlay root when present so the menu inherits the --tgw-* theme
+    // variables (background, border, shadow). Portalling to body made every var() invalid
+    // at computed-value time, which fell back to a fully transparent background.
+    const container = (typeof document !== 'undefined' && document.querySelector('.tgw-root')) || document.body;
+
     return createPortal(
         <div
             ref={ref}
@@ -100,7 +105,7 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                 );
             })}
         </div>,
-        document.body,
+        container,
     );
 }
 

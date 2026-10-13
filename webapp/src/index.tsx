@@ -83,6 +83,22 @@ class TelegramWebPlugin {
                 receiveReaction(message.data.reaction, false);
             }
         });
+        // Keep unread state in sync when the channel is marked unread from another session
+        // (or by this one via the set_unread API, which the server echoes back).
+        registry.registerWebSocketEventHandler('post_unread', (message: any) => {
+            store?.dispatch({
+                type: 'POST_UNREAD_SUCCESS',
+                data: {
+                    lastViewedAt: message?.data?.last_viewed_at,
+                    channelId: message?.broadcast?.channel_id,
+                    msgCount: message?.data?.msg_count,
+                    msgCountRoot: message?.data?.msg_count_root,
+                    mentionCount: message?.data?.mention_count,
+                    mentionCountRoot: message?.data?.mention_count_root,
+                    urgentMentionCount: message?.data?.urgent_mention_count,
+                },
+            });
+        });
 
         window.addEventListener(TOGGLE_EVENT, this.onDisable);
 
@@ -103,6 +119,7 @@ class TelegramWebPlugin {
             this.registry?.unregisterWebSocketEventHandler('post_deleted');
             this.registry?.unregisterWebSocketEventHandler('reaction_added');
             this.registry?.unregisterWebSocketEventHandler('reaction_removed');
+            this.registry?.unregisterWebSocketEventHandler('post_unread');
         } catch (error) {
             // eslint-disable-next-line no-console
             console.warn('[telegram-web-ui] cleanup failed', error);

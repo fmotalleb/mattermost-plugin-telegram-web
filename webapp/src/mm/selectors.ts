@@ -217,11 +217,14 @@ export function getChatSummary(state: MMState, channelId: string): ChatSummary |
     const peerIds = channelMemberIds(channel).filter((id) => id !== getMyId(state));
     const peerUser = channel.type === 'D' ? getUser(state, peerIds[0]) : undefined;
     const cachedPreview = getCachedPreview(channelId);
+    // Mattermost v6.1+ moved the total message count out of the Channel object in Redux
+    // (MM-37021: toClientChannel deletes total_msg_count); it lives in messageCounts now.
+    const totalMsgCount = state.entities?.channels?.messageCounts?.[channelId]?.total ?? channel.total_msg_count ?? 0;
 
     return chatMemo.get(
-        [channel, myMember, peerUser, getStatus(state, peerIds[0]), membersInChannel, cachedPreview?.id, cachedPreview?.create_at],
+        [channel, myMember, peerUser, getStatus(state, peerIds[0]), membersInChannel, cachedPreview?.id, cachedPreview?.create_at, totalMsgCount],
         () => {
-            const unread = Math.max(0, (channel.total_msg_count || 0) - (myMember?.msg_count || 0));
+            const unread = Math.max(0, totalMsgCount - (myMember?.msg_count || 0));
             const mentions = myMember?.mention_count || 0;
             const memberCount = channel.type === 'G' ? peerIds.length + 1 : (channel.type === 'D' ? 2 : getMemberCount(state, channelId));
             const team = getTeam(state, channel.team_id);
@@ -302,7 +305,7 @@ export function getAllChats(state: MMState): ChatSummary[] {
     const preferences = state.entities?.preferences?.myPreferences || {};
 
     return chatListMemo.get(
-        [channels, myMembers, state.entities?.users, state.entities?.teams, membersInChannel, preferences, state.entities?.channels?.stats, state.entities?.channels?.manuallyUnread],
+        [channels, myMembers, state.entities?.users, state.entities?.teams, membersInChannel, preferences, state.entities?.channels?.stats, state.entities?.channels?.manuallyUnread, state.entities?.channels?.messageCounts],
         () => {
             const ids: string[] = [];
             Object.keys(myMembers).forEach((channelId) => {
@@ -400,7 +403,7 @@ function computeCategoryChats(state: MMState, category: MMChannelCategory): Chat
 
 export function getChatsForCategory(state: MMState, category: MMChannelCategory): ChatSummary[] {
     return categoryChatsMemo.get(
-        [category, state.entities?.channels?.myMembers, state.entities?.channels?.channels, state.entities?.users, state.entities?.teams, state.entities?.preferences, state.entities?.channels?.manuallyUnread],
+        [category, state.entities?.channels?.myMembers, state.entities?.channels?.channels, state.entities?.users, state.entities?.teams, state.entities?.preferences, state.entities?.channels?.manuallyUnread, state.entities?.channels?.messageCounts],
         () => computeCategoryChats(state, category),
     );
 }

@@ -176,6 +176,8 @@ export interface MMState {
             stats: Record<string, {member_count: number; guest_count?: number}>;
             channelsMemberCount?: Record<string, number>;
             manuallyUnread?: Record<string, boolean>;
+            /** Mattermost v6.1+ keeps the total message counts here, not on the Channel objects. */
+            messageCounts?: Record<string, {total: number; root: number}>;
         };
         channelCategories: {
             byId: Record<string, MMChannelCategory>;

@@ -253,9 +253,20 @@ export class MattermostAPI {
         return this.request(`/channels/${channelId}/view`, {method: 'POST', body: {channel_id: channelId, prev_channel_id: prevChannelId}});
     }
 
-    /** Mark a channel as read/unread for the current user. */
-    markChannelUnread(channelId: string, userId: string): Promise<any> {
-        return this.request(`/channels/${channelId}/members/${userId}/mark_unread`, {method: 'POST'}).catch(() => null);
+    /**
+     * Mark a channel as unread starting from the given post (POST /users/{user_id}/posts/{post_id}/set_unread).
+     * Returns the resulting ChannelUnread state (msg_count, mention_count, last_viewed_at, ...).
+     */
+    markPostAsUnread(userId: string, postId: string): Promise<{
+        channel_id: string;
+        msg_count: number;
+        msg_count_root: number;
+        mention_count: number;
+        mention_count_root: number;
+        urgent_mention_count: number;
+        last_viewed_at: number;
+    }> {
+        return this.request(`/users/${userId}/posts/${postId}/set_unread`, {method: 'POST'});
     }
 
     searchChannels(teamId: string, term: string): Promise<MMChannel[]> {

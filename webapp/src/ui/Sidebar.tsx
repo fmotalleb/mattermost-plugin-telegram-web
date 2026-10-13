@@ -18,6 +18,7 @@ import {getStatus, getTeams as teamsSelector, getUser} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
 import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from '../mm/utils';
+import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
@@ -260,6 +261,20 @@ export function Sidebar() {
                 label: 'Mark as read',
                 onClick: () => {
                     api.viewChannel(summary.id).catch(() => undefined);
+                },
+            },
+            {
+                key: 'unread',
+                label: 'Mark as unread',
+                disabled: !summary.lastPostAt,
+                onClick: () => {
+                    markChannelUnreadFromLastPost(summary.id)
+                        .then((ok) => {
+                            if (!ok) {
+                                actions.toast('Could not mark as unread', 'error');
+                            }
+                        })
+                        .catch(() => actions.toast('Could not mark as unread', 'error'));
                 },
             },
             {

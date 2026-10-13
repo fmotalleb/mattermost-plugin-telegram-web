@@ -100,8 +100,8 @@ const registry = {
     ok(registryCalls.rootComponents.length === 1, 'registered one root component');
     ok(registryCalls.headerButtons.length === 1, 'registered a channel header button');
     ok(registryCalls.menuItems.length === 1, 'registered a main menu entry');
-    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'post_deleted,post_edited,posted,reaction_added,reaction_removed',
-        'registered the five websocket events it needs');
+    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'post_deleted,post_edited,post_unread,posted,reaction_added,reaction_removed',
+        'registered the six websocket events it needs');
 
     const body = document.body.innerHTML;
     console.log('\n== rendered UI ==');

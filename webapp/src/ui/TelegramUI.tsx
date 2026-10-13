@@ -9,6 +9,7 @@ import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
 import {copyToClipboard, toPlainPreview} from '../mm/utils';
+import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost} from '../mm/types';
 import {ChatView} from './ChatView';
 import {ConfirmModal, ImageViewer, Modals} from './Modals';
@@ -194,6 +195,17 @@ export function TelegramUI() {
                 }),
                 react: (post) => setReactionPicker({post, x: target.x, y: target.y}),
                 thread: (post) => setUI({threadRootId: post.root_id || post.id}),
+                markUnread: (post) => {
+                    markPostUnread(post)
+                        .then((ok) => {
+                            if (ok) {
+                                toast('Marked as unread', 'success');
+                            } else {
+                                toast('Could not mark as unread', 'error');
+                            }
+                        })
+                        .catch(() => toast('Could not mark as unread', 'error'));
+                },
                 toast,
                 openChat,
             });
@@ -305,6 +317,7 @@ interface BuildMenuHandlers {
     del: (post: MMPost) => void;
     react: (post: MMPost) => void;
     thread: (post: MMPost) => void;
+    markUnread: (post: MMPost) => void;
     toast: (message: string, kind?: 'info' | 'error' | 'success') => void;
     openChat: (channelId: string, opts?: {postId?: string}) => void;
 }
@@ -324,6 +337,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
             label: 'Copy text',
             onClick: () => copyToClipboard(post.message || '').then(() => handlers.toast('Message copied', 'success')),
         },
+        {key: 'unread', label: 'Mark as unread', onClick: () => handlers.markUnread(post)},
     ];
     if (post.reply_count > 0 || post.root_id) {
         items.push({key: 'thread', label: 'Open thread', onClick: () => handlers.thread(post)});

@@ -164,12 +164,7 @@
     gap: 4px;
     padding: 0 8px 6px;
     overflow-x: auto;
-    scrollbar-width: thin;
     flex: 0 0 auto;
-}
-
-.tgw-folders::-webkit-scrollbar {
-    height: 0;
 }
 
 .tgw-folder {
@@ -201,13 +196,38 @@
     padding-bottom: 8px;
 }
 
+/* One consistent thin scrollbar style for every scroll container, both axes, both engines. */
+
+.tgw-sidebar-body,
+.tgw-messages,
+.tgw-info-panel,
+.tgw-thread-body,
+.tgw-picker-list,
+.tgw-emoji-body,
+.tgw-modal-body,
+.tgw-image-viewer-body,
+.tgw-folders,
+.tgw-emoji-tabs,
+.tgw-code-block,
+.tgw-message-text pre {
+    scrollbar-width: thin;
+    scrollbar-color: var(--tgw-border-strong) transparent;
+}
+
 .tgw-sidebar-body::-webkit-scrollbar,
 .tgw-messages::-webkit-scrollbar,
 .tgw-info-panel::-webkit-scrollbar,
 .tgw-thread-body::-webkit-scrollbar,
 .tgw-picker-list::-webkit-scrollbar,
-.tgw-emoji-body::-webkit-scrollbar {
+.tgw-emoji-body::-webkit-scrollbar,
+.tgw-modal-body::-webkit-scrollbar,
+.tgw-image-viewer-body::-webkit-scrollbar,
+.tgw-folders::-webkit-scrollbar,
+.tgw-emoji-tabs::-webkit-scrollbar,
+.tgw-code-block::-webkit-scrollbar,
+.tgw-message-text pre::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
 }
 
 .tgw-sidebar-body::-webkit-scrollbar-thumb,
@@ -215,7 +235,13 @@
 .tgw-info-panel::-webkit-scrollbar-thumb,
 .tgw-thread-body::-webkit-scrollbar-thumb,
 .tgw-picker-list::-webkit-scrollbar-thumb,
-.tgw-emoji-body::-webkit-scrollbar-thumb {
+.tgw-emoji-body::-webkit-scrollbar-thumb,
+.tgw-modal-body::-webkit-scrollbar-thumb,
+.tgw-image-viewer-body::-webkit-scrollbar-thumb,
+.tgw-folders::-webkit-scrollbar-thumb,
+.tgw-emoji-tabs::-webkit-scrollbar-thumb,
+.tgw-code-block::-webkit-scrollbar-thumb,
+.tgw-message-text pre::-webkit-scrollbar-thumb {
     background: var(--tgw-border-strong);
     border-radius: 3px;
 }

@@ -87,11 +87,15 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         });
     };
 
-    const uploadFiles = async (fileList: FileList | null) => {
-        if (!fileList || !fileList.length) {
+    const uploadFiles = async (incoming: FileList | File[] | null) => {
+        if (!incoming) {
             return;
         }
-        const additions: PendingFile[] = Array.from(fileList).map((file) => ({
+        const list = Array.from(incoming);
+        if (!list.length) {
+            return;
+        }
+        const additions: PendingFile[] = list.map((file) => ({
             clientId: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             file,
         }));
