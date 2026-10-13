@@ -55,8 +55,8 @@ root.render(React.createElement(TelegramUI));
     ok(body.includes('Work stuff'), 'custom Mattermost category exposed as a folder');
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
 
-    // Wait for the channel posts request of the initial chat.
-    await tick(80);
+    // Wait for the channel posts request of the initial chat (fetch + render time varies).
+    await waitFor(() => document.body.innerHTML.includes('How are you'));
     console.log('\n== messages ==');
     ok(document.body.innerHTML.includes('How are you'), 'loaded messages rendered');
     ok(document.body.innerHTML.includes('Deploy'), 'second message rendered');
@@ -174,6 +174,20 @@ root.render(React.createElement(TelegramUI));
         playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await tick(30);
         ok(!document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'clicking again pauses the player');
+    }
+
+    // Telegram-style speed control: 1x → 1.5x → 2x → wrap.
+    const speedButton = document.querySelector('.tgw-voice-speed');
+    ok(!!speedButton, 'playback speed control rendered');
+    if (speedButton) {
+        const cycle = async (label) => {
+            document.querySelector('.tgw-voice-speed').dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await tick(20);
+            ok(document.querySelector('.tgw-voice-speed')?.textContent.trim() === label, `speed cycles to ${label}`);
+        };
+        await cycle('1.5x');
+        await cycle('2x');
+        await cycle('1x');
     }
 
     const micButton = document.querySelector('.tgw-composer-icon[title="Record a voice message"]');

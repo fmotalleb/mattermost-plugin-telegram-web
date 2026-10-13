@@ -475,11 +475,16 @@ function syntheticLevels(seed: string, count: number): number[] {
     return levels;
 }
 
+/** Playback speed cycle, like Telegram's voice player (1x → 1.5x → 2x). */
+const VOICE_SPEEDS = [1, 1.5, 2];
+
 export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?: string; durationMs?: number; levels?: number[]}}) {
     const url = api.fileURL(file.id);
     const audioRef = useRef<HTMLAudioElement>(null);
     const [playing, setPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [currentMs, setCurrentMs] = useState(0);
+    const [speed, setSpeed] = useState(1);
     const [durationMs, setDurationMs] = useState(voice?.durationMs || 0);
 
     const levels = useMemo(() => {
@@ -500,12 +505,28 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
             return;
         }
         if (next) {
+            // Restart from the top after the clip finished, like Telegram does.
+            if (element.ended) {
+                element.currentTime = 0;
+                setCurrentMs(0);
+                setProgress(0);
+            }
+            element.playbackRate = speed;
             const result = element.play();
             if (result && typeof result.catch === 'function') {
                 result.catch(() => setPlaying(false));
             }
         } else {
             element.pause();
+        }
+    };
+
+    const cycleSpeed = () => {
+        const next = VOICE_SPEEDS[(VOICE_SPEEDS.indexOf(speed) + 1) % VOICE_SPEEDS.length];
+        setSpeed(next);
+        const element = audioRef.current;
+        if (element) {
+            element.playbackRate = next;
         }
     };
 
@@ -518,6 +539,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
         const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
         element.currentTime = ratio * element.duration;
         setProgress(ratio);
+        setCurrentMs(ratio * element.duration * 1000);
     };
 
     return (
@@ -530,6 +552,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
                     const element = audioRef.current;
                     if (element && isFinite(element.duration) && element.duration > 0) {
                         setProgress(element.currentTime / element.duration);
+                        setCurrentMs(element.currentTime * 1000);
                     }
                 }}
                 onLoadedMetadata={() => {
@@ -541,6 +564,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
                 onEnded={() => {
                     setPlaying(false);
                     setProgress(0);
+                    setCurrentMs(0);
                 }}
             />
             <button
@@ -549,7 +573,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
                 title={playing ? 'Pause voice message' : 'Play voice message'}
                 onClick={toggle}
             >
-                {playing ? <IconPause size={18}/> : <IconPlay size={18}/>}
+                {playing ? <IconPause size={20}/> : <IconPlay size={20}/>}
             </button>
             <div className="tgw-voice-body">
                 <div className="tgw-voice-wave" onClick={onSeek} role="presentation">
@@ -557,13 +581,16 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
                         <span
                             key={index}
                             className={`tgw-voice-bar ${index < played ? 'tgw-voice-bar-on' : ''}`}
-                            style={{height: `${Math.round(level * 100)}%`}}
+                            style={{height: `${Math.max(18, Math.round(level * 100))}%`}}
                         />
                     ))}
                 </div>
                 <div className="tgw-voice-footer">
-                    <span className="tgw-voice-duration">{formatDuration(durationMs)}</span>
-                    {file.size > 0 && <span className="tgw-voice-size">{formatBytes(file.size)}</span>}
+                    {/* Telegram ticks over to the elapsed time while playing. */}
+                    <span className="tgw-voice-duration">{formatDuration(playing ? currentMs : durationMs)}</span>
+                    <button type="button" className="tgw-voice-speed" title="Playback speed" onClick={cycleSpeed}>
+                        {speed}x
+                    </button>
                 </div>
             </div>
         </div>

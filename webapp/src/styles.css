@@ -24,6 +24,8 @@
     --tgw-in-bubble: #ffffff;
     --tgw-out-bubble: #eeffde;
     --tgw-reaction: #f1f1f1;
+    /* Unplayed voice waveform bars. */
+    --tgw-voice-bar: rgba(0, 0, 0, 0.2);
     /* Telegram-style message box: a soft bar with a white (or lighter) rounded pill on top. */
     --tgw-composer-bar: #f4f4f4;
     --tgw-composer-input-bg: #ffffff;
@@ -66,6 +68,7 @@
     --tgw-out-bubble: #766ac8;
     --tgw-reaction: #2b2b2b;
     --tgw-accent-soft: rgba(106, 178, 242, 0.16);
+    --tgw-voice-bar: rgba(255, 255, 255, 0.28);
     /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #212121. */
     --tgw-link: #6ab3f3;
     --tgw-link-hover: #8bc7f8;
@@ -1237,19 +1240,16 @@ img.tgw-reaction-emoji {
 
 /* ------------------------------------------------------------------ voice messages */
 
+/* Telegram's voice player sits straight on the bubble: a 48px accent play circle, a thin
+   rounded-bar waveform that fills with the accent as playback advances, the duration under
+   the wave on the left and the 1x/1.5x/2x speed control on the right. */
 .tgw-voice {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.05);
-    min-width: 220px;
+    min-width: 240px;
     max-width: 340px;
-}
-
-.tgw-theme-dark .tgw-voice {
-    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 0;
 }
 
 .tgw-voice audio {
@@ -1257,8 +1257,8 @@ img.tgw-reaction-emoji {
 }
 
 .tgw-voice-play {
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     border: none;
     border-radius: 50%;
     background: var(--tgw-accent);
@@ -1278,7 +1278,7 @@ img.tgw-reaction-emoji {
 .tgw-voice-body {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
     flex: 1;
     min-width: 0;
 }
@@ -1292,28 +1292,46 @@ img.tgw-reaction-emoji {
 }
 
 .tgw-voice-bar {
-    flex: 1;
-    min-width: 2px;
-    border-radius: 2px;
-    background: var(--tgw-text-tertiary);
-    opacity: 0.55;
+    width: 3px;
+    min-width: 3px;
+    border-radius: 3px;
+    background: var(--tgw-voice-bar);
+    flex: 0 0 auto;
 }
 
 .tgw-voice-bar-on {
     background: var(--tgw-accent);
-    opacity: 1;
 }
 
 .tgw-voice-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11.5px;
-    color: var(--tgw-text-secondary);
+    min-height: 16px;
 }
 
 .tgw-voice-duration {
+    font-size: 12px;
+    color: var(--tgw-text-secondary);
     font-variant-numeric: tabular-nums;
+}
+
+.tgw-voice-speed {
+    border: none;
+    background: transparent;
+    padding: 0 4px;
+    margin: -4px 0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tgw-text-secondary);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.tgw-voice-speed:hover {
+    color: var(--tgw-accent);
+    background: var(--tgw-hover);
 }
 
 /* Recording bar: replaces the composer input while the microphone is live. */
