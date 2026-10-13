@@ -18,6 +18,7 @@ import {InfoPanel} from './InfoPanel';
 import {Menu} from './menu';
 import type {MenuEntry} from './menu';
 import {Sidebar} from './Sidebar';
+import {ThreadPanel} from './ThreadPanel';
 import {TgContext} from './context';
 import type {TgActions, TgUIState} from './context';
 
@@ -272,6 +273,13 @@ export function TelegramUI() {
                     <div className={`tgw-shell ${isMobile ? 'tgw-shell-mobile' : ''} ${isMobile && ui.mobilePane === 'chat' ? 'tgw-shell-chat-open' : ''}`}>
                         <Sidebar/>
                         <ChatView/>
+                        {ui.threadRootId && activeChannel && (
+                            <ThreadPanel
+                                rootId={ui.threadRootId}
+                                channel={activeChannel}
+                                onClose={() => actions.setUI({threadRootId: null})}
+                            />
+                        )}
                         {ui.infoOpen && !ui.threadRootId && <InfoPanel/>}
                     </div>
                     <Modals/>

@@ -43,6 +43,7 @@ export const IconAttach = make('M16.5 6.5 8.6 14.4a2.5 2.5 0 1 0 3.5 3.5l8.6-8.6
 export const IconEmoji = make('M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z', {filled: true});
 export const IconMore = make('M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z', {filled: true});
 export const IconBack = make('M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2Z', {filled: true});
+export const IconForward = make('M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4v-2Z', {filled: true});
 export const IconClose = make('M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z', {filled: true});
 export const IconStar = make('M12 17.3 18.2 21l-1.6-7L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.8-1.6 7L12 17.3Z', {filled: true});
 export const IconStarOutline = make('M12 4.5 13.6 9h4.7l-3.8 3.4 1.2 5-3.7-2.6-3.7 2.6 1.2-5L5.7 9h4.7L12 4.5Z');

@@ -72,7 +72,15 @@ const channels = {
 };
 
 const posts = {
-    p1: {id: 'p1', create_at: 1_700_000_100_000, update_at: 1_700_000_100_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM, message: 'Hey! How are you?', type: '', props: {}, root_id: '', is_pinned: false, metadata: {}},
+    p1: {
+        id: 'p1', create_at: 1_700_000_100_000, update_at: 1_700_000_100_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM, message: 'Hey! How are you?', type: '', props: {}, root_id: '', is_pinned: false,
+        metadata: {
+            files: [
+                {id: 'file-1', name: 'photo-one.png', mime_type: 'image/png', extension: 'png', size: 2048},
+                {id: 'file-2', name: 'photo-two.jpg', mime_type: 'image/jpeg', extension: 'jpg', size: 3072},
+            ],
+        },
+    },
     p2: {id: 'p2', create_at: 1_700_000_200_000, update_at: 1_700_000_200_000, edit_at: 0, delete_at: 0, user_id: ME, channel_id: DM, message: 'Doing great, thanks :smile:', type: '', props: {}, root_id: '', is_pinned: false, metadata: {}},
     p3: {id: 'p3', create_at: 1_700_000_500_000, update_at: 1_700_000_500_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM, message: '**Deploy** is done, see https://example.com/run', type: '', props: {}, root_id: '', is_pinned: false, metadata: {reactions: [{user_id: OTHER, post_id: 'p3', emoji_name: 'tada', create_at: 1_700_000_600_000}]}},
 };
@@ -110,6 +118,24 @@ global.fetch = async (url, options = {}) => {
     }
     if (p === '/users/me/typing') {
         return json({status: 'OK'});
+    }
+    if (p.startsWith('/posts/') && p.endsWith('/thread')) {
+        const rootId = p.split('/')[2];
+        const threadPosts = {};
+        const order = [];
+        Object.values(posts).forEach((post) => {
+            if (post.id === rootId || post.root_id === rootId) {
+                threadPosts[post.id] = post;
+                order.push(post.id);
+            }
+        });
+        return json({order, posts: threadPosts});
+    }
+    if (p.startsWith('/posts/') && !p.endsWith('/thread') && p.split('/').length === 3) {
+        const post = posts[p.split('/')[2]];
+        if (post) {
+            return json(post);
+        }
     }
     if (p === '/posts') {
         return json({...posts.p2, id: 'p-new', root_id: (post && post.root_id) || '', message: post.message, pending_post_id: post.pending_post_id});

@@ -25,6 +25,18 @@ setStore(store);
 initSettings();
 updateSettings({mode: 'on', theme: 'light'});
 
+// Waits until a condition holds, so assertions do not depend on how long a render takes.
+async function waitFor(predicate, timeout = 1500) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        if (predicate()) {
+            return true;
+        }
+        await tick(30);
+    }
+    return predicate();
+}
+
 const root = ReactDOMClient.createRoot(container);
 root.render(React.createElement(TelegramUI));
 
@@ -55,13 +67,13 @@ root.render(React.createElement(TelegramUI));
     if (reactionChip) {
         ok(reactionChip.textContent.includes('1'), 'reaction starts with a single user');
         reactionChip.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-        await tick(60);
+        await waitFor(() => document.querySelector('.tgw-reaction')?.textContent.includes('2'));
         ok(calls.some((call) => call.includes('/reactions')), 'reaction toggle requested through the API');
         ok(document.querySelector('.tgw-reaction')?.textContent.includes('2'), 'reaction count updated without a reload');
 
         // Re-clicking a reaction I already joined must take mine away again.
         document.querySelector('.tgw-reaction')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-        await tick(60);
+        await waitFor(() => document.querySelector('.tgw-reaction')?.textContent.includes('1'));
         ok(calls.some((call) => call.startsWith('DELETE') && call.includes('/reactions')), 're-clicking my reaction removes it through the API');
         ok(document.querySelector('.tgw-reaction')?.textContent.includes('1'), 'reaction count drops back without a reload');
     }
@@ -89,6 +101,53 @@ root.render(React.createElement(TelegramUI));
         } else {
             fail('composer textarea missing while replying');
         }
+    }
+
+    console.log('\n== attachments, thread, image viewer ==');
+    const thumbs = document.querySelectorAll('.tgw-attachment-image');
+    ok(thumbs.length >= 2, `image attachments render in the chat (${thumbs.length})`);
+
+    const threadLink = document.querySelector('.tgw-thread-link');
+    ok(!!threadLink, 'reply count link appears on the root post');
+    if (threadLink) {
+        threadLink.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => !!document.querySelector('.tgw-shell > .tgw-thread-panel'));
+        ok(!!document.querySelector('.tgw-shell > .tgw-thread-panel'), 'thread opens as a right-hand column of the shell');
+        await waitFor(() => !!document.querySelector('.tgw-thread-panel .tgw-attachment-image'));
+        ok(!!document.querySelector('.tgw-thread-panel .tgw-attachment-image'), 'attachments render inside the thread panel');
+        await waitFor(() => !!document.querySelector('.tgw-thread-panel .tgw-thread-goto'));
+        const gotoButton = document.querySelector('.tgw-thread-panel .tgw-thread-goto');
+        ok(!!gotoButton, 'go to message link is available in the thread');
+        if (gotoButton) {
+            gotoButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await waitFor(() => !document.querySelector('.tgw-thread-panel'));
+            ok(!document.querySelector('.tgw-thread-panel'), 'go to message closes the thread panel');
+            await waitFor(() => !!document.querySelector('.tgw-post-highlight'));
+            ok(!!document.querySelector('.tgw-post-highlight'), 'go to message highlights the message in the chat');
+        }
+    }
+
+    const firstThumb = document.querySelector('.tgw-attachment-image');
+    if (firstThumb) {
+        firstThumb.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(60);
+        ok(!!document.querySelector('.tgw-image-viewer'), 'image viewer opens from an attachment');
+        const firstSrc = document.querySelector('.tgw-image-viewer-body img')?.getAttribute('src') || '';
+        ok(firstSrc.includes('file-1'), `viewer starts on the clicked image (${firstSrc})`);
+        ok(!!document.querySelector('.tgw-image-viewer-next'), 'prev/next controls appear when the chat has several images');
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+        await tick(60);
+        const secondSrc = document.querySelector('.tgw-image-viewer-body img')?.getAttribute('src') || '';
+        ok(secondSrc.includes('file-2'), `ArrowRight moves to the next image (${secondSrc})`);
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+        await tick(60);
+        const backSrc = document.querySelector('.tgw-image-viewer-body img')?.getAttribute('src') || '';
+        ok(backSrc.includes('file-1'), `ArrowLeft moves back (${backSrc})`);
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await tick(60);
+        ok(!document.querySelector('.tgw-image-viewer'), 'Escape closes the image viewer');
+    } else {
+        fail('attachment thumbnail missing');
     }
 
     console.log('\n== interactions ==');

@@ -38,7 +38,7 @@ export interface TgUIState {
     replyTo: MMPost | null;
     editing: MMPost | null;
     contextMenu: ContextTarget | null;
-    imageViewer: MMPost | null;
+    imageViewer: {post: MMPost; fileId?: string} | null;
     highlightedPostId: string | null;
     threadRootId: string | null;
     mobilePane: 'list' | 'chat';

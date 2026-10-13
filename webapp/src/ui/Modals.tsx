@@ -1,17 +1,19 @@
 // Modal dialogs: settings, new chat/group/channel, member pickers, channel editing, confirms.
 
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
+import {useChannelPosts} from '../mm/posts';
 import {ACCENTS, updateSettings} from '../mm/settings';
 import type {AccentName, ThemeName} from '../mm/settings';
 import {getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMUser} from '../mm/types';
-import {displayName, toPlainPreview} from '../mm/utils';
+import type {MMPost, MMUser} from '../mm/types';
+import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
+import {filesOfPost} from './MessageList';
 import {overlayRoot} from './portal';
-import {Avatar, IconClose} from './primitives';
+import {Avatar, IconBack, IconClose, IconForward} from './primitives';
 
 export function ModalShell({title, children, footer, width = 460, onClose}: {title: string; children: React.ReactNode; footer?: React.ReactNode; width?: number; onClose: () => void}) {
     useEffect(() => {
@@ -466,22 +468,92 @@ export function Modals() {
 }
 
 export function ImageViewer() {
-    const {ui, actions} = useTg();
-    const post = ui.imageViewer;
-    if (!post) {
+    const {ui, actions, channel} = useTg();
+    const target = ui.imageViewer;
+    const {posts} = useChannelPosts(channel?.id);
+
+    // Every image attachment of the open chat, in message order, so the arrows can walk through
+    // them. The clicked post is appended as well in case it is not part of the cached page.
+    const images = useMemo(() => {
+        const list: Array<{post: MMPost; fileId: string}> = [];
+        const seen = new Set<string>();
+        const push = (post?: MMPost | null) => {
+            if (!post) {
+                return;
+            }
+            filesOfPost(post).forEach((file) => {
+                if (fileKindOf(file.mime_type || file.name) !== 'image' || seen.has(file.id)) {
+                    return;
+                }
+                seen.add(file.id);
+                list.push({post, fileId: file.id});
+            });
+        };
+        posts.forEach(push);
+        push(target && target.post);
+        return list;
+    }, [posts, target]);
+
+    // Position is re-derived whenever the viewer is pointed at a different attachment; cache
+    // updates only re-render and must not reset it.
+    const [index, setIndex] = useState(0);
+    const lastTarget = useRef('');
+    const targetKey = target ? `${target.post.id}:${target.fileId || ''}` : '';
+    if (target && targetKey !== lastTarget.current) {
+        lastTarget.current = targetKey;
+        const found = images.findIndex((entry) => entry.post.id === target.post.id && (!target.fileId || entry.fileId === target.fileId));
+        setIndex(found >= 0 ? found : 0);
+    }
+
+    const close = useCallback(() => actions.setUI({imageViewer: null}), [actions]);
+    const move = useCallback((step: number) => {
+        setIndex((current) => (images.length ? (current + step + images.length) % images.length : 0));
+    }, [images.length]);
+
+    useEffect(() => {
+        if (!target) {
+            return undefined;
+        }
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                move(-1);
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                move(1);
+            } else if (event.key === 'Escape') {
+                close();
+            }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [target, move, close]);
+
+    if (!target || !images.length) {
         return null;
     }
-    const files = post.metadata?.files || [];
+    const position = Math.min(index, images.length - 1);
+    const current = images[position];
+    const showNav = images.length > 1;
     return createPortal(
-        <div className="tgw-image-viewer" onMouseDown={(event) => (event.target === event.currentTarget ? actions.setUI({imageViewer: null}) : undefined)}>
-            <button type="button" className="tgw-image-viewer-close" onClick={() => actions.setUI({imageViewer: null})} title="Close">
+        <div className="tgw-image-viewer" onMouseDown={(event) => (event.target === event.currentTarget ? close() : undefined)}>
+            <button type="button" className="tgw-image-viewer-close" onClick={close} title="Close">
                 <IconClose size={24}/>
             </button>
+            {showNav && (
+                <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-prev" onClick={() => move(-1)} title="Previous attachment">
+                    <IconBack size={24}/>
+                </button>
+            )}
+            {showNav && (
+                <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-next" onClick={() => move(1)} title="Next attachment">
+                    <IconForward size={24}/>
+                </button>
+            )}
             <div className="tgw-image-viewer-body">
-                {files.map((file) => (
-                    <img key={file.id} src={api.fileURL(file.id)} alt={file.name}/>
-                ))}
-                <div className="tgw-image-viewer-caption">{toPlainPreview(post.message, 300)}</div>
+                <img src={api.fileURL(current.fileId)} alt=""/>
+                <div className="tgw-image-viewer-caption">{toPlainPreview(current.post.message, 300)}</div>
+                {showNav && <div className="tgw-image-viewer-count">{position + 1} / {images.length}</div>}
             </div>
         </div>,
         overlayRoot(),

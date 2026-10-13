@@ -321,6 +321,10 @@ export class MattermostAPI {
         return this.request(`/posts/${postId}/thread`);
     }
 
+    getPost(postId: string): Promise<MMPost> {
+        return this.request(`/posts/${postId}`);
+    }
+
     pinPost(postId: string): Promise<any> {
         return this.request(`/posts/${postId}/pin`, {method: 'POST'});
     }

@@ -13,7 +13,6 @@ import {MessageList} from './MessageList';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
 import {Avatar, IconBack, IconClose, IconLink, IconMore, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
-import {ThreadPanel} from './ThreadPanel';
 
 function minimalSummary(channel: MMChannel) {
     const title = channel.display_name || channel.name || 'Conversation';
@@ -316,14 +315,6 @@ export function ChatView() {
                     onSent={() => undefined}
                 />
             </div>
-
-            {ui.threadRootId && (
-                <ThreadPanel
-                    rootId={ui.threadRootId}
-                    channel={channel}
-                    onClose={() => actions.setUI({threadRootId: null})}
-                />
-            )}
 
             {menu && <Menu x={menu.x} y={menu.y} items={menu.items} align="right" onClose={() => setMenu(null)}/>}
 

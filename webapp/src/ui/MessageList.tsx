@@ -125,7 +125,10 @@ export function MessageList(props: MessageListProps) {
         }
         const element = listRef.current?.querySelector(`[data-post-id="${highlightedPostId}"]`);
         if (element) {
-            element.scrollIntoView({block: 'center'});
+            // Not every embedded webview implements scrollIntoView.
+            if (typeof element.scrollIntoView === 'function') {
+                element.scrollIntoView({block: 'center'});
+            }
             (element as HTMLElement).classList.add('tgw-post-highlight');
             setTimeout(() => (element as HTMLElement).classList.remove('tgw-post-highlight'), 2400);
         }
@@ -318,7 +321,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                 {files.length > 0 && (
                     <div className="tgw-attachments">
                         {files.map((file) => (
-                            <Attachment key={file.id} file={file} post={post} onOpenImage={() => actions.setUI({imageViewer: post})}/>
+                            <Attachment key={file.id} file={file} post={post} onOpenImage={() => actions.setUI({imageViewer: {post, fileId: file.id}})}/>
                         ))}
                     </div>
                 )}
@@ -410,7 +413,7 @@ function buildMentionKeys(me?: {username?: string; first_name?: string; last_nam
     return keys;
 }
 
-function filesOfPost(post: MMPost): MMFileInfo[] {
+export function filesOfPost(post: MMPost): MMFileInfo[] {
     if (post.metadata?.files?.length) {
         return post.metadata.files;
     }
@@ -419,7 +422,7 @@ function filesOfPost(post: MMPost): MMFileInfo[] {
     return (post.file_ids || []).map((id) => store[id]).filter(Boolean) as MMFileInfo[];
 }
 
-function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: MMPost; onOpenImage: () => void}) {
+export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: MMPost; onOpenImage: () => void}) {
     const kind = fileKindOf(file.mime_type || file.name);
     const url = api.fileURL(file.id);
     const thumbnail = api.fileURL(file.id, true);

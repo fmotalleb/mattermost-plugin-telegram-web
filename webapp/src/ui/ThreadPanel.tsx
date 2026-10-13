@@ -1,14 +1,17 @@
 // Thread side panel: replies of a root post (Mattermost collapsed reply threads).
 //
-// Replies are read from the Mattermost store (kept up to date by the host app's own websocket
-// handling); a REST call seeds the panel for threads the host never opened.
+// The thread is merged from three sources: the plugin's own post cache (what the chat view shows,
+// and the only place our own just-sent replies exist before the host app syncs them), the host
+// store, and a REST seed for threads neither side has loaded yet.
 
 import React, {useEffect, useMemo, useState} from 'react';
 import {api} from '../mm/api';
+import {getBlock, receivePost, useChannelPosts} from '../mm/posts';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMPost} from '../mm/types';
 import {displayName, formatTime, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
+import {Attachment, filesOfPost} from './MessageList';
 import {MessageBody} from './render';
 import {Avatar, IconClose, IconSend} from './primitives';
 
@@ -23,13 +26,17 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
     const posts = useSelector((state) => state.entities?.posts?.posts || {});
     const replyIds = useSelector((state) => state.entities?.posts?.postsInThread?.[rootId] as string[] | undefined);
     const profiles = useSelector((state) => state.entities?.users?.profiles);
+    const {posts: cachePosts} = useChannelPosts(channel.id);
     const [seeded, setSeeded] = useState<MMPost[]>([]);
     const [optimistic, setOptimistic] = useState<MMPost[]>([]);
     const [reply, setReply] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (replyIds && replyIds.length) {
+        const cached = getBlock(channel.id);
+        const known = (replyIds && replyIds.length > 0) ||
+            (cached ? Object.values(cached.posts).some((post) => post.root_id === rootId) : false);
+        if (known) {
             return;
         }
         setLoading(true);
@@ -40,19 +47,25 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
             })
             .catch(() => setSeeded([]))
             .then(() => setLoading(false));
-    }, [rootId, replyIds]);
+    }, [rootId, replyIds, channel.id]);
 
     const thread = useMemo(() => {
-        const root = posts[rootId];
-        const replies = (replyIds || []).map((id) => posts[id]).filter(Boolean) as MMPost[];
-        const base = replies.length ? replies : seeded.filter((post) => post.root_id === rootId || post.id === rootId);
-        const merged = [...(root ? [root] : base.filter((post) => post.id === rootId))]
-            .concat(base.filter((post) => post.id !== rootId));
+        const byId = new Map<string, MMPost>();
+        const add = (post?: MMPost | null) => {
+            if (post && post.delete_at === 0 && (post.id === rootId || post.root_id === rootId)) {
+                byId.set(post.id, post);
+            }
+        };
+        cachePosts.forEach(add);
+        add(posts[rootId]);
+        (replyIds || []).forEach((id) => add(posts[id]));
+        seeded.forEach(add);
+        const merged = Array.from(byId.values());
         // Drop optimistic copies that the server has already confirmed.
         const confirmedPendingIds = new Set(merged.map((post) => post.pending_post_id).filter(Boolean));
         const withoutConfirmed = optimistic.filter((post) => !post.pending_post_id || !confirmedPendingIds.has(post.pending_post_id));
         return merged.concat(withoutConfirmed).sort((a, b) => a.create_at - b.create_at);
-    }, [posts, replyIds, seeded, optimistic, rootId]);
+    }, [cachePosts, posts, replyIds, seeded, optimistic, rootId]);
 
     const send = async () => {
         const message = reply.trim();
@@ -91,6 +104,15 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
         }
     };
 
+    // Close the thread and flash the message in the chat view. Posts that scrolled out of the
+    // cached page are fetched first, otherwise the list has nothing to scroll to.
+    const goToMessage = (post: MMPost) => {
+        actions.setUI({threadRootId: null, highlightedPostId: post.id});
+        if (!getBlock(channel.id)?.posts[post.id]) {
+            api.getPost(post.id).then((loaded) => receivePost(loaded)).catch(() => undefined);
+        }
+    };
+
     return (
         <aside className="tgw-thread-panel">
             <header className="tgw-info-header">
@@ -105,6 +127,7 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
                 {thread.map((post, index) => {
                     const author = profiles?.[post.user_id];
                     const isRoot = index === 0;
+                    const files = filesOfPost(post);
                     return (
                         <div key={post.id} className={`tgw-thread-post ${isRoot ? 'tgw-thread-root' : ''}`}>
                             <Avatar userId={post.user_id} name={author ? displayName(author) : ''} size={36}/>
@@ -113,8 +136,16 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
                                     <span className="tgw-thread-author">{author ? displayName(author) : 'User'}</span>
                                     <span className="tgw-thread-time">{formatTime(post.create_at, timeFormat)}</span>
                                     {post._failed && <span className="tgw-thread-failed">failed</span>}
+                                    <button type="button" className="tgw-thread-goto" onClick={() => goToMessage(post)}>Go to message</button>
                                 </div>
                                 {post.message ? <MessageBody message={post.message} postId={post.id} editedAt={post.edit_at}/> : <span className="tgw-thread-empty">Attachment</span>}
+                                {files.length > 0 && (
+                                    <div className="tgw-attachments">
+                                        {files.map((file) => (
+                                            <Attachment key={file.id} file={file} post={post} onOpenImage={() => actions.setUI({imageViewer: {post, fileId: file.id}})}/>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );

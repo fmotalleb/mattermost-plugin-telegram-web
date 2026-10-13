@@ -1695,6 +1695,25 @@ img.tgw-reaction-emoji {
     font-style: italic;
 }
 
+.tgw-thread-goto {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    padding: 0;
+    color: var(--tgw-link);
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.tgw-thread-goto:hover {
+    text-decoration: underline;
+}
+
+.tgw-thread-post .tgw-attachment-image {
+    max-width: 100%;
+}
+
 .tgw-thread-composer {
     border-top: 1px solid var(--tgw-border);
     background: var(--tgw-composer-bar);
@@ -2211,6 +2230,40 @@ img.tgw-reaction-emoji {
     font-size: 14px;
     text-align: center;
     max-width: 720px;
+}
+
+/* left / right arrow navigation between the image attachments of the open chat */
+.tgw-image-viewer-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.tgw-image-viewer-nav:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.tgw-image-viewer-prev {
+    left: 24px;
+}
+
+.tgw-image-viewer-next {
+    right: 24px;
+}
+
+.tgw-image-viewer-count {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 13px;
 }
 
 .tgw-image-viewer-close {
