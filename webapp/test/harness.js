@@ -78,6 +78,8 @@ const posts = {
 };
 
 const calls = [];
+// Request bodies, so tests can assert what was actually sent (e.g. root_id on a reply).
+const payloads = [];
 global.fetch = async (url, options = {}) => {
     const parsed = new URL(url, 'https://mattermost.example.com');
     const p = parsed.pathname.replace('/api/v4', '');
@@ -89,6 +91,7 @@ global.fetch = async (url, options = {}) => {
         text: async () => JSON.stringify(data),
     });
     const post = options.body ? JSON.parse(options.body) : null;
+    payloads.push({method: options.method || 'GET', path: p, body: post});
 
     if (p === '/users/me') {
         return json(users[ME]);
@@ -109,7 +112,7 @@ global.fetch = async (url, options = {}) => {
         return json({status: 'OK'});
     }
     if (p === '/posts') {
-        return json({...posts.p2, id: 'p-new', message: post.message, pending_post_id: post.pending_post_id});
+        return json({...posts.p2, id: 'p-new', root_id: (post && post.root_id) || '', message: post.message, pending_post_id: post.pending_post_id});
     }
     if (p === '/reactions') {
         return json({user_id: post.user_id, post_id: post.post_id, emoji_name: post.emoji_name, create_at: Date.now()});
@@ -225,6 +228,7 @@ module.exports = {
     ReactDOMLegacy: require('react-dom'),
     container,
     calls,
+    payloads,
     users,
     channels,
     categories: state.entities.channelCategories.byId,

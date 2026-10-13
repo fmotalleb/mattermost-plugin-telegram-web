@@ -36,10 +36,16 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Replying threads the message onto the root of the post being answered (answering a reply
+    // keeps it in the same thread). Without this every reply went out as a brand new root post
+    // and the "Reply to ..." bar was purely cosmetic.
+    const threadRootId = replyTo && !editing ? (replyTo.root_id || replyTo.id) : rootId;
+    const threadRootRef = useRef(threadRootId);
+    threadRootRef.current = threadRootId;
     const typingRef = useRef(throttle(() => {
         const userId = me?.id;
         if (userId) {
-            api.sendTyping(userId, channel.id, rootId).catch(() => undefined);
+            api.sendTyping(userId, channel.id, threadRootRef.current).catch(() => undefined);
         }
     }, 3000));
 
@@ -127,8 +133,14 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 onCancelEdit();
                 reset();
             } else {
-                await onSend({message: trimmed, fileIds: readyFiles, rootId});
+                await onSend({message: trimmed, fileIds: readyFiles, rootId: threadRootId});
                 reset();
+                // The reply bar must disappear once the reply went out, otherwise every later
+                // message would be threaded as well.
+                if (replyTo) {
+                    onCancelReply();
+                }
+                onSent();
             }
             setShowEmoji(false);
         } catch (error: any) {

@@ -93,10 +93,10 @@ export function getPost(postId?: string | null): MMPost | undefined {
 export function getReactions(block: ChannelPostBlock | undefined, postId: string): MMReaction[] {
     const local = block?.reactions?.[postId];
     if (local) {
-        const values = Object.values(local);
-        if (values.length) {
-            return values;
-        }
+        // Once a local map exists it is the merged view: it was seeded from Redux/metadata and is
+        // then kept in step with the websocket. It must win even when empty - otherwise deleting
+        // the last reaction would fall back to the stale Redux/metadata copy and re-appear.
+        return Object.values(local);
     }
     const redux = getState().entities?.posts?.reactions?.[postId];
     if (redux) {
@@ -222,6 +222,7 @@ export function addOptimistic(channelId: string, post: MMPost): MMPost {
     block.posts[post.id] = withFlags;
     block.order.push(post.id);
     sortOrder(block);
+    bumpReplyCount(block, post.root_id, 1);
     emit();
     return withFlags;
 }
@@ -231,8 +232,12 @@ export function removePost(channelId: string, postId: string) {
     if (!block) {
         return;
     }
+    const removed = block.posts[postId];
     delete block.posts[postId];
     block.order = block.order.filter((id) => id !== postId);
+    if (removed) {
+        bumpReplyCount(block, removed.root_id, -1);
+    }
     emit();
 }
 
@@ -246,6 +251,33 @@ export function markFailed(channelId: string, postId: string) {
     }
 }
 
+/**
+ * Keeps the "N replies" counter on a root post live. The server only refreshes reply_count
+ * when the channel is re-fetched, so without this the link only appeared after a reload.
+ */
+function bumpReplyCount(block: ChannelPostBlock, rootId: string | undefined, delta: number) {
+    if (!rootId || !delta) {
+        return;
+    }
+    const root = block.posts[rootId];
+    if (root) {
+        root.reply_count = Math.max(0, (root.reply_count || 0) + delta);
+    }
+}
+
+/** Mirrors an incoming post into the sidebar preview, including for channels that were never opened. */
+function updatePreview(post: MMPost): boolean {
+    if (post.delete_at > 0) {
+        return false;
+    }
+    const preview = previews.get(post.channel_id);
+    if (preview && preview.lastPostAt > post.create_at) {
+        return false;
+    }
+    previews.set(post.channel_id, {post, at: Date.now(), lastPostAt: post.create_at});
+    return true;
+}
+
 export function receivePost(post: MMPost, opts: {prependHistory?: boolean} = {}) {
     if (!post) {
         return;
@@ -255,21 +287,32 @@ export function receivePost(post: MMPost, opts: {prependHistory?: boolean} = {})
         if (post.metadata?.reactions || post.root_id || post.is_pinned) {
             referencedPosts.set(post.id, post);
         }
+        // The channel is not open: the chat list still has to show the new last message, or it
+        // only catches up after a reload.
+        if (updatePreview(post)) {
+            emit();
+        }
         return;
     }
 
     // Reconcile the optimistic copy of our own message with the server copy.
+    let replacedPending = false;
     if (post.pending_post_id) {
         const optimisticId = `pending-${post.pending_post_id}`;
         if (block.posts[optimisticId]) {
+            replacedPending = true;
             delete block.posts[optimisticId];
             block.order = block.order.filter((id) => id !== optimisticId);
         }
     }
 
     if (post.delete_at > 0) {
+        const removed = block.posts[post.id];
         delete block.posts[post.id];
         block.order = block.order.filter((id) => id !== post.id);
+        if (removed) {
+            bumpReplyCount(block, removed.root_id, -1);
+        }
         emit();
         return;
     }
@@ -279,6 +322,10 @@ export function receivePost(post: MMPost, opts: {prependHistory?: boolean} = {})
     if (isNew) {
         block.order.push(post.id);
         sortOrder(block);
+        // The optimistic copy of our own reply already bumped the counter; only new posts count.
+        if (!replacedPending) {
+            bumpReplyCount(block, post.root_id, 1);
+        }
     }
     if (post.metadata?.reactions) {
         const map: Record<string, MMReaction> = {};
@@ -289,10 +336,7 @@ export function receivePost(post: MMPost, opts: {prependHistory?: boolean} = {})
     }
 
     // Keep sidebar previews in sync.
-    const preview = previews.get(post.channel_id);
-    if (!preview || post.create_at >= (preview.post?.create_at || 0)) {
-        previews.set(post.channel_id, {post, at: Date.now(), lastPostAt: post.create_at});
-    }
+    updatePreview(post);
 
     emit();
 }

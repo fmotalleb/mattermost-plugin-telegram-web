@@ -7,7 +7,8 @@
 import React from 'react';
 import {PLUGIN_ID, getSettings, initSettings, setEnabled} from './mm/settings';
 import {api} from './mm/api';
-import {clearCache, receivePost, receiveReaction} from './mm/posts';
+import {clearCache} from './mm/posts';
+import {handleSocketEvent} from './mm/socket';
 import {setStore} from './mm/store';
 import {TelegramUI} from './ui/TelegramUI';
 import './styles.css';
@@ -30,6 +31,9 @@ interface PluginRegistry {
 }
 
 const TOGGLE_EVENT = 'tgw:disable';
+
+// Events whose payload the local post cache consumes (see ./mm/socket for the JSON parsing).
+const CACHE_EVENTS = ['posted', 'post_edited', 'post_deleted', 'reaction_added', 'reaction_removed'];
 
 class TelegramWebPlugin {
     private registry?: PluginRegistry;
@@ -55,33 +59,8 @@ class TelegramWebPlugin {
         registry.registerMainMenuAction('Telegram Web UI', () => this.toggle(), ICON);
 
         // Mattermost websocket events -> plugin post cache.
-        registry.registerWebSocketEventHandler('posted', (message: any) => {
-            const post = message?.data?.post;
-            if (post) {
-                receivePost(post);
-            }
-        });
-        registry.registerWebSocketEventHandler('post_edited', (message: any) => {
-            const post = message?.data?.post;
-            if (post) {
-                receivePost(post);
-            }
-        });
-        registry.registerWebSocketEventHandler('post_deleted', (message: any) => {
-            const post = message?.data?.post;
-            if (post) {
-                receivePost({...post, delete_at: post.delete_at || Date.now()});
-            }
-        });
-        registry.registerWebSocketEventHandler('reaction_added', (message: any) => {
-            if (message?.data?.reaction) {
-                receiveReaction(message.data.reaction, true);
-            }
-        });
-        registry.registerWebSocketEventHandler('reaction_removed', (message: any) => {
-            if (message?.data?.reaction) {
-                receiveReaction(message.data.reaction, false);
-            }
+        CACHE_EVENTS.forEach((event) => {
+            registry.registerWebSocketEventHandler(event, (message: any) => handleSocketEvent(event, message));
         });
         // Keep unread state in sync when the channel is marked unread from another session
         // (or by this one via the set_unread API, which the server echoes back).
@@ -114,11 +93,7 @@ class TelegramWebPlugin {
     uninitialize() {
         window.removeEventListener(TOGGLE_EVENT, this.onDisable);
         try {
-            this.registry?.unregisterWebSocketEventHandler('posted');
-            this.registry?.unregisterWebSocketEventHandler('post_edited');
-            this.registry?.unregisterWebSocketEventHandler('post_deleted');
-            this.registry?.unregisterWebSocketEventHandler('reaction_added');
-            this.registry?.unregisterWebSocketEventHandler('reaction_removed');
+            CACHE_EVENTS.forEach((event) => this.registry?.unregisterWebSocketEventHandler(event));
             this.registry?.unregisterWebSocketEventHandler('post_unread');
         } catch (error) {
             // eslint-disable-next-line no-console

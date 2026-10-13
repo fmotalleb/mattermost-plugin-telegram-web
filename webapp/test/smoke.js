@@ -11,15 +11,14 @@
  */
 
 const {
-    dom, React, ReactDOM: ReactDOMClient, container, calls,
+    dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
     store, state, posts, ids, tick, ok, fail, report,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings, getSettings} = require('../src/mm/settings');
-const {receivePost} = require('../src/mm/posts');
-const {addOptimistic} = require('../src/mm/posts');
+const {handleSocketEvent} = require('../src/mm/socket');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 
 setStore(store);
@@ -59,6 +58,37 @@ root.render(React.createElement(TelegramUI));
         await tick(60);
         ok(calls.some((call) => call.includes('/reactions')), 'reaction toggle requested through the API');
         ok(document.querySelector('.tgw-reaction')?.textContent.includes('2'), 'reaction count updated without a reload');
+
+        // Re-clicking a reaction I already joined must take mine away again.
+        document.querySelector('.tgw-reaction')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(60);
+        ok(calls.some((call) => call.startsWith('DELETE') && call.includes('/reactions')), 're-clicking my reaction removes it through the API');
+        ok(document.querySelector('.tgw-reaction')?.textContent.includes('1'), 'reaction count drops back without a reload');
+    }
+
+    console.log('\n== reply ==');
+    const replyButton = Array.from(document.querySelectorAll('.tgw-msg-toolbar button[title="Reply"]'))[0];
+    ok(!!replyButton, 'reply action available on a message');
+    if (replyButton) {
+        replyButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(60);
+        ok(!!document.querySelector('.tgw-reply-bar'), 'reply bar opens under the composer');
+        const replyArea = document.querySelector('.tgw-composer textarea');
+        if (replyArea) {
+            const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+            valueSetter.call(replyArea, 'this is a threaded reply');
+            replyArea.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+            await tick(30);
+            document.querySelector('.tgw-send-button').dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await tick(80);
+            const replyPayload = payloads.find((entry) => entry.path === '/posts' && entry.body && entry.body.root_id);
+            ok(!!replyPayload && !String(replyPayload.body.root_id).startsWith('pending-'), `reply was posted with the real root_id (got: ${JSON.stringify((payloads.filter((entry) => entry.path === '/posts').pop() || {}).body)})`);
+            ok(!!document.querySelector('.tgw-msg-reply-preview'), 'sent reply renders with the reply preview');
+            ok(document.body.innerHTML.includes('this is a threaded reply'), 'threaded reply message rendered');
+            ok(!document.querySelector('.tgw-reply-bar'), 'reply bar closes after the reply was sent');
+        } else {
+            fail('composer textarea missing while replying');
+        }
     }
 
     console.log('\n== interactions ==');
@@ -86,9 +116,32 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== websocket ==');
-    receivePost({...posts.p1, id: 'p-ws', create_at: Date.now(), channel_id: ids.TOWN, user_id: ids.OTHER, message: 'incoming over websocket', metadata: {}});
+    // Mattermost ships the post inside data.post as a JSON *string* (post.ToJson() on the server);
+    // the raw string must be parsed or the cache silently ignores it.
+    const wsPost = {...posts.p1, id: 'p-ws', create_at: Date.now(), channel_id: ids.TOWN, user_id: ids.OTHER, message: 'incoming over websocket', root_id: '', reply_count: 0, metadata: {}};
+    handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify(wsPost)}});
     await tick(60);
     ok(document.body.innerHTML.includes('incoming over websocket'), 'websocket post appears in the open chat');
+
+    const wsReply = {...wsPost, id: 'p-ws-reply', root_id: 'p-ws', message: 'reply over websocket'};
+    handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify(wsReply)}});
+    await tick(60);
+    ok(document.body.innerHTML.includes('reply over websocket'), 'websocket reply appears in the open chat');
+    ok(document.querySelector('.tgw-thread-link')?.textContent.includes('1 reply'), 'reply counter updates without a reload');
+
+    // Reactions over the socket, in both directions.
+    const wsReaction = {user_id: ids.OTHER, post_id: 'p-ws', emoji_name: 'tada', create_at: Date.now()};
+    handleSocketEvent('reaction_added', {event: 'reaction_added', data: {reaction: JSON.stringify(wsReaction)}});
+    await tick(60);
+    ok(document.querySelector('.tgw-reaction')?.textContent.includes('1'), 'reaction added over the websocket renders');
+    handleSocketEvent('reaction_removed', {event: 'reaction_removed', data: {reaction: JSON.stringify(wsReaction)}});
+    await tick(60);
+    ok(!document.querySelector('.tgw-reaction'), 'reaction removed over the websocket disappears immediately');
+
+    // A post in a chat that is not open still refreshes that chat's sidebar preview.
+    handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({...posts.p1, id: 'p-preview', create_at: Date.now(), channel_id: ids.DM, message: 'newest in the dm', root_id: '', metadata: {}})}});
+    await tick(60);
+    ok(document.body.innerHTML.includes('newest in the dm'), 'chat list preview updates for a channel that is not open');
 
     console.log('\n== search ==');
     const searchInput = document.querySelector('.tgw-search input');

@@ -2,7 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {api} from '../mm/api';
-import {addOptimistic, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
+import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
@@ -118,36 +118,34 @@ export function ChatView() {
         }
     }, [channel, me, actions]);
 
-    const toggleReaction = useCallback((post: MMPost, reaction: MMReaction) => {
+    // Toggling is always about *my* participation in an emoji, never about the reaction object
+    // the chip happened to hand us - that one may belong to whoever reacted first.
+    const toggleEmoji = useCallback((post: MMPost, emojiName: string) => {
         const myId = me?.id;
-        if (!myId) {
+        if (!myId || !emojiName) {
             return;
         }
-        const mine = reaction.user_id === myId;
-        const optimistic: MMReaction = {user_id: myId, post_id: post.id, emoji_name: reaction.emoji_name, create_at: Date.now()};
+        const mine = getReactions(getBlock(post.channel_id), post.id)
+            .some((reaction) => reaction.user_id === myId && reaction.emoji_name === emojiName);
+        const optimistic: MMReaction = {user_id: myId, post_id: post.id, emoji_name: emojiName, create_at: Date.now()};
         // Apply the change locally right away; the websocket echo overwrites it with the
         // authoritative record and the failure branch below puts it back if the API says no.
         receiveReaction(optimistic, !mine);
         const call = mine
-            ? api.removeReaction(myId, post.id, reaction.emoji_name)
-            : api.addReaction(myId, post.id, reaction.emoji_name);
+            ? api.removeReaction(myId, post.id, emojiName)
+            : api.addReaction(myId, post.id, emojiName);
         call.catch(() => {
             receiveReaction(optimistic, mine);
             actions.toast('Could not update the reaction', 'error');
         });
     }, [me, actions]);
 
+    const toggleReaction = useCallback((post: MMPost, reaction: MMReaction) => {
+        toggleEmoji(post, reaction.emoji_name);
+    }, [toggleEmoji]);
+
     const addReaction = (post: MMPost, emojiName: string) => {
-        const myId = me?.id;
-        if (!myId) {
-            return;
-        }
-        const optimistic: MMReaction = {user_id: myId, post_id: post.id, emoji_name: emojiName, create_at: Date.now()};
-        receiveReaction(optimistic, true);
-        api.addReaction(myId, post.id, emojiName).catch(() => {
-            receiveReaction(optimistic, false);
-            actions.toast('Could not add the reaction', 'error');
-        });
+        toggleEmoji(post, emojiName);
     };
 
     const openHeaderMenu = () => {
