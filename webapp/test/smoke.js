@@ -26,15 +26,19 @@ initSettings();
 updateSettings({mode: 'on', theme: 'light'});
 
 // Waits until a condition holds, so assertions do not depend on how long a render takes.
+// Returns the first truthy value the predicate produced, so it can also hand back the found node.
 async function waitFor(predicate, timeout = 1500) {
     const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-        if (predicate()) {
-            return true;
+    for (;;) {
+        const value = predicate();
+        if (value) {
+            return value;
+        }
+        if (Date.now() >= deadline) {
+            return predicate();
         }
         await tick(30);
     }
-    return predicate();
 }
 
 const root = ReactDOMClient.createRoot(container);
@@ -61,8 +65,13 @@ root.render(React.createElement(TelegramUI));
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
     ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
+    // The voice fixture is the newest DM post, so it must drive the sidebar preview as well.
+    ok(Array.from(document.querySelectorAll('.tgw-chat-row')).some((row) => row.textContent.includes('Voice message')), 'sidebar preview shows the voice message');
 
     // Reaction toggles must update the local cache immediately, not after a reload.
+    // One more tick: the MessageRow subscription effects (usePostRevision) must be registered
+    // before the click, or the emit below has nobody to re-render for.
+    await tick(30);
     const reactionChip = document.querySelector('.tgw-reaction');
     if (reactionChip) {
         ok(reactionChip.textContent.includes('1'), 'reaction starts with a single user');
@@ -148,6 +157,58 @@ root.render(React.createElement(TelegramUI));
         ok(!document.querySelector('.tgw-image-viewer'), 'Escape closes the image viewer');
     } else {
         fail('attachment thumbnail missing');
+    }
+
+    console.log('\n== voice messages ==');
+    const voicePlayer = document.querySelector('.tgw-voice');
+    ok(!!voicePlayer, 'voice message renders with the player');
+    ok(!!document.querySelector('.tgw-voice .tgw-voice-play'), 'voice player has a play button');
+    const voiceBars = document.querySelectorAll('.tgw-voice .tgw-voice-bar').length;
+    ok(voiceBars > 0, `voice waveform rendered (${voiceBars} bars)`);
+    ok(/^\d+:\d\d$/.test((document.querySelector('.tgw-voice-duration')?.textContent || '').trim()), 'voice duration label rendered');
+    if (voicePlayer) {
+        const playButton = voicePlayer.querySelector('.tgw-voice-play');
+        playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(30);
+        ok(!!document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'clicking play toggles the player into the playing state');
+        playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(30);
+        ok(!document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'clicking again pauses the player');
+    }
+
+    const micButton = document.querySelector('.tgw-composer-icon[title="Record a voice message"]');
+    ok(!!micButton, 'microphone button available in the composer');
+    if (micButton) {
+        micButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => !!document.querySelector('.tgw-voice-recording'));
+        ok(!!document.querySelector('.tgw-voice-recording'), 'clicking the microphone starts a recording');
+        await waitFor(() => document.querySelectorAll('.tgw-rec-bar').length > 1);
+        ok(document.querySelectorAll('.tgw-rec-bar').length > 1, 'live waveform renders while recording');
+        ok(/^\d+:\d\d$/.test((document.querySelector('.tgw-rec-timer')?.textContent || '').trim()), 'recording timer rendered');
+        ok(!document.querySelector('.tgw-composer textarea'), 'the text input is replaced while recording');
+
+        const stopButton = document.querySelector('.tgw-voice-stop');
+        ok(!!stopButton, 'stop control shown while recording');
+        if (stopButton) {
+            stopButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await waitFor(() => !!document.querySelector('.tgw-attachment-chip-voice'));
+            ok(!!document.querySelector('.tgw-attachment-chip-voice'), 'finished take lands in the attachment tray');
+            ok(calls.some((call) => call === 'POST /files'), 'voice take uploaded through the file API');
+            await waitFor(() => !document.body.innerHTML.includes('Uploading…'));
+            ok(!document.body.innerHTML.includes('Uploading…'), 'voice take finished uploading');
+
+            document.querySelector('.tgw-send-button').dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            const voicePost = await waitFor(() => payloads.find((entry) => entry.path === '/posts' && entry.body && Array.isArray(entry.body.file_ids) && entry.body.file_ids.length));
+            ok(!!voicePost, 'voice message posted with the uploaded file id');
+            if (voicePost) {
+                ok(voicePost.body.props?.voice?.fileId === voicePost.body.file_ids[0], 'voice metadata points at the uploaded file');
+                ok(typeof voicePost.body.props?.voice?.durationMs === 'number', 'voice duration travels with the post');
+                ok(Array.isArray(voicePost.body.props?.voice?.levels) && voicePost.body.props.voice.levels.length > 0, 'recorded waveform travels with the post');
+            }
+            await waitFor(() => document.querySelectorAll('.tgw-voice').length >= 2);
+            ok(document.querySelectorAll('.tgw-voice').length >= 2, 'sent voice message renders in the chat');
+            ok(!document.querySelector('.tgw-voice-recording'), 'composer returns to normal after the voice message was sent');
+        }
     }
 
     console.log('\n== interactions ==');

@@ -6,7 +6,7 @@ import {getMyId, getStatus} from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
-import {displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
+import {attachmentSummary, displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
 import {useTg} from './context';
 import {Avatar, Badge, IconMute, IconStar} from './primitives';
 
@@ -26,7 +26,7 @@ function previewText(post: MMPost | null, isOwn: boolean, showAuthor: boolean, a
     if (!post) {
         return '';
     }
-    const body = toPlainPreview(post.message) || (post.metadata?.files?.length ? 'Attachment' : '');
+    const body = toPlainPreview(post.message) || attachmentSummary(post.metadata?.files);
     if (!body) {
         return '';
     }

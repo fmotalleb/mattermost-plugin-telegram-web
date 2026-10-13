@@ -5,7 +5,7 @@ import {api} from '../mm/api';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMChannel, MMPost, MMReaction} from '../mm/types';
+import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
 import {copyToClipboard, displayName, memberCountLabel, statusLabel} from '../mm/utils';
 import {Composer} from './Composer';
 import {useTg} from './context';
@@ -75,7 +75,7 @@ export function ChatView() {
         return posts.filter((post) => (post.message || '').toLowerCase().includes(term));
     }, [posts, inChatSearch]);
 
-    const handleSend = useCallback(async ({message, fileIds, rootId}: {message: string; fileIds: string[]; rootId?: string}) => {
+    const handleSend = useCallback(async ({message, fileIds, rootId, files, voice}: {message: string; fileIds: string[]; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => {
         if (!channel) {
             return;
         }
@@ -93,9 +93,12 @@ export function ChatView() {
             original_id: '',
             message,
             type: '',
-            props: {},
+            props: voice ? {voice} : {},
             pending_post_id: pendingId,
             file_ids: fileIds,
+            // Without this the optimistic bubble cannot render the attachments we just uploaded;
+            // the server echo normally brings the same data back.
+            metadata: files?.length ? {files} : undefined,
         };
         addOptimistic(channel.id, optimistic);
         try {
@@ -105,9 +108,18 @@ export function ChatView() {
                 root_id: rootId,
                 file_ids: fileIds,
                 pending_post_id: pendingId,
+                props: voice ? {voice} : undefined,
             });
             if (post) {
-                receivePost(post);
+                // Keep the attachment metadata and the voice waveform when the echo omits them.
+                let merged = post;
+                if (files?.length && !merged.metadata?.files?.length) {
+                    merged = {...merged, metadata: {...merged.metadata, files}};
+                }
+                if (voice && merged.props?.voice?.fileId !== voice.fileId) {
+                    merged = {...merged, props: {...merged.props, voice}};
+                }
+                receivePost(merged);
             }
             api.viewChannel(channel.id).catch(() => undefined);
         } catch (error: any) {

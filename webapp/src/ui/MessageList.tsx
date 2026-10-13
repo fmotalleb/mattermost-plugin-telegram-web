@@ -8,12 +8,14 @@ import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
 import {
+    attachmentSummary,
     colorForKey,
     displayName,
     fileKindOf,
     formatBytes,
     formatChatTime,
     formatDateSeparator,
+    formatDuration,
     formatTime,
     isSameDay,
     toPlainPreview,
@@ -21,7 +23,7 @@ import {
 import {useTg} from './context';
 import type {ContextTarget} from './context';
 import {MessageBody} from './render';
-import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconMore, IconReply, IconWarning} from './primitives';
+import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -308,7 +310,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         onClick={() => onOpenThread(rootPost)}
                     >
                         <span className="tgw-msg-reply-author">{replyAuthorName(rootPost, myId)}</span>
-                        <span className="tgw-msg-reply-text">{toPlainPreview(rootPost.message, 120) || 'Attachment'}</span>
+                        <span className="tgw-msg-reply-text">{toPlainPreview(rootPost.message, 120) || attachmentSummary(filesOfPost(rootPost)) || 'Attachment'}</span>
                     </button>
                 )}
                 <MessageBody
@@ -443,12 +445,9 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
         );
     }
     if (kind === 'audio') {
-        return (
-            <div className="tgw-attachment-audio">
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <audio src={url} controls preload="none"/>
-            </div>
-        );
+        // Audio attachments render as a Telegram-style voice player (waveform + duration) driven
+        // by the recorded metadata in post.props.voice, with the file itself as the audio source.
+        return <VoiceMessage file={file} voice={post.props?.voice}/>;
     }
     return (
         <a className="tgw-attachment-file" href={`${url}?download=1`} target="_blank" rel="noopener noreferrer">
@@ -459,6 +458,115 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
             </span>
             <IconDownload size={18}/>
         </a>
+    );
+}
+
+/** Stable pseudo-waveform for voice files that were recorded elsewhere (no props.voice). */
+function syntheticLevels(seed: string, count: number): number[] {
+    let hash = 0;
+    for (let index = 0; index < seed.length; index++) {
+        hash = (hash * 31 + seed.charCodeAt(index)) | 0;
+    }
+    const levels: number[] = [];
+    for (let index = 0; index < count; index++) {
+        hash = (hash * 1664525 + 1013904223) | 0;
+        levels.push(0.3 + (((hash >>> 16) & 0xffff) / 0xffff) * 0.7);
+    }
+    return levels;
+}
+
+export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?: string; durationMs?: number; levels?: number[]}}) {
+    const url = api.fileURL(file.id);
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const [playing, setPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [durationMs, setDurationMs] = useState(voice?.durationMs || 0);
+
+    const levels = useMemo(() => {
+        const provided = voice?.levels?.length ? voice.levels : null;
+        if (provided) {
+            const max = Math.max(...provided, 0.0001);
+            return provided.map((value) => Math.max(0.1, value / max));
+        }
+        return syntheticLevels(file.id, 42);
+    }, [file.id, voice]);
+    const played = Math.round(progress * levels.length);
+
+    const toggle = () => {
+        const element = audioRef.current;
+        const next = !playing;
+        setPlaying(next);
+        if (!element) {
+            return;
+        }
+        if (next) {
+            const result = element.play();
+            if (result && typeof result.catch === 'function') {
+                result.catch(() => setPlaying(false));
+            }
+        } else {
+            element.pause();
+        }
+    };
+
+    const onSeek = (event: React.MouseEvent<HTMLDivElement>) => {
+        const element = audioRef.current;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (!element || !bounds.width || !isFinite(element.duration) || element.duration <= 0) {
+            return;
+        }
+        const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+        element.currentTime = ratio * element.duration;
+        setProgress(ratio);
+    };
+
+    return (
+        <div className="tgw-voice" data-file-id={file.id}>
+            <audio
+                ref={audioRef}
+                src={url}
+                preload="metadata"
+                onTimeUpdate={() => {
+                    const element = audioRef.current;
+                    if (element && isFinite(element.duration) && element.duration > 0) {
+                        setProgress(element.currentTime / element.duration);
+                    }
+                }}
+                onLoadedMetadata={() => {
+                    const element = audioRef.current;
+                    if (element && isFinite(element.duration) && element.duration > 0 && !voice?.durationMs) {
+                        setDurationMs(element.duration * 1000);
+                    }
+                }}
+                onEnded={() => {
+                    setPlaying(false);
+                    setProgress(0);
+                }}
+            />
+            <button
+                type="button"
+                className={`tgw-voice-play ${playing ? 'tgw-voice-playing' : ''}`}
+                title={playing ? 'Pause voice message' : 'Play voice message'}
+                onClick={toggle}
+            >
+                {playing ? <IconPause size={18}/> : <IconPlay size={18}/>}
+            </button>
+            <div className="tgw-voice-body">
+                <div className="tgw-voice-wave" onClick={onSeek} role="presentation">
+                    {levels.map((level, index) => (
+                        <span
+                            key={index}
+                            className={`tgw-voice-bar ${index < played ? 'tgw-voice-bar-on' : ''}`}
+                            style={{height: `${Math.round(level * 100)}%`}}
+                        />
+                    ))}
+                </div>
+                <div className="tgw-voice-footer">
+                    <span className="tgw-voice-duration">{formatDuration(durationMs)}</span>
+                    {file.size > 0 && <span className="tgw-voice-size">{formatBytes(file.size)}</span>}
+                </div>
+            </div>
+        </div>
     );
 }
 

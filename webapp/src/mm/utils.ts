@@ -1,6 +1,6 @@
 // Formatting + naming helpers shared by the whole UI.
 
-import type {MMChannel, MMUser} from './types';
+import type {MMChannel, MMFileInfo, MMUser} from './types';
 
 export const DAY = 24 * 60 * 60 * 1000;
 
@@ -186,18 +186,36 @@ export function formatBytes(bytes: number): string {
     return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
 
+/** "7:05" / "0:07" style duration label for voice messages and recordings. */
+export function formatDuration(ms: number): string {
+    const total = Math.max(0, Math.round(ms / 1000));
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export type FileKind = 'image' | 'video' | 'audio' | 'pdf' | 'archive' | 'code' | 'file';
 
 export function fileKindOf(nameOrMime = ''): FileKind {
     const value = nameOrMime.toLowerCase();
     const extension = value.includes('.') ? value.split('.').pop()!.split('?')[0] : '';
-    if (/^image\//.test(value) || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic'].includes(extension)) {
+    // The mime type wins over the extension: a recording named voice.webm is audio, not video.
+    if (/^image\//.test(value)) {
         return 'image';
     }
-    if (/^video\//.test(value) || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(extension)) {
+    if (/^audio\//.test(value)) {
+        return 'audio';
+    }
+    if (/^video\//.test(value)) {
         return 'video';
     }
-    if (/^audio\//.test(value) || ['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(extension)) {
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic'].includes(extension)) {
+        return 'image';
+    }
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(extension)) {
+        return 'video';
+    }
+    if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(extension)) {
         return 'audio';
     }
     if (extension === 'pdf' || value === 'application/pdf') {
@@ -210,6 +228,24 @@ export function fileKindOf(nameOrMime = ''): FileKind {
         return 'code';
     }
     return 'file';
+}
+
+/** Short stand-in text for a post that carries attachments but little or no message. */
+export function attachmentSummary(files?: MMFileInfo[] | null): string {
+    if (!files?.length) {
+        return '';
+    }
+    const kinds = files.map((file) => fileKindOf(file.mime_type || file.name));
+    if (kinds.includes('audio')) {
+        return '🎤 Voice message';
+    }
+    if (kinds.includes('image') && files.length === 1) {
+        return '📷 Photo';
+    }
+    if (kinds.includes('video')) {
+        return '🎬 Video';
+    }
+    return 'Attachment';
 }
 
 export function escapeHtml(text: string): string {

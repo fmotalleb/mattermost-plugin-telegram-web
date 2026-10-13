@@ -23,7 +23,9 @@ const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></
 });
 global.window = dom.window;
 global.document = dom.window.document;
-global.navigator = dom.window.navigator;
+// Node ≥21 ships its own read-only global `navigator`; a plain assignment is ignored, so replace
+// the property itself or every `navigator.*` check in the plugin would miss the jsdom one.
+Object.defineProperty(global, 'navigator', {value: dom.window.navigator, configurable: true, writable: true});
 global.HTMLElement = dom.window.HTMLElement;
 global.Element = dom.window.Element;
 global.Node = dom.window.Node;
@@ -38,6 +40,68 @@ dom.window.requestAnimationFrame = global.requestAnimationFrame;
 dom.window.cancelAnimationFrame = global.cancelAnimationFrame;
 global.IS_REACT_ACT_ENVIRONMENT = true;
 window.basename = '';
+
+// --------------------------------------------------------------------------- media mocks
+// jsdom has no media stack; the voice recorder (getUserMedia + MediaRecorder + AudioContext)
+// runs against these fakes so the record → upload → send path is covered end to end.
+global.Blob = dom.window.Blob;
+global.File = dom.window.File;
+dom.window.navigator.mediaDevices = {
+    getUserMedia: async () => ({getTracks: () => [{stop() {}}], getAudioTracks: () => [{stop() {}}]}),
+};
+dom.window.MediaRecorder = class MediaRecorder {
+    constructor(stream, options = {}) {
+        this.stream = stream;
+        this.mimeType = (options && options.mimeType) || 'audio/webm';
+        this.state = 'inactive';
+        this.ondataavailable = null;
+        this.onstop = null;
+        this.onerror = null;
+    }
+
+    start() {
+        this.state = 'recording';
+    }
+
+    stop() {
+        if (this.state === 'inactive') {
+            return;
+        }
+        this.state = 'inactive';
+        const data = new dom.window.Blob(['voice-bytes'], {type: this.mimeType});
+        if (this.ondataavailable) {
+            this.ondataavailable({data});
+        }
+        if (this.onstop) {
+            this.onstop();
+        }
+    }
+};
+dom.window.MediaRecorder.isTypeSupported = () => true;
+global.MediaRecorder = dom.window.MediaRecorder;
+dom.window.AudioContext = class AudioContext {
+    createMediaStreamSource() {
+        return {connect() {}};
+    }
+
+    createAnalyser() {
+        return {
+            fftSize: 256,
+            frequencyBinCount: 128,
+            connect() {},
+            getByteTimeDomainData(array) {
+                for (let index = 0; index < array.length; index++) {
+                    array[index] = 128 + Math.round(60 * Math.sin(index / 4));
+                }
+            },
+        };
+    }
+
+    close() {
+        return Promise.resolve();
+    }
+};
+global.AudioContext = dom.window.AudioContext;
 
 // --------------------------------------------------------------------------- babel register
 require('@babel/register')({
@@ -83,6 +147,15 @@ const posts = {
     },
     p2: {id: 'p2', create_at: 1_700_000_200_000, update_at: 1_700_000_200_000, edit_at: 0, delete_at: 0, user_id: ME, channel_id: DM, message: 'Doing great, thanks :smile:', type: '', props: {}, root_id: '', is_pinned: false, metadata: {}},
     p3: {id: 'p3', create_at: 1_700_000_500_000, update_at: 1_700_000_500_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM, message: '**Deploy** is done, see https://example.com/run', type: '', props: {}, root_id: '', is_pinned: false, metadata: {reactions: [{user_id: OTHER, post_id: 'p3', emoji_name: 'tada', create_at: 1_700_000_600_000}]}},
+    p4: {
+        id: 'p4', create_at: 1_700_000_700_000, update_at: 1_700_000_700_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM, message: '', type: '', root_id: '', is_pinned: false,
+        props: {voice: {fileId: 'file-voice', durationMs: 7000, levels: [0.2, 0.55, 0.9, 0.4, 0.75, 1, 0.6, 0.3, 0.45, 0.8, 0.35, 0.65]}},
+        metadata: {
+            files: [
+                {id: 'file-voice', name: 'voice-message.ogg', mime_type: 'audio/ogg', extension: 'ogg', size: 18432, user_id: OTHER, create_at: 1_700_000_700_000, update_at: 1_700_000_700_000, delete_at: 0},
+            ],
+        },
+    },
 };
 
 const calls = [];
@@ -98,8 +171,39 @@ global.fetch = async (url, options = {}) => {
         statusText: 'OK',
         text: async () => JSON.stringify(data),
     });
-    const post = options.body ? JSON.parse(options.body) : null;
+    // Bodies are JSON strings except for multipart uploads, where body is a FormData object.
+    const isForm = typeof dom.window.FormData !== 'undefined' && options.body instanceof dom.window.FormData;
+    let post = null;
+    if (!isForm && typeof options.body === 'string') {
+        try {
+            post = JSON.parse(options.body);
+        } catch {
+            post = null;
+        }
+    }
     payloads.push({method: options.method || 'GET', path: p, body: post});
+
+    if (p === '/files' && options.method === 'POST') {
+        const form = options.body;
+        const file = form && typeof form.get === 'function' ? form.get('files') : null;
+        const name = (file && file.name) || 'upload.bin';
+        return json({
+            file_infos: [{
+                id: `file-up-${calls.length}`,
+                user_id: ME,
+                channel_id: form && typeof form.get === 'function' ? form.get('channel_id') : '',
+                post_id: '',
+                create_at: Date.now(),
+                update_at: Date.now(),
+                delete_at: 0,
+                name,
+                extension: name.includes('.') ? name.split('.').pop() : '',
+                mime_type: (file && file.type) || 'application/octet-stream',
+                size: (file && file.size) || 0,
+                client_id: form && typeof form.get === 'function' ? form.get('client_ids') : '',
+            }],
+        });
+    }
 
     if (p === '/users/me') {
         return json(users[ME]);
@@ -108,7 +212,7 @@ global.fetch = async (url, options = {}) => {
         return json([]);
     }
     if (p === `/channels/${DM}/posts`) {
-        return json({order: ['p3', 'p2', 'p1'], posts: {p1: posts.p1, p2: posts.p2, p3: posts.p3}});
+        return json({order: ['p4', 'p3', 'p2', 'p1'], posts: {p1: posts.p1, p2: posts.p2, p3: posts.p3, p4: posts.p4}});
     }
     if (p === `/channels/${TOWN}/posts`) {
         return json({order: [], posts: {}});
