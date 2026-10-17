@@ -53,29 +53,100 @@
     box-sizing: border-box;
 }
 
+/* Base dark palette — one notch deeper than before (#212121 family → #181818 family) so the
+   night theme actually reads as night next to Mattermost's own dark UI. */
 .tgw-root.tgw-theme-dark {
-    --tgw-bg: #212121;
-    --tgw-bg-secondary: #212121;
-    --tgw-sidebar: #212121;
-    --tgw-border: #2f2f2f;
-    --tgw-border-strong: #3a3a3a;
+    --tgw-bg: #181818;
+    --tgw-bg-secondary: #181818;
+    --tgw-sidebar: #181818;
+    --tgw-border: #282828;
+    --tgw-border-strong: #333333;
     --tgw-text: #ffffff;
     --tgw-text-secondary: #aaaaaa;
     --tgw-text-tertiary: #7d7f82;
-    --tgw-hover: #2b2b2b;
-    --tgw-active: #2f2f2f;
-    --tgw-chat-bg: #0f0f0f;
-    --tgw-in-bubble: #212121;
+    --tgw-hover: #242424;
+    --tgw-active: #2b2b2b;
+    --tgw-chat-bg: #0d0d0d;
+    --tgw-in-bubble: #181818;
     --tgw-out-bubble: #766ac8;
-    --tgw-reaction: #2b2b2b;
+    --tgw-reaction: #242424;
     --tgw-accent-soft: rgba(106, 178, 242, 0.16);
     --tgw-voice-bar: rgba(255, 255, 255, 0.28);
-    /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #212121. */
+    /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #181818. */
     --tgw-link: #6ab3f3;
     --tgw-link-hover: #8bc7f8;
-    --tgw-composer-bar: #212121;
-    --tgw-composer-input-bg: #2b2b2b;
-    --tgw-composer-input-border: #3a3a3a;
+    --tgw-composer-bar: #181818;
+    --tgw-composer-input-bg: #242424;
+    --tgw-composer-input-border: #323232;
+    --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Tinted — Telegram's warm sepia day theme: cream panels over a sand wallpaper. */
+.tgw-root.tgw-theme-tinted {
+    --tgw-bg: #f6f3ee;
+    --tgw-bg-secondary: #f6f3ee;
+    --tgw-sidebar: #f2eee7;
+    --tgw-border: #e4ddd2;
+    --tgw-border-strong: #d8cfc1;
+    --tgw-text: #33302b;
+    --tgw-text-secondary: #8a8378;
+    --tgw-text-tertiary: #b3aa9c;
+    --tgw-hover: #ebe5db;
+    --tgw-active: #e4dcd0;
+    --tgw-chat-bg: #ded4c4;
+    --tgw-in-bubble: #fdfbf7;
+    --tgw-out-bubble: #edf5da;
+    --tgw-reaction: #ebe5db;
+    --tgw-composer-bar: #efeae1;
+    --tgw-composer-input-bg: #ffffff;
+    --tgw-composer-input-border: #e0d8ca;
+}
+
+/* Ice — a crisp cool-toned day theme: pale blue-grey panels over a glacier wallpaper. */
+.tgw-root.tgw-theme-ice {
+    --tgw-bg: #f4f7fb;
+    --tgw-bg-secondary: #f4f7fb;
+    --tgw-sidebar: #eef3f9;
+    --tgw-border: #dde5ee;
+    --tgw-border-strong: #cdd9e6;
+    --tgw-text: #22303e;
+    --tgw-text-secondary: #7b8b9c;
+    --tgw-text-tertiary: #a8b6c4;
+    --tgw-hover: #e7eef6;
+    --tgw-active: #dfe8f2;
+    --tgw-chat-bg: #d3dfeb;
+    --tgw-in-bubble: #ffffff;
+    --tgw-out-bubble: #e2f7db;
+    --tgw-reaction: #e7eef6;
+    --tgw-composer-bar: #eaeff6;
+    --tgw-composer-input-bg: #ffffff;
+    --tgw-composer-input-border: #d9e2ec;
+}
+
+/* Midnight — Telegram's deep-blue night theme, blue-grey chrome over a near-black sea. */
+.tgw-root.tgw-theme-midnight {
+    --tgw-bg: #101821;
+    --tgw-bg-secondary: #101821;
+    --tgw-sidebar: #131c27;
+    --tgw-border: #1f2c3b;
+    --tgw-border-strong: #2b3b4e;
+    --tgw-text: #e6edf5;
+    --tgw-text-secondary: #93a6ba;
+    --tgw-text-tertiary: #64788d;
+    --tgw-hover: #1a2635;
+    --tgw-active: #213045;
+    --tgw-chat-bg: #0a1017;
+    --tgw-in-bubble: #16212e;
+    --tgw-out-bubble: #766ac8;
+    --tgw-reaction: #1a2635;
+    --tgw-accent-soft: rgba(106, 178, 242, 0.16);
+    --tgw-voice-bar: rgba(255, 255, 255, 0.28);
+    --tgw-link: #6ab3f3;
+    --tgw-link-hover: #8bc7f8;
+    --tgw-composer-bar: #131c27;
+    --tgw-composer-input-bg: #1c2938;
+    --tgw-composer-input-border: #2b3c52;
     --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
@@ -2606,23 +2677,28 @@ img.tgw-reaction-emoji {
     --tgw-out-bubble: #ffe9e7;
 }
 
-.tgw-root.tgw-theme-dark.tgw-accent-blue {
+.tgw-root.tgw-theme-dark.tgw-accent-blue,
+.tgw-root.tgw-theme-midnight.tgw-accent-blue {
     --tgw-out-bubble: #766ac8;
 }
 
-.tgw-root.tgw-theme-dark.tgw-accent-violet {
+.tgw-root.tgw-theme-dark.tgw-accent-violet,
+.tgw-root.tgw-theme-midnight.tgw-accent-violet {
     --tgw-out-bubble: #7a6bd6;
 }
 
-.tgw-root.tgw-theme-dark.tgw-accent-green {
+.tgw-root.tgw-theme-dark.tgw-accent-green,
+.tgw-root.tgw-theme-midnight.tgw-accent-green {
     --tgw-out-bubble: #3f8f4c;
 }
 
-.tgw-root.tgw-theme-dark.tgw-accent-orange {
+.tgw-root.tgw-theme-dark.tgw-accent-orange,
+.tgw-root.tgw-theme-midnight.tgw-accent-orange {
     --tgw-out-bubble: #a4701f;
 }
 
-.tgw-root.tgw-theme-dark.tgw-accent-red {
+.tgw-root.tgw-theme-dark.tgw-accent-red,
+.tgw-root.tgw-theme-midnight.tgw-accent-red {
     --tgw-out-bubble: #a8473f;
 }
 
@@ -2864,4 +2940,119 @@ body.tgw-root-active {
 .tgw-search-more {
     margin: 12px auto 4px;
     display: block;
+}
+
+/* ------------------------------------------------------------------ glassy mode
+   Settings > Appearance, on by default. The overlay stops being a solid wall: the host page
+   glows through a blurred veil, and the structural chrome (sidebar, header, composer, side
+   panels, menus, modals) becomes translucent glass on top of it. Content surfaces — bubbles,
+   chat list rows — stay opaque so messages remain readable.
+   The -webkit- prefix matters: Mattermost's desktop app ships an older Chromium. */
+
+.tgw-root.tgw-glassy {
+    background: rgba(250, 250, 252, 0.42);
+    -webkit-backdrop-filter: blur(30px) saturate(1.6);
+    backdrop-filter: blur(30px) saturate(1.6);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark,
+.tgw-root.tgw-glassy.tgw-theme-midnight {
+    background: rgba(10, 10, 12, 0.5);
+}
+
+.tgw-root.tgw-glassy .tgw-sidebar {
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-sidebar,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-sidebar {
+    background: rgba(24, 24, 26, 0.55);
+}
+
+.tgw-root.tgw-glassy .tgw-chat {
+    background: rgba(226, 222, 215, 0.35);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-chat,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-chat {
+    background: rgba(9, 9, 10, 0.4);
+}
+
+.tgw-root.tgw-glassy .tgw-chat-header,
+.tgw-root.tgw-glassy .tgw-info-header {
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-chat-header,
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-info-header,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-chat-header,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-header {
+    background: rgba(26, 26, 28, 0.6);
+}
+
+.tgw-root.tgw-glassy .tgw-composer {
+    background: rgba(250, 250, 252, 0.55);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-composer,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-composer {
+    background: rgba(22, 22, 24, 0.6);
+}
+
+.tgw-root.tgw-glassy .tgw-composer-input {
+    background: rgba(255, 255, 255, 0.66);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-composer-input,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-composer-input {
+    background: rgba(36, 36, 39, 0.66);
+}
+
+.tgw-root.tgw-glassy .tgw-info-panel,
+.tgw-root.tgw-glassy .tgw-thread-panel {
+    background: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-info-panel,
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-thread-panel,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-panel,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-thread-panel {
+    background: rgba(24, 24, 26, 0.62);
+}
+
+.tgw-root.tgw-glassy .tgw-menu,
+.tgw-root.tgw-glassy .tgw-modal {
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    backdrop-filter: blur(20px) saturate(1.5);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-menu,
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-modal,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-menu,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-modal {
+    background: rgba(28, 28, 30, 0.8);
+}
+
+.tgw-root.tgw-glassy .tgw-modal-backdrop {
+    background: rgba(0, 0, 0, 0.22);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.tgw-root.tgw-glassy .tgw-search {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.tgw-root.tgw-glassy.tgw-theme-dark .tgw-search,
+.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-search {
+    background: rgba(255, 255, 255, 0.08);
 }

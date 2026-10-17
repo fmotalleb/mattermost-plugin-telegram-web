@@ -443,12 +443,22 @@ root.render(React.createElement(TelegramUI));
     console.log('\n== settings ==');
     ok(getSettings().mode === 'on', 'plugin settings loaded (server default applied)');
 
+    ok(getSettings().glassyMode === true, 'glassy panels default to on');
     updateSettings({accent: 'violet', compactMode: true, theme: 'dark'});
     await tick(60);
     const rootEl = document.querySelector('.tgw-root');
     ok(!!rootEl && rootEl.classList.contains('tgw-accent-violet'), 'accent setting is applied to the root element');
     ok(!!rootEl && rootEl.classList.contains('tgw-compact'), 'compact mode is applied to the root element');
     ok(!!rootEl && rootEl.classList.contains('tgw-theme-dark'), 'theme setting is applied to the root element');
+    ok(!!rootEl && rootEl.classList.contains('tgw-glassy'), 'glassy panels are on by default');
+    updateSettings({glassyMode: false});
+    await tick(60);
+    ok(!!rootEl && !rootEl.classList.contains('tgw-glassy'), 'glassy mode can be switched off');
+    updateSettings({glassyMode: true, theme: 'midnight'});
+    await tick(60);
+    ok(!!rootEl && rootEl.classList.contains('tgw-theme-midnight'), 'the extra midnight theme applies its own palette class');
+    updateSettings({theme: 'dark'});
+    await tick(60);
 
     console.log('\n== url sync ==');
     // Leave search mode first so the normal chat list is back.

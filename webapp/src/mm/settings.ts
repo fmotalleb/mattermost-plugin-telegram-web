@@ -13,8 +13,16 @@ const LOCAL_KEY = `tgw.settings.${PLUGIN_ID}`;
 const PREFERENCE_CATEGORY = PLUGIN_ID;
 const PREFERENCE_NAME = 'settings';
 
-export type ThemeName = 'light' | 'dark';
+export type ThemeName = 'light' | 'dark' | 'tinted' | 'ice' | 'midnight';
 export type AccentName = 'blue' | 'violet' | 'green' | 'orange' | 'red';
+
+export const THEME_LABELS: Record<ThemeName, string> = {
+    light: 'Light',
+    dark: 'Dark',
+    tinted: 'Tinted',
+    ice: 'Ice',
+    midnight: 'Midnight',
+};
 
 export interface PluginSettings {
     mode: 'on' | 'off';
@@ -24,6 +32,8 @@ export interface PluginSettings {
     compactMode: boolean;
     animations: boolean;
     folderTabs: boolean;
+    /** Translucent, blurred chrome (Settings > Appearance). On by default. */
+    glassyMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -34,6 +44,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     compactMode: false,
     animations: true,
     folderTabs: true,
+    glassyMode: true,
 };
 
 const listeners = new Set<() => void>();
@@ -83,8 +94,8 @@ function serverDefaults(): Partial<PluginSettings> {
         if (pluginConfig.DefaultMode !== undefined) {
             defaults.mode = pluginConfig.DefaultMode === true || pluginConfig.DefaultMode === 'true' ? 'on' : 'off';
         }
-        if (pluginConfig.DefaultTheme === 'dark' || pluginConfig.DefaultTheme === 'light') {
-            defaults.theme = pluginConfig.DefaultTheme;
+        if (pluginConfig.DefaultTheme !== undefined && THEME_LABELS[pluginConfig.DefaultTheme as ThemeName]) {
+            defaults.theme = pluginConfig.DefaultTheme as ThemeName;
         }
         if (pluginConfig.DefaultAccent) {
             defaults.accent = pluginConfig.DefaultAccent as AccentName;

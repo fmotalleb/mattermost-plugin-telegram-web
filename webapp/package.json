@@ -1,6 +1,6 @@
 {
     "name": "mattermost-plugin-telegram-web",
-    "version": "0.3.2",
+    "version": "0.4.0",
     "description": "Telegram Web style UI for Mattermost (webapp plugin)",
     "private": true,
     "scripts": {

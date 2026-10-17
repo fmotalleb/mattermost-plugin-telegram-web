@@ -4,7 +4,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
 import {useChannelPosts} from '../mm/posts';
-import {ACCENTS, updateSettings} from '../mm/settings';
+import {ACCENTS, THEME_LABELS, updateSettings} from '../mm/settings';
 import type {AccentName, ThemeName} from '../mm/settings';
 import {getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
@@ -114,14 +114,14 @@ export function SettingsModal() {
                     <div className="tgw-field">
                         <span>Theme</span>
                         <div className="tgw-segmented">
-                            {(['light', 'dark'] as ThemeName[]).map((theme) => (
+                            {(Object.keys(THEME_LABELS) as ThemeName[]).map((theme) => (
                                 <button
                                     type="button"
                                     key={theme}
                                     className={settings.theme === theme ? 'active' : ''}
                                     onClick={() => updateSettings({theme})}
                                 >
-                                    {theme === 'light' ? 'Light' : 'Dark'}
+                                    {THEME_LABELS[theme]}
                                 </button>
                             ))}
                         </div>
@@ -144,6 +144,10 @@ export function SettingsModal() {
                     <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.compactMode} onChange={(event) => updateSettings({compactMode: event.target.checked})}/>
                         <span>Compact message list</span>
+                    </label>
+                    <label className="tgw-field tgw-field-check">
+                        <input type="checkbox" checked={settings.glassyMode} onChange={(event) => updateSettings({glassyMode: event.target.checked})}/>
+                        <span>Glassy translucent panels</span>
                     </label>
                     <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.animations} onChange={(event) => updateSettings({animations: event.target.checked})}/>
