@@ -125,17 +125,26 @@ export function MessageList(props: MessageListProps) {
 
     useEffect(() => {
         if (!highlightedPostId) {
-            return;
+            return undefined;
         }
         const element = listRef.current?.querySelector(`[data-post-id="${highlightedPostId}"]`);
-        if (element) {
-            // Not every embedded webview implements scrollIntoView.
-            if (typeof element.scrollIntoView === 'function') {
-                element.scrollIntoView({block: 'center'});
-            }
-            (element as HTMLElement).classList.add('tgw-post-highlight');
-            setTimeout(() => (element as HTMLElement).classList.remove('tgw-post-highlight'), 2400);
+        if (!element) {
+            // The jumped-to message may still be on its way (fetched after a search hit); the
+            // effect re-runs when posts.length changes and scrolls once it has rendered.
+            return undefined;
         }
+        // Not every embedded webview implements scrollIntoView.
+        if (typeof element.scrollIntoView === 'function') {
+            element.scrollIntoView({block: 'center'});
+        }
+        (element as HTMLElement).classList.add('tgw-post-highlight');
+        const timer = setTimeout(() => {
+            (element as HTMLElement).classList.remove('tgw-post-highlight');
+            // Drop the highlight once it flashed: otherwise every later incoming message would
+            // yank the list back to this position.
+            actions.setUI({highlightedPostId: null});
+        }, 2400);
+        return () => clearTimeout(timer);
     }, [highlightedPostId, posts.length]);
 
     const onScroll = () => {

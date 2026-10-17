@@ -168,6 +168,12 @@ const posts = {
             ],
         },
     },
+    // Older than the first page the chat loads (/channels/.../posts returns p4..p1 only), so it
+    // exists solely through search: clicking the hit must fetch it to land the chat on it.
+    'p-old': {
+        id: 'p-old', create_at: 1_699_999_000_000, update_at: 1_699_999_000_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM,
+        message: 'Earlier notes: the deploy pipeline was re-run overnight', type: '', props: {}, root_id: '', is_pinned: false, metadata: {},
+    },
 };
 
 const calls = [];

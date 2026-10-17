@@ -30,6 +30,10 @@ function SearchResults({term}: {term: string}) {
     const chats = useSelector((state) => searchChats(state, term));
     const contacts = useSelector((state) => searchContactCandidates(state, term, 12));
     const [messageHits, setMessageHits] = useState<{post: MMPost; channelId: string; title: string}[]>([]);
+    // True from the first keystroke until the message search settles, so the panel reads
+    // "Searching…" while the debounce and the request are still on the way, instead of the
+    // premature "Nothing found".
+    const [searching, setSearching] = useState(true);
     const teamId = useSelector(getCurrentTeamId);
 
     useEffect(() => {
@@ -39,25 +43,29 @@ function SearchResults({term}: {term: string}) {
         // that rejects a too-short term just yields no message hits (the catch below).
         if (!trimmed || !teamId) {
             setMessageHits([]);
+            setSearching(false);
             return undefined;
         }
         let cancelled = false;
+        setSearching(true);
         const timer = setTimeout(() => {
             api.searchPosts(teamId, trimmed, {perPage: 20})
                 .then((data) => {
-                    if (cancelled || !data) {
+                    if (cancelled) {
                         return;
                     }
-                    const posts: MMPost[] = (data.order || []).map((id) => data.posts[id]).filter(Boolean);
+                    const posts: MMPost[] = data ? (data.order || []).map((id) => data.posts[id]).filter(Boolean) : [];
                     setMessageHits(posts.map((post) => ({
                         post,
                         channelId: post.channel_id,
                         title: '',
                     })));
+                    setSearching(false);
                 })
                 .catch(() => {
                     if (!cancelled) {
                         setMessageHits([]);
+                        setSearching(false);
                     }
                 });
         }, 350);
@@ -144,7 +152,11 @@ function SearchResults({term}: {term: string}) {
                     </div>
                 </>
             )}
-            {!hasAnything && <div className="tgw-empty-list"><div className="tgw-empty-title">Nothing found</div></div>}
+            {!hasAnything && (
+                searching
+                    ? <div className="tgw-empty-list"><div className="tgw-loading-pill">Searching…</div></div>
+                    : <div className="tgw-empty-list"><div className="tgw-empty-title">Nothing found</div></div>
+            )}
         </div>
     );
 }

@@ -390,6 +390,11 @@ root.render(React.createElement(TelegramUI));
         // Wide all-messages search: Enter in the search box opens the full results panel.
         valueSetter.call(searchInput, 'Deploy');
         searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        // While the message search is still on its way (debounce + round trip) the panel must
+        // show a searching state, not a premature "Nothing found".
+        await tick(60);
+        ok(document.body.innerHTML.includes('Searching'), 'sidebar shows a searching state while the message search runs');
+        ok(!document.body.innerHTML.includes('Nothing found'), 'no "Nothing found" flash while the search is still running');
         await waitFor(() => document.body.innerHTML.includes('See all message results'), 3000);
         ok(document.body.innerHTML.includes('See all message results'), 'see-all link rendered for message matches');
         const searchCallsBefore = calls.length;
@@ -409,6 +414,27 @@ root.render(React.createElement(TelegramUI));
             ok(!document.querySelector('.tgw-search-panel'), 'clicking a hit closes the wide panel');
             await waitFor(() => !!document.querySelector('.tgw-post-highlight'), 3000);
             ok(!!document.querySelector('.tgw-post-highlight'), 'clicking a hit opens the chat at the matched message');
+        }
+
+        // A hit older than the first loaded page (p-old) exists only through search: clicking it
+        // must fetch it on demand so the chat lands on the message instead of just opening.
+        valueSetter.call(searchInput, 'deploy');
+        searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await waitFor(() => document.body.innerHTML.includes('pipeline'), 3000);
+        const oldHit = Array.from(document.querySelectorAll('.tgw-message-hit')).find((row) => row.textContent.includes('pipeline'));
+        ok(!!oldHit, 'the off-screen message shows up as a sidebar search hit');
+        const callsBeforeHit = calls.length;
+        if (oldHit) {
+            oldHit.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await waitFor(() => calls.slice(callsBeforeHit).some((call) => call === 'GET /posts/p-old'), 3000);
+            ok(calls.slice(callsBeforeHit).some((call) => call === 'GET /posts/p-old'), 'the off-screen hit is fetched on demand');
+            await waitFor(() => {
+                const row = document.querySelector('[data-post-id="p-old"]');
+                return !!row && row.classList.contains('tgw-post-highlight');
+            }, 3000);
+            const landedRow = document.querySelector('[data-post-id="p-old"]');
+            ok(!!landedRow, 'the hit message renders in the chat');
+            ok(!!landedRow && landedRow.classList.contains('tgw-post-highlight'), 'the chat lands on the hit message with the flash highlight');
         }
     } else {
         fail('search input missing');

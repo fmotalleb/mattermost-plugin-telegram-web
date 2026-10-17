@@ -4,7 +4,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
-import {loadChannel} from '../mm/posts';
+import {getBlock, loadChannel, receivePost} from '../mm/posts';
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
@@ -165,7 +165,23 @@ export function TelegramUI() {
             threadRootId: null,
         }));
         writeLocal('tgw.lastChannel', channelId);
-        loadChannel(channelId).catch(() => undefined);
+        // Load the chat first, then make sure a jumped-to message (search hit, permalink) is in
+        // the cache: hits older than the first loaded page do not exist for the message list,
+        // and the chat would just open at the bottom instead of landing on the clicked message.
+        loadChannel(channelId)
+            .then(() => {
+                const postId = opts.postId;
+                if (postId && !getBlock(channelId)?.posts[postId]) {
+                    api.getPost(postId)
+                        .then((loaded) => {
+                            if (loaded && loaded.id && loaded.channel_id) {
+                                receivePost(loaded);
+                            }
+                        })
+                        .catch(() => undefined);
+                }
+            })
+            .catch(() => undefined);
         api.viewChannel(channelId).catch(() => undefined);
         setFallbackChannel(undefined);
         syncRoute(target);

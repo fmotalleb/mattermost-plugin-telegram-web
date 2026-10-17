@@ -527,9 +527,24 @@ class CDP {
         ok(hasMessages, `sidebar search searches chat messages too (sections: ${sections})`);
         ok(!!(await cdp.eval('!!document.querySelector(".tgw-message-hit")')), 'a message hit is rendered in the sidebar');
 
-        // Clicking a hit must open the chat it came from.
-        await cdp.clickSelector('.tgw-message-hit');
+        // Clicking an *off-screen* hit must fetch it and land the chat on the message
+        // (p-old is older than the first page the chat loads), not just open the chat.
+        await cdp.waitFor(`Array.from(document.querySelectorAll('.tgw-message-hit')).some((row) => row.textContent.includes('pipeline'))`, 6000, 'the off-screen hit in the sidebar');
+        const oldHitPoint = await cdp.eval(`(() => {
+            const row = Array.from(document.querySelectorAll('.tgw-message-hit')).find((entry) => entry.textContent.includes('pipeline'));
+            if (!row) { return null; }
+            row.scrollIntoView({block: 'center'});
+            const rect = row.getBoundingClientRect();
+            return {x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2)};
+        })()`);
+        if (oldHitPoint) {
+            await cdp.click(oldHitPoint.x, oldHitPoint.y);
+        }
+        ok(await cdp.waitFor('window.__calls.some((call) => call === "GET /posts/p-old")', 8000, 'the off-screen hit to be fetched on demand'),
+            'the off-screen message search hit is fetched on demand');
         await cdp.waitFor('!document.querySelector(".tgw-message-hit")', 6000, 'the search results to close after picking a hit');
+        const landed = await cdp.waitFor(`!!document.querySelector('[data-post-id="p-old"]') && document.querySelector('[data-post-id="p-old"]').classList.contains('tgw-post-highlight')`, 8000, 'the chat to land on the hit message');
+        ok(!!landed, 'the chat lands on the hit message with the flash highlight');
 
         const pageErrors = [...bootErrors, ...await cdp.eval('window.__pageErrors'), ...cdp.pageErrors];
         ok(pageErrors.length === 0, `no page errors during the run${pageErrors.length ? ` (${pageErrors[0]})` : ''}`);

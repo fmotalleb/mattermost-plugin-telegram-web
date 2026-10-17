@@ -83,7 +83,8 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     // can take the keyboard for its own message box — keystrokes would then go into a field hidden
     // under this overlay. For a short window after the open, reclaim focus whenever it ends up
     // *outside* .tgw-root; focus placed inside our own overlay (sidebar search, modals, menus) is
-    // left alone.
+    // left alone. The host may take the keyboard at any point while its channel view renders, so
+    // the windows are retried a few times (80ms / 400ms / 1200ms).
     useEffect(() => {
         const composer = textareaRef.current;
         if (!composer) {
@@ -98,7 +99,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 composer.focus();
             }
         };
-        const timers = [setTimeout(reclaim, 80), setTimeout(reclaim, 400)];
+        const timers = [setTimeout(reclaim, 80), setTimeout(reclaim, 400), setTimeout(reclaim, 1200)];
         return () => timers.forEach((timer) => clearTimeout(timer));
     }, [channel.id, ui.chatSeq]);
 
