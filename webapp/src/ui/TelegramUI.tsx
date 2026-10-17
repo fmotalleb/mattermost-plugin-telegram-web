@@ -17,6 +17,7 @@ import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
 import {Menu} from './menu';
 import type {MenuEntry} from './menu';
+import {SearchPanel} from './SearchPanel';
 import {Sidebar} from './Sidebar';
 import {ThreadPanel} from './ThreadPanel';
 import {TgContext} from './context';
@@ -32,6 +33,7 @@ const INITIAL_UI: TgUIState = {
     selectedChannelId: '',
     activeTabId: '__all',
     search: '',
+    searchOpen: false,
     infoOpen: false,
     menuOpen: false,
     settingsAnchor: null,
@@ -153,6 +155,7 @@ export function TelegramUI() {
             ...current,
             selectedChannelId: channelId,
             search: opts.keepSearch ? current.search : '',
+            searchOpen: false,
             mobilePane: 'chat',
             highlightedPostId: opts.postId || null,
             replyTo: null,
@@ -216,7 +219,7 @@ export function TelegramUI() {
             setContextMenu({x: target.x, y: target.y, items: menuItems});
         },
         openReactionPicker: (post, x, y) => setReactionPicker({post, x, y}),
-        setTab: (tabId) => setUI({activeTabId: tabId, search: ''}),
+        setTab: (tabId) => setUI({activeTabId: tabId, search: '', searchOpen: false}),
         refreshChats: () => setUI({}),
         disableUI: () => {
             // The plugin exposes this through index.tsx (which flips the setting).
@@ -287,7 +290,7 @@ export function TelegramUI() {
                 <div className={`tgw-root tgw-theme-${settings.theme} tgw-accent-${settings.accent} ${settings.compactMode ? 'tgw-compact' : ''} ${settings.animations ? '' : 'tgw-no-animations'}`}>
                     <div className={`tgw-shell ${isMobile ? 'tgw-shell-mobile' : ''} ${isMobile && ui.mobilePane === 'chat' ? 'tgw-shell-chat-open' : ''}`}>
                         <Sidebar/>
-                        <ChatView/>
+                        {ui.searchOpen && ui.search.trim() ? <SearchPanel/> : <ChatView/>}
                         {ui.threadRootId && activeChannel && (
                             <ThreadPanel
                                 rootId={ui.threadRootId}

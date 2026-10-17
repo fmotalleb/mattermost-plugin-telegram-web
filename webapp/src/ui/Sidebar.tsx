@@ -131,6 +131,13 @@ function SearchResults({term}: {term: string}) {
                                 </span>
                             </button>
                         ))}
+                        <button
+                            type="button"
+                            className="tgw-link-button tgw-search-see-all"
+                            onClick={() => actions.setUI({searchOpen: true, mobilePane: 'chat'})}
+                        >
+                            See all message results
+                        </button>
                     </div>
                 </>
             )}
@@ -334,6 +341,14 @@ export function Sidebar() {
                         ref={searchRef}
                         value={ui.search}
                         onChange={(event) => actions.setUI({search: event.target.value})}
+                        onKeyDown={(event) => {
+                            // Enter promotes the narrow sidebar results to the wide all-messages
+                            // panel in the main pane, like Mattermost's search.
+                            if (event.key === 'Enter' && ui.search.trim()) {
+                                event.preventDefault();
+                                actions.setUI({searchOpen: true, mobilePane: 'chat'});
+                            }
+                        }}
                         placeholder="Search"
                         spellCheck={false}
                     />

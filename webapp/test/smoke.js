@@ -261,6 +261,7 @@ root.render(React.createElement(TelegramUI));
         ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square', 'clicking a chat opens it');
         ok(calls.some((call) => call.includes('/channels/channel-town/posts')), 'posts of the opened chat requested');
         ok(dom.window.__historyPushes.includes('/demo/channels/town-square'), 'opening a chat pushes its Mattermost URL');
+        ok(document.activeElement === document.querySelector('.tgw-composer textarea'), 'composer input focused after switching chats');
 
         // Info panel members must come from the REST list, not the sparse host Redux copy.
         document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
@@ -285,6 +286,25 @@ root.render(React.createElement(TelegramUI));
         await tick(60);
         ok(calls.some((call) => call === 'POST /posts'), 'composer sent a post through the API');
         ok(document.body.innerHTML.includes('hello from the smoke test'), 'optimistic message rendered');
+
+        // Up arrow in an empty composer opens my last message for editing (Mattermost shortcut).
+        textarea.value = '';
+        textarea.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        textarea.style.height = '';
+        textarea.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true, cancelable: true}));
+        await tick(60);
+        ok(!!document.querySelector('.tgw-edit-bar'), 'ArrowUp on an empty composer opens the edit bar');
+        const editArea = document.querySelector('.tgw-composer textarea');
+        ok(!!editArea && editArea.value.includes('hello from the smoke test'), `edit box loaded with the last own message (${editArea && editArea.value})`);
+        // Regression: loading a (large) message for editing must re-measure the box height;
+        // previously only typing did, so long edits stayed stuck at one line.
+        ok(editArea && editArea.style.height === '24px', `composer height re-applied when the edit message loaded (${editArea && editArea.style.height})`);
+        if (editArea) {
+            editArea.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+            await tick(30);
+            ok(!document.querySelector('.tgw-edit-bar'), 'Escape cancels the edit');
+        }
     }
 
     console.log('\n== websocket ==');
@@ -323,6 +343,30 @@ root.render(React.createElement(TelegramUI));
         searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
         await tick(60);
         ok(document.body.innerHTML.includes('Contacts'), 'global search renders contact results');
+
+        // Wide all-messages search: Enter in the search box opens the full results panel.
+        valueSetter.call(searchInput, 'Deploy');
+        searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await waitFor(() => document.body.innerHTML.includes('See all message results'), 3000);
+        ok(document.body.innerHTML.includes('See all message results'), 'see-all link rendered for message matches');
+        const searchCallsBefore = calls.length;
+        searchInput.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+        await waitFor(() => !!document.querySelector('.tgw-search-panel'), 3000);
+        ok(!!document.querySelector('.tgw-search-panel'), 'Enter opens the wide search panel');
+        await waitFor(() => calls.slice(searchCallsBefore).some((call) => call === 'POST /posts/search'), 3000);
+        ok(calls.slice(searchCallsBefore).some((call) => call === 'POST /posts/search'), 'wide panel fetches all-messages results');
+        await waitFor(() => !!document.querySelector('.tgw-search-hit'), 3000);
+        const hit = document.querySelector('.tgw-search-hit');
+        ok(!!hit, 'wide search renders a message hit');
+        ok(!!hit && hit.querySelector('.tgw-search-mark') !== null, 'hit highlights the matched term');
+        ok(!!hit && hit.textContent.includes('Alice Anderson'), 'hit shows the owning channel title');
+        if (hit) {
+            hit.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson', 3000);
+            ok(!document.querySelector('.tgw-search-panel'), 'clicking a hit closes the wide panel');
+            await waitFor(() => !!document.querySelector('.tgw-post-highlight'), 3000);
+            ok(!!document.querySelector('.tgw-post-highlight'), 'clicking a hit opens the chat at the matched message');
+        }
     } else {
         fail('search input missing');
     }

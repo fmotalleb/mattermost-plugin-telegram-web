@@ -29,6 +29,8 @@ export interface TgUIState {
     selectedChannelId: string;
     activeTabId: string;
     search: string;
+    /** Wide (all-messages) search results panel open in the main pane, like Mattermost's search. */
+    searchOpen: boolean;
     infoOpen: boolean;
     menuOpen: boolean;
     settingsAnchor: {x: number; y: number} | null;

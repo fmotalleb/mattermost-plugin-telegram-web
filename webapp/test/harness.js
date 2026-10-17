@@ -306,6 +306,21 @@ global.fetch = async (url, options = {}) => {
         });
         return json({order, posts: threadPosts});
     }
+    // All-messages search (POST /posts/search): case-insensitive substring match over the
+    // message fixtures, mirroring what the Elastic/SQL search returns for a simple term.
+    if (p === '/posts/search' && options.method === 'POST') {
+        const terms = String((post && post.terms) || '').toLowerCase();
+        const order = [];
+        const found = {};
+        Object.values(posts).forEach((entry) => {
+            if (terms && (entry.message || '').toLowerCase().includes(terms)) {
+                order.push(entry.id);
+                found[entry.id] = entry;
+            }
+        });
+        return json({order, posts: found});
+    }
+
     if (p.startsWith('/posts/') && !p.endsWith('/thread') && p.split('/').length === 3) {
         const post = posts[p.split('/')[2]];
         if (post) {
@@ -313,7 +328,15 @@ global.fetch = async (url, options = {}) => {
         }
     }
     if (p === '/posts') {
-        return json({...posts.p2, id: 'p-new', root_id: (post && post.root_id) || '', message: post.message, pending_post_id: post.pending_post_id});
+        return json({
+            ...posts.p2,
+            id: 'p-new',
+            channel_id: (post && post.channel_id) || posts.p2.channel_id,
+            root_id: (post && post.root_id) || '',
+            message: post.message,
+            file_ids: (post && post.file_ids) || [],
+            pending_post_id: post.pending_post_id,
+        });
     }
     if (p === '/reactions') {
         return json({user_id: post.user_id, post_id: post.post_id, emoji_name: post.emoji_name, create_at: Date.now()});

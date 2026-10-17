@@ -1,7 +1,8 @@
 // Message composer: markdown-lite toolbar, attachments, emoji, reply/edit modes, typing events.
 
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
+import {getBlock} from '../mm/posts';
 import {attachmentSummary, displayName, fileKindOf, formatBytes, formatDuration, throttle, toPlainPreview} from '../mm/utils';
 import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
 import {useTg} from './context';
@@ -9,6 +10,16 @@ import {EmojiPicker} from './EmojiPicker';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {getState, useSelector} from '../mm/store';
 import {useVoiceRecorder} from './voice';
+
+/** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
+function autoGrow(element: HTMLTextAreaElement | null, value?: number) {
+    if (!element) {
+        return;
+    }
+    const height = value === undefined ? element.scrollHeight : value;
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(Math.max(height, 24), 320)}px`;
+}
 
 export interface ComposerProps {
     channel: MMChannel;
@@ -67,6 +78,18 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         }
     }, [replyTo]);
 
+    // Focus the input whenever a chat is opened or switched, like Telegram does.
+    useEffect(() => {
+        textareaRef.current?.focus();
+    }, [channel.id]);
+
+    // The textarea height is imperative (style.height), so every programmatic message change —
+    // loading a long message for editing, inserting emoji/markdown — must re-measure, not just
+    // the onChange path. Without this an edit of a large message stayed stuck at one line.
+    useLayoutEffect(() => {
+        autoGrow(textareaRef.current);
+    }, [message]);
+
     // A take must land in the chat it was recorded in: switching away discards it.
     const channelRef = useRef(channel.id);
     useEffect(() => {
@@ -82,15 +105,6 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         setMessage('');
         setFiles([]);
         autoGrow(textareaRef.current, 0);
-    };
-
-    const autoGrow = (element: HTMLTextAreaElement | null, value?: number) => {
-        if (!element) {
-            return;
-        }
-        const height = value === undefined ? element.scrollHeight : value;
-        element.style.height = 'auto';
-        element.style.height = `${Math.min(Math.max(height, 24), 320)}px`;
     };
 
     const insertMarkdown = (prefix: string, suffix = prefix, placeholderText = '') => {
@@ -190,6 +204,27 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 reset();
             } else if (replyTo) {
                 onCancelReply();
+            }
+            return;
+        }
+        // Up arrow in an empty, non-editing box opens the last message of mine for editing —
+        // the same shortcut Mattermost has. Only the newest editable post counts: root or
+        // reply, never a pending/failed optimistic bubble or a system post.
+        if (event.key === 'ArrowUp' && !message && !files.length && !editing) {
+            const caretAtStart = event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0;
+            if (caretAtStart) {
+                const block = getBlock(channel.id);
+                const myId = me?.id;
+                const lastOwn = block && myId
+                    ? block.order
+                        .map((id) => block.posts[id])
+                        .filter((post) => post && post.user_id === myId && !post._pending && !post._failed && !post.type && !post.delete_at)
+                        .pop()
+                    : undefined;
+                if (lastOwn) {
+                    event.preventDefault();
+                    actions.startEditing(lastOwn);
+                }
             }
             return;
         }
