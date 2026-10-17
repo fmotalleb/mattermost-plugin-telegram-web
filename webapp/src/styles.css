@@ -146,7 +146,7 @@
     --tgw-active: #213045;
     --tgw-chat-bg: #0a1017;
     --tgw-in-bubble: #16212e;
-    --tgw-out-bubble: #766ac8;
+    --tgw-out-bubble: #2f5377;
     --tgw-reaction: #1a2635;
     --tgw-accent-soft: rgba(106, 178, 242, 0.16);
     --tgw-voice-bar: rgba(255, 255, 255, 0.28);
@@ -2695,7 +2695,7 @@ img.tgw-reaction-emoji {
 
 .tgw-root.tgw-theme-dark.tgw-accent-blue,
 .tgw-root.tgw-theme-midnight.tgw-accent-blue {
-    --tgw-out-bubble: #766ac8;
+    --tgw-out-bubble: #2f5377;
 }
 
 .tgw-root.tgw-theme-dark.tgw-accent-violet,
