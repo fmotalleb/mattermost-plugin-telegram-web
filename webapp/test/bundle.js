@@ -117,6 +117,8 @@ const registry = {
         'the chat wallpaper patterns are bundled in the CSS');
     ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
         'the Vazirmatn webfont is inlined as a data URI');
+    ok(!cssText.includes('.tgw-root.tgw-glassy .tgw-chat {') && !cssText.includes('.tgw-theme-dark .tgw-chat,') && !cssText.includes('.tgw-theme-midnight .tgw-chat,'),
+        'the chat pane stays opaque - only the theme colour and pattern sit behind messages');
     ok(cssText.includes('.tgw-spinner') && cssText.includes('tgw-spin'), 'the loading spinner is styled');
     ok(cssText.includes('body.tgw-root-active'), 'the host page is locked while the overlay is up');
 

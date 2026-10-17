@@ -17,6 +17,7 @@ import {
     formatChatTime,
     formatDateSeparator,
     formatDuration,
+    formatMessageStamp,
     formatTime,
     isSameDay,
     isVoiceFileName,
@@ -367,9 +368,25 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     </div>
                 )}
                 <div className="tgw-msg-meta">
+                    {reactions.length > 0 && (
+                        <div className="tgw-reactions">
+                            {summariseReactions(reactions, customEmoji).map((group) => (
+                                <button
+                                    type="button"
+                                    key={group.emoji_name}
+                                    className={`tgw-reaction ${group.mine ? 'tgw-reaction-mine' : ''}`}
+                                    title={group.users.join(', ')}
+                                    onClick={() => onToggleReaction(post, group.reaction)}
+                                >
+                                    <ReactionEmoji name={group.emoji_name} customEmoji={customEmoji}/>
+                                    <span>{group.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
-                    <span className="tgw-msg-time">{formatTime(post.create_at, timeFormat)}</span>
+                    <span className="tgw-msg-time">{formatMessageStamp(post.create_at, timeFormat)}</span>
                     {otherViewCount > 0 && (
                         <span className="tgw-msg-views" title="Views by others">
                             <IconEye size={14}/>
@@ -382,22 +399,6 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         </span>
                     )}
                 </div>
-                {reactions.length > 0 && (
-                    <div className="tgw-reactions">
-                        {summariseReactions(reactions, customEmoji).map((group) => (
-                            <button
-                                type="button"
-                                key={group.emoji_name}
-                                className={`tgw-reaction ${group.mine ? 'tgw-reaction-mine' : ''}`}
-                                title={group.users.join(', ')}
-                                onClick={() => onToggleReaction(post, group.reaction)}
-                            >
-                                <ReactionEmoji name={group.emoji_name} customEmoji={customEmoji}/>
-                                <span>{group.count}</span>
-                            </button>
-                        ))}
-                    </div>
-                )}
                 {post.reply_count > 0 && (
                     <button type="button" className="tgw-thread-link" onClick={() => onOpenThread(post)}>
                         {post.reply_count} {post.reply_count === 1 ? 'reply' : 'replies'}

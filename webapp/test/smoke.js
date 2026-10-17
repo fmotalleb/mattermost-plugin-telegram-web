@@ -67,6 +67,9 @@ root.render(React.createElement(TelegramUI));
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
     ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
+    ok(!!document.querySelector('.tgw-msg-meta .tgw-reactions'), 'reaction chips share the row with the send time');
+    const firstStamp = document.querySelector('.tgw-msg-time')?.textContent || '';
+    ok(/202\d/.test(firstStamp), `messages from another day show their date beside the time (${firstStamp})`);
     // The voice fixture is the newest DM post, so it must drive the sidebar preview as well.
     ok(Array.from(document.querySelectorAll('.tgw-chat-row')).some((row) => row.textContent.includes('Voice message')), 'sidebar preview shows the voice message');
 

@@ -123,6 +123,29 @@ export function formatChatTime(timestamp: number, fmt: TimeFormat): string {
     return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${String(date.getFullYear()).slice(-2)}`;
 }
 
+/**
+ * Stamp shown on the message itself. Today's messages show the time only; anything older carries
+ * a short date prefix ("Yesterday 14:32", "Oct 14 14:32", "Oct 14, 2023 14:32") so the send date
+ * is readable on the bubble without having to find the date separator.
+ */
+export function formatMessageStamp(timestamp: number, fmt: TimeFormat): string {
+    if (!timestamp) {
+        return '';
+    }
+    const now = new Date();
+    const date = new Date(timestamp);
+    const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+    if (dayDiff <= 0) {
+        return formatTime(timestamp, fmt);
+    }
+    if (dayDiff === 1) {
+        return `Yesterday ${formatTime(timestamp, fmt)}`;
+    }
+    const sameYear = date.getFullYear() === now.getFullYear();
+    const day = date.toLocaleDateString(fmt.locale, {month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric'});
+    return `${day} ${formatTime(timestamp, fmt)}`;
+}
+
 export function formatDateSeparator(timestamp: number, fmt: TimeFormat): string {
     const now = new Date();
     const date = new Date(timestamp);
