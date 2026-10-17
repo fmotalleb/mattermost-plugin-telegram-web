@@ -4,8 +4,8 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
 import {useChannelPosts} from '../mm/posts';
-import {ACCENTS, THEME_LABELS, updateSettings} from '../mm/settings';
-import type {AccentName, ThemeName} from '../mm/settings';
+import {ACCENTS, THEME_LABELS, updateSettings, WALLPAPER_LABELS} from '../mm/settings';
+import type {AccentName, ThemeName, WallpaperName} from '../mm/settings';
 import {getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMPost, MMUser} from '../mm/types';
@@ -141,6 +141,21 @@ export function SettingsModal() {
                             ))}
                         </div>
                     </div>
+                    <div className="tgw-field">
+                        <span>Chat wallpaper</span>
+                        <div className="tgw-wallpaper-opts">
+                            {(Object.keys(WALLPAPER_LABELS) as WallpaperName[]).map((wallpaper) => (
+                                <button
+                                    type="button"
+                                    key={wallpaper}
+                                    title={WALLPAPER_LABELS[wallpaper]}
+                                    aria-label={WALLPAPER_LABELS[wallpaper]}
+                                    className={`tgw-wallpaper-opt tgw-wallpaper-${wallpaper}${settings.wallpaper === wallpaper ? ' active' : ''}`}
+                                    onClick={() => updateSettings({wallpaper})}
+                                />
+                            ))}
+                        </div>
+                    </div>
                     <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.compactMode} onChange={(event) => updateSettings({compactMode: event.target.checked})}/>
                         <span>Compact message list</span>
@@ -174,7 +189,7 @@ export function SettingsModal() {
                         <button type="button" className="tgw-button tgw-button-secondary" onClick={actions.disableUI}>Switch back to Mattermost UI</button>
                     </div>
                     <div className="tgw-settings-hint">
-                        Settings are stored as a Mattermost user preference, so they follow your account to other browsers.
+                        Settings are stored as a Mattermost user preference and mirrored in this browser's local storage, so they follow your account and paint instantly on reload.
                     </div>
                 </div>
             </div>

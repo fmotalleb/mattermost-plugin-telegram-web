@@ -113,6 +113,10 @@ const registry = {
     const cssText = Array.from(document.querySelectorAll('style')).map((tag) => tag.textContent).join('\n');
     ok(['.tgw-accent-violet', '.tgw-accent-green', '.tgw-compact'].every((sel) => cssText.includes(sel)),
         'every accent and compact mode have styling in the bundled CSS');
+    ok(cssText.includes('.tgw-wallpaper-doodles') && cssText.includes('.tgw-wallpaper-checker'),
+        'the chat wallpaper patterns are bundled in the CSS');
+    ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
+        'the Vazirmatn webfont is inlined as a data URI');
     ok(cssText.includes('.tgw-spinner') && cssText.includes('tgw-spin'), 'the loading spinner is styled');
     ok(cssText.includes('body.tgw-root-active'), 'the host page is locked while the overlay is up');
 

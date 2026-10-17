@@ -27,7 +27,13 @@ const {initSettings, updateSettings} = require('../src/mm/settings');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 const {store} = require('./harness');
 
-const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+    // Same trick as webpack's asset/inline: the static snapshot is self-contained, so the
+    // Vazirmatn @font-face src becomes a data URI instead of a relative link into docs/.
+    .replace(
+        "url('./fonts/Vazirmatn-Variable.woff2')",
+        `url(data:font/woff2;base64,${fs.readFileSync(path.join(__dirname, '..', 'src', 'fonts', 'Vazirmatn-Variable.woff2')).toString('base64')})`,
+    );
 
 setStore(store);
 initSettings();

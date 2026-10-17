@@ -513,6 +513,12 @@ root.render(React.createElement(TelegramUI));
     updateSettings({glassyMode: false});
     await tick(60);
     ok(!!rootEl && !rootEl.classList.contains('tgw-glassy'), 'glassy mode can be switched off');
+    ok(getSettings().wallpaper === 'doodles', 'the doodle chat wallpaper is on by default');
+    updateSettings({wallpaper: 'checker'});
+    await tick(60);
+    ok(!!rootEl && rootEl.classList.contains('tgw-wallpaper-checker'), 'the wallpaper setting is applied to the root element');
+    updateSettings({wallpaper: 'doodles'});
+    await tick(60);
     updateSettings({glassyMode: true, theme: 'midnight'});
     await tick(60);
     ok(!!rootEl && rootEl.classList.contains('tgw-theme-midnight'), 'the extra midnight theme applies its own palette class');
@@ -529,6 +535,28 @@ root.render(React.createElement(TelegramUI));
         dmRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson');
         ok(dom.window.__historyPushes.includes('/demo/messages/@alice'), 'switching chats pushes the new URL');
+    }
+
+    console.log('\n== inline code copy ==');
+    let copiedText = null;
+    Object.defineProperty(dom.window.navigator, 'clipboard', {
+        value: {writeText: (text) => { copiedText = text; return Promise.resolve(); }},
+        configurable: true,
+    });
+    handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({
+        id: 'p-inline-code', create_at: Date.now(), update_at: Date.now(), edit_at: 0, delete_at: 0,
+        user_id: posts.p1.user_id, channel_id: ids.DM, message: 'run `make test` before pushing',
+        type: '', props: {}, root_id: '', metadata: {},
+    })}});
+    await waitFor(() => document.querySelector('.tgw-inline-code'));
+    const inlineCode = document.querySelector('.tgw-inline-code');
+    ok(!!inlineCode && inlineCode.textContent === 'make test', 'inline code renders in the message body');
+    if (inlineCode) {
+        inlineCode.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(60);
+        ok(copiedText === 'make test', 'clicking inline code copies its text to the clipboard');
+        ok(inlineCode.classList.contains('tgw-code-copied'), 'the copied snippet flashes the feedback class');
+        ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('Code copied'), 'a toast confirms the copy');
     }
 
     console.log('\n== stock UI view tracking ==');

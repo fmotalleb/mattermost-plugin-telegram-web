@@ -31,6 +31,12 @@ const config = {
                 test: /\.(css)$/,
                 use: ['style-loader', 'css-loader'],
             },
+            {
+                // Fonts referenced from styles.css are inlined as data URIs so the shipped
+                // artifact stays a single dist/main.js (no extra runtime file to serve).
+                test: /\.woff2$/,
+                type: 'asset/inline',
+            },
         ],
     },
     externals: {

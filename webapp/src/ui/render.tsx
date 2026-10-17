@@ -7,7 +7,8 @@
 
 import React from 'react';
 import {replaceShortcodes} from '../mm/emoji';
-import {escapeHtml} from '../mm/utils';
+import {copyToClipboard, escapeHtml} from '../mm/utils';
+import {TgContext} from './context';
 
 interface PostUtilsShape {
     formatText?: (text: string, options?: any, emojiMap?: any) => string;
@@ -53,8 +54,45 @@ class BodyBoundary extends React.Component<{fallback: React.ReactNode; children:
     }
 }
 
+/**
+ * Inline code copies itself on click (Telegram-style). The click is delegated from the body span
+ * because the host formatter owns the rendered tree — we cannot attach handlers to its nodes.
+ * Fenced blocks and in-progress text selections are left alone.
+ */
+function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (message: string, kind?: 'info' | 'error' | 'success') => void) {
+    const target = event.target as HTMLElement;
+    const code = target.closest('code');
+    if (!code || !event.currentTarget.contains(code)) {
+        return;
+    }
+    if (code.closest('pre') || code.classList.contains('tgw-code-block')) {
+        return;
+    }
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) {
+        return;
+    }
+    const text = code.textContent || '';
+    if (!text) {
+        return;
+    }
+    copyToClipboard(text).then(() => {
+        code.classList.add('tgw-code-copied');
+        window.setTimeout(() => code.classList.remove('tgw-code-copied'), 900);
+        if (toast) {
+            toast('Code copied', 'success');
+        }
+    }).catch(() => {
+        if (toast) {
+            toast('Could not copy code', 'error');
+        }
+    });
+}
+
 export function MessageBody({message, postId, editedAt, mentionKeys, className}: MessageBodyProps) {
-    const fallback = <span className={className}>{renderFallback(message, mentionKeys)}</span>;
+    const tg = React.useContext(TgContext);
+    const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
+    const fallback = <span className={className} onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
 
     if (!message) {
         return fallback;
@@ -99,7 +137,7 @@ export function MessageBody({message, postId, editedAt, mentionKeys, className}:
 
     return (
         <BodyBoundary fallback={fallback}>
-            <span className={`tgw-message-body ${className || ''}`}>{rendered}</span>
+            <span className={`tgw-message-body ${className || ''}`} onClick={onClick}>{rendered}</span>
         </BodyBoundary>
     );
 }

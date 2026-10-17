@@ -15,6 +15,7 @@ const PREFERENCE_NAME = 'settings';
 
 export type ThemeName = 'light' | 'dark' | 'tinted' | 'ice' | 'midnight';
 export type AccentName = 'blue' | 'violet' | 'green' | 'orange' | 'red';
+export type WallpaperName = 'none' | 'doodles' | 'dots' | 'grid' | 'checker' | 'diagonal';
 
 export const THEME_LABELS: Record<ThemeName, string> = {
     light: 'Light',
@@ -24,10 +25,21 @@ export const THEME_LABELS: Record<ThemeName, string> = {
     midnight: 'Midnight',
 };
 
+export const WALLPAPER_LABELS: Record<WallpaperName, string> = {
+    none: 'Plain',
+    doodles: 'Doodles',
+    dots: 'Dots',
+    grid: 'Grid',
+    checker: 'Checker',
+    diagonal: 'Diagonal',
+};
+
 export interface PluginSettings {
     mode: 'on' | 'off';
     theme: ThemeName;
     accent: AccentName;
+    /** Chat background pattern (Settings > Appearance). Persisted in localStorage. */
+    wallpaper: WallpaperName;
     showPreviews: boolean;
     compactMode: boolean;
     animations: boolean;
@@ -40,6 +52,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     mode: 'off',
     theme: 'light',
     accent: 'blue',
+    wallpaper: 'doodles',
     showPreviews: true,
     compactMode: false,
     animations: true,

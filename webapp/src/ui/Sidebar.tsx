@@ -24,7 +24,7 @@ import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, Badge, IconMenu, IconNewChat, IconSearch, IconSettings} from './primitives';
+import {Avatar, IconMenu, IconNewChat, IconSearch, IconSettings} from './primitives';
 
 function SearchResults({term}: {term: string}) {
     const {actions, timeFormat} = useTg();

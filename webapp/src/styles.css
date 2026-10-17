@@ -3,6 +3,20 @@
  * Everything is scoped under .tgw-root so the host UI is never affected.
  */
 
+/*
+ * Vazirmatn — SIL OFL 1.1, https://github.com/rastikerdar/vazirmatn (see src/fonts/OFL.txt).
+ * One variable-font face covering Persian (Farsi) and Latin, so Persian and English text share
+ * the same default typeface. webpack inlines it as a data URI (asset/inline) to keep the bundle
+ * a single main.js; font-display swaps to the system stack while it loads.
+ */
+@font-face {
+    font-family: 'Vazirmatn';
+    src: url('./fonts/Vazirmatn-Variable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 .tgw-root {
     --tgw-accent: #3390ec;
     --tgw-accent-hover: #2f85dc;
@@ -25,6 +39,10 @@
     --tgw-hover: #f4f4f5;
     --tgw-active: #eef1f5;
     --tgw-chat-bg: #dad6cf;
+    /* Chat wallpaper pattern colour: dark ink on the light themes, flipped in the dark palettes
+       below so the same pattern reads in both. */
+    --tgw-wallpaper-tint: rgba(0, 0, 0, 0.075);
+    --tgw-wallpaper: none;
     --tgw-in-bubble: #ffffff;
     --tgw-out-bubble: #eeffde;
     --tgw-reaction: #f1f1f1;
@@ -37,7 +55,7 @@
     --tgw-shadow: 0 1px 2px rgba(16, 35, 47, 0.1);
     --tgw-shadow-strong: 0 4px 24px rgba(16, 35, 47, 0.18);
     --tgw-radius: 12px;
-    --tgw-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --tgw-font: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
     position: fixed;
     inset: 0;
@@ -71,6 +89,7 @@
     --tgw-hover: #242424;
     --tgw-active: #2b2b2b;
     --tgw-chat-bg: #0d0d0d;
+    --tgw-wallpaper-tint: rgba(255, 255, 255, 0.085);
     --tgw-in-bubble: #181818;
     /* Telegram's night themes don't paint own messages in an accent colour: the outgoing bubble
        is the incoming one, one step lighter. */
@@ -147,6 +166,7 @@
     --tgw-hover: #1a2635;
     --tgw-active: #213045;
     --tgw-chat-bg: #0a1017;
+    --tgw-wallpaper-tint: rgba(255, 255, 255, 0.075);
     --tgw-in-bubble: #16212e;
     --tgw-out-bubble: #2f5377;
     --tgw-reaction: #1a2635;
@@ -659,14 +679,53 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: var(--tgw-chat-bg);
+    background-color: var(--tgw-chat-bg);
+    background-image: var(--tgw-wallpaper);
+    background-size: var(--tgw-wallpaper-size, auto) var(--tgw-wallpaper-size, auto);
+    background-position: var(--tgw-wallpaper-position, 0 0);
+    background-repeat: repeat;
     position: relative;
 }
 
 .tgw-chat-empty {
     align-items: center;
     justify-content: center;
-    background: var(--tgw-bg-secondary);
+    background-color: var(--tgw-bg-secondary);
+}
+
+/* ------------------------------------------------------------------ chat wallpaper
+   One class per pattern (mirrored on .tgw-root from Settings > Appearance, and on the preview
+   swatches in that dialog) fills --tgw-wallpaper; .tgw-chat paints it over the theme colour.
+   Patterns are pure CSS gradients tinted with --tgw-wallpaper-tint, except "doodles" which is
+   a Telegram-style SVG tile (mid-grey ink, so it reads on light and dark chat backgrounds). */
+
+.tgw-wallpaper-none {
+    --tgw-wallpaper: none;
+}
+
+.tgw-wallpaper-doodles {
+    --tgw-wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='176' height='176' viewBox='0 0 176 176'%3E%3Cg fill='none' stroke='%23888888' stroke-opacity='0.55' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M26 14l4.6 9.3 10.3 1.5-7.4 7.3 1.7 10.2-9.2-4.9-9.2 4.9 1.7-10.2-7.4-7.3 10.3-1.5z'/%3E%3Cpath d='M96 34c-5.5-8.5-18-4.8-18 4.8 0 8 9.7 12.9 18 19.4 8.3-6.5 18-11.4 18-19.4 0-9.6-12.5-13.3-18-4.8z'/%3E%3Ccircle cx='146' cy='30' r='11'/%3E%3Cpath d='M142 26.5v2.5 M150 26.5v2.5 M141.5 33a6.5 6.5 0 0 0 9 0'/%3E%3Cpath d='M46 44q12 5 12 18Q46 57 46 44z'/%3E%3Cpath d='M44 74l-10 17h9l-7 15 15-19h-8z'/%3E%3Ccircle cx='80' cy='90' r='7'/%3E%3Cpath d='M150 66h.01 M158 74h.01 M148 80h.01'/%3E%3Cpath d='M124 102V84l15-4v18'/%3E%3Ccircle cx='121' cy='104' r='4.5'/%3E%3Ccircle cx='136' cy='100' r='4.5'/%3E%3Cpath d='M66 122l8-8 8 8 8-8 8 8'/%3E%3Cpath d='M20 150q10-12 20 0t20 0'/%3E%3Cpath d='M92 140h18 M101 131v18'/%3E%3Cpath d='M140 146l7 8-7 8-7-8z'/%3E%3Cpath d='M152 116h.01 M160 122h.01'/%3E%3C/g%3E%3C/svg%3E");
+    --tgw-wallpaper-size: 176px 176px;
+}
+
+.tgw-wallpaper-dots {
+    --tgw-wallpaper: radial-gradient(var(--tgw-wallpaper-tint) 1.5px, transparent 1.7px);
+    --tgw-wallpaper-size: 26px 26px;
+}
+
+.tgw-wallpaper-grid {
+    --tgw-wallpaper: linear-gradient(var(--tgw-wallpaper-tint) 1px, transparent 1px), linear-gradient(90deg, var(--tgw-wallpaper-tint) 1px, transparent 1px);
+    --tgw-wallpaper-size: 30px 30px;
+}
+
+.tgw-wallpaper-checker {
+    --tgw-wallpaper: linear-gradient(45deg, var(--tgw-wallpaper-tint) 25%, transparent 25%, transparent 75%, var(--tgw-wallpaper-tint) 75%), linear-gradient(45deg, var(--tgw-wallpaper-tint) 25%, transparent 25%, transparent 75%, var(--tgw-wallpaper-tint) 75%);
+    --tgw-wallpaper-size: 26px 26px;
+    --tgw-wallpaper-position: 0 0, 13px 13px;
+}
+
+.tgw-wallpaper-diagonal {
+    --tgw-wallpaper: repeating-linear-gradient(45deg, var(--tgw-wallpaper-tint) 0 1.5px, transparent 1.5px 15px);
 }
 
 .tgw-empty-chat {
@@ -994,6 +1053,28 @@
 .tgw-theme-dark .tgw-message-text code,
 .tgw-theme-dark .tgw-inline-code {
     background: rgba(255, 255, 255, 0.12);
+}
+
+/* Inline code copies itself on click; fenced blocks keep the normal text cursor. */
+.tgw-message-body code,
+.tgw-message-text code,
+.tgw-inline-code {
+    cursor: copy;
+}
+
+.tgw-message-body pre code,
+.tgw-message-text pre code,
+.tgw-message-body .tgw-code-block,
+.tgw-message-text .tgw-code-block,
+.tgw-code-block {
+    cursor: text;
+}
+
+.tgw-message-body code.tgw-code-copied,
+.tgw-message-text code.tgw-code-copied,
+.tgw-inline-code.tgw-code-copied {
+    background: var(--tgw-accent-soft);
+    color: var(--tgw-link);
 }
 
 .tgw-code-block,
@@ -2342,6 +2423,32 @@ img.tgw-reaction-emoji {
     border-color: var(--tgw-text);
 }
 
+.tgw-wallpaper-opts {
+    display: flex;
+    gap: 8px;
+}
+
+/* Preview tiles: each button carries its own tgw-wallpaper-* class, so the tile renders the
+   real pattern (and the real theme tint) the chat will use. */
+.tgw-wallpaper-opt {
+    width: 48px;
+    height: 34px;
+    padding: 0;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    background-color: var(--tgw-chat-bg);
+    background-image: var(--tgw-wallpaper);
+    background-size: var(--tgw-wallpaper-size, auto) var(--tgw-wallpaper-size, auto);
+    background-position: var(--tgw-wallpaper-position, 0 0);
+    background-repeat: repeat;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.tgw-wallpaper-opt.active {
+    border-color: var(--tgw-text);
+}
+
 .tgw-confirm-body {
     font-size: 14px;
     line-height: 1.5;
@@ -2961,12 +3068,12 @@ body.tgw-root-active {
 }
 
 .tgw-root.tgw-glassy .tgw-chat {
-    background: rgba(226, 222, 215, 0.35);
+    background-color: rgba(226, 222, 215, 0.35);
 }
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-chat,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-chat {
-    background: rgba(9, 9, 10, 0.4);
+    background-color: rgba(9, 9, 10, 0.4);
 }
 
 .tgw-root.tgw-glassy .tgw-chat-header,
