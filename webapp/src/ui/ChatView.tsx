@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {api} from '../mm/api';
+import {setChannelFavorite} from '../mm/favorites';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
@@ -172,14 +173,9 @@ export function ChatView() {
                 label: summary.isFavorite ? 'Remove from favorites' : 'Add to favorites',
                 icon: <IconStar size={16}/>,
                 onClick: () => {
-                    const webapp = (window as any).WebappUtils;
-                    if (webapp?.channels?.favoriteChannel) {
-                        if (summary.isFavorite) {
-                            webapp.channels.unfavoriteChannel(channel.id);
-                        } else {
-                            webapp.channels.favoriteChannel(channel.id);
-                        }
-                    }
+                    setChannelFavorite(channel.id, !summary.isFavorite).catch(() => {
+                        actions.toast('Could not change favorites', 'error');
+                    });
                 },
             },
             {

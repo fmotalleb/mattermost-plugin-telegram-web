@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMChannel, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMUser} from './types';
+import type {MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMUser} from './types';
 import {getState} from './store';
 
 declare const window: any;
@@ -378,6 +378,13 @@ export class MattermostAPI {
     }
 
     // ---------------------------------------------------------------- preferences / session
+
+    // Mattermost's sidebar-category endpoints. The stock app persists manual chat order and
+    // sorting through PUT /users/{user_id}/teams/{team_id}/channels/categories — the API
+    // documented as "can be used to reorder the channels in these categories".
+    updateChannelCategories(userId: string, teamId: string, categories: MMChannelCategory[]): Promise<MMChannelCategory[]> {
+        return this.request(`/users/${userId}/teams/${teamId}/channels/categories`, {method: 'PUT', body: categories});
+    }
 
     savePreferences(preferences: MMPreference[]): Promise<any> {
         return this.request('/users/me/preferences', {method: 'PUT', body: preferences});

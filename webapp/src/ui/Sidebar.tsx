@@ -19,6 +19,7 @@ import {getState, useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
 import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
+import {setChannelFavorite} from '../mm/favorites';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
@@ -303,14 +304,9 @@ export function Sidebar() {
                 key: 'favorite',
                 label: summary.isFavorite ? 'Remove from favorites' : 'Add to favorites',
                 onClick: () => {
-                    const plugin = (window as any).WebappUtils;
-                    if (plugin?.channels?.favoriteChannel) {
-                        if (summary.isFavorite) {
-                            plugin.channels.unfavoriteChannel(summary.id);
-                        } else {
-                            plugin.channels.favoriteChannel(summary.id);
-                        }
-                    }
+                    setChannelFavorite(summary.id, !summary.isFavorite).catch(() => {
+                        actions.toast('Could not change favorites', 'error');
+                    });
                 },
             },
             {
@@ -427,6 +423,7 @@ export function Sidebar() {
                         onSelect={(id) => actions.openChat(id)}
                         onContextMenu={contextMenuForChat}
                         showTeamNames={tab?.kind === 'all'}
+                        reorderable={tab?.kind === 'category' ? {categoryId: tab.id} : null}
                         emptyTitle={tab?.kind === 'unread' ? 'No unread chats' : 'No chats here yet'}
                         emptyBody={tab?.kind === 'unread' ? 'You are all caught up.' : 'Start a conversation to see it listed here.'}
                     />

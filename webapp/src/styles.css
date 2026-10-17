@@ -72,15 +72,17 @@
     --tgw-active: #2b2b2b;
     --tgw-chat-bg: #0d0d0d;
     --tgw-in-bubble: #181818;
-    --tgw-out-bubble: #766ac8;
+    /* Telegram's night themes don't paint own messages in an accent colour: the outgoing bubble
+       is the incoming one, one step lighter. */
+    --tgw-out-bubble: #2e2e2e;
     --tgw-reaction: #242424;
     --tgw-accent-soft: rgba(106, 178, 242, 0.16);
     --tgw-voice-bar: rgba(255, 255, 255, 0.28);
     /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #181818. */
     --tgw-link: #6ab3f3;
     --tgw-link-hover: #8bc7f8;
-    /* Own messages sit on a saturated accent bubble (#766ac8 and friends): the link blue is
-       unreadable there, so links inside outgoing bubbles go near-white. */
+    /* Own messages sit one step lighter than the chat background; near-white links keep URLs
+       legible and visually distinct from the chrome links. */
     --tgw-out-link: #e8f1fb;
     --tgw-out-link-hover: #ffffff;
     --tgw-composer-bar: #181818;
@@ -971,9 +973,8 @@
 .tgw-message-text a:hover {
     text-decoration: underline;
 }
-/* URLs inside own messages: the accent blue vanishes on the saturated outgoing bubble (the
-   default dark blue accent paints it purple #766ac8), so outgoing links carry their own,
-   near-white tint in the dark themes. */
+/* URLs inside own messages: the dark themes' outgoing bubble is a light-tinted grey, so the
+   outgoing link variables carry a near-white tint there; the light themes keep the accent link. */
 .tgw-msg-out .tgw-message-text a {
     color: var(--tgw-out-link);
 }
@@ -2656,66 +2657,38 @@ img.tgw-reaction-emoji {
 /* ------------------------------------------------------------------ settings variants */
 
 /* The root element carries .tgw-accent-<name> (see mm/settings ACCENTS). Each accent re-tints the
-   accent colour, its hover shade and the outgoing bubble, in both themes. The dark overrides sit on
-   a longer selector chain so they win over the generic .tgw-root.tgw-theme-dark block above. */
+   accent colour, its hover shade and, where the theme has one, its soft background. Outgoing
+   bubbles deliberately do NOT follow the accent: like Telegram's own themes, own messages sit on
+   a lighter tint of the incoming bubble (set per theme above), so no accent colour can paint them
+   an unreadable shade again. */
 
 .tgw-root.tgw-accent-blue {
     --tgw-accent: #3390ec;
     --tgw-accent-hover: #2f85dc;
-    --tgw-out-bubble: #eeffde;
 }
 
 .tgw-root.tgw-accent-violet {
     --tgw-accent: #8774e1;
     --tgw-accent-hover: #7a68cf;
     --tgw-accent-soft: rgba(135, 116, 225, 0.14);
-    --tgw-out-bubble: #eeffde;
 }
 
 .tgw-root.tgw-accent-green {
     --tgw-accent: #4dbb5d;
     --tgw-accent-hover: #44a854;
     --tgw-accent-soft: rgba(77, 187, 93, 0.14);
-    --tgw-out-bubble: #e9ffd5;
 }
 
 .tgw-root.tgw-accent-orange {
     --tgw-accent: #f5a623;
     --tgw-accent-hover: #e09a1c;
     --tgw-accent-soft: rgba(245, 166, 35, 0.16);
-    --tgw-out-bubble: #fff3d6;
 }
 
 .tgw-root.tgw-accent-red {
     --tgw-accent: #e5544b;
     --tgw-accent-hover: #d24a42;
     --tgw-accent-soft: rgba(229, 84, 75, 0.14);
-    --tgw-out-bubble: #ffe9e7;
-}
-
-.tgw-root.tgw-theme-dark.tgw-accent-blue,
-.tgw-root.tgw-theme-midnight.tgw-accent-blue {
-    --tgw-out-bubble: #2f5377;
-}
-
-.tgw-root.tgw-theme-dark.tgw-accent-violet,
-.tgw-root.tgw-theme-midnight.tgw-accent-violet {
-    --tgw-out-bubble: #7a6bd6;
-}
-
-.tgw-root.tgw-theme-dark.tgw-accent-green,
-.tgw-root.tgw-theme-midnight.tgw-accent-green {
-    --tgw-out-bubble: #3f8f4c;
-}
-
-.tgw-root.tgw-theme-dark.tgw-accent-orange,
-.tgw-root.tgw-theme-midnight.tgw-accent-orange {
-    --tgw-out-bubble: #a4701f;
-}
-
-.tgw-root.tgw-theme-dark.tgw-accent-red,
-.tgw-root.tgw-theme-midnight.tgw-accent-red {
-    --tgw-out-bubble: #a8473f;
 }
 
 /* Compact message list (Settings > Chats). Tightens the message flow and the chat list rows. */
@@ -3071,4 +3044,16 @@ body.tgw-root-active {
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-search,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-search {
     background: rgba(255, 255, 255, 0.08);
+}
+
+/* ------------------------------------------------------------------ drag-to-reorder
+   Category tabs reorder their chats like Mattermost's own sidebar: the dragged row dims and
+   the row under the cursor gets an accent rule at the drop position. */
+
+.tgw-chat-row-dragging {
+    opacity: 0.45;
+}
+
+.tgw-chat-row-dragover {
+    box-shadow: inset 0 2px 0 var(--tgw-accent);
 }

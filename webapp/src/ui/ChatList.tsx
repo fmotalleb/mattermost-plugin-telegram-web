@@ -1,6 +1,7 @@
 // Chat list rows (the left column of Telegram Web).
 
 import React, {useEffect, useState} from 'react';
+import {reorderCategoryChannels} from '../mm/categories';
 import {getCachedPreview, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
 import {getMyId, getStatus} from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
@@ -45,9 +46,16 @@ export interface ChatRowProps {
     onSelect: (channelId: string) => void;
     onContextMenu?: (event: React.MouseEvent, summary: ChatSummary) => void;
     showTeamName?: boolean;
+    /** Drag-to-reorder (category tabs): the row becomes a draggable drop target. */
+    draggable?: boolean;
+    dragState?: 'source' | 'over' | null;
+    onDragStart?: () => void;
+    onDragOver?: (event: React.DragEvent) => void;
+    onDrop?: (event: React.DragEvent) => void;
+    onDragEnd?: () => void;
 }
 
-export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName}: ChatRowProps) {
+export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd}: ChatRowProps) {
     const {timeFormat, settings} = useTg();
     const myId = useSelector(getMyId);
     const preview = usePreview(summary.id);
@@ -63,9 +71,14 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
     return (
         <button
             type="button"
-            className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''}`}
+            draggable={draggable}
+            className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''} ${dragState === 'source' ? 'tgw-chat-row-dragging' : ''} ${dragState === 'over' ? 'tgw-chat-row-dragover' : ''}`}
             onClick={() => onSelect(summary.id)}
             onContextMenu={(event) => onContextMenu?.(event, summary)}
+            onDragStart={() => onDragStart?.()}
+            onDragOver={(event) => onDragOver?.(event)}
+            onDrop={(event) => onDrop?.(event)}
+            onDragEnd={() => onDragEnd?.()}
         >
             <Avatar
                 userId={summary.avatarUserId}
@@ -130,9 +143,15 @@ export interface ChatListProps {
     emptyTitle?: string;
     emptyBody?: string;
     prefetchLimit?: number;
+    /** When set, rows can be dragged to reorder this Mattermost category (Mattermost-style). */
+    reorderable?: {categoryId: string} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, reorderable = null}: ChatListProps) {
+    const {actions} = useTg();
+    const [dragId, setDragId] = useState<string | null>(null);
+    const [overId, setOverId] = useState<string | null>(null);
+
     // Warm up the sidebar previews for the rows the user actually looks at.
     useEffect(() => {
         chats.slice(0, prefetchLimit).forEach((chat) => {
@@ -141,6 +160,24 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
             }
         });
     }, [chats, prefetchLimit]);
+
+    // Mattermost-style placement: dropping on the upper half of a row inserts the dragged chat
+    // before it, the lower half after it (in jsdom-sized rows this degrades to "after").
+    const dropChat = (targetId: string, clientY?: number, rect?: DOMRect) => {
+        const sourceId = dragId;
+        setDragId(null);
+        setOverId(null);
+        if (!sourceId || sourceId === targetId || !reorderable) {
+            return;
+        }
+        const before = typeof clientY === 'number' && !!rect && clientY < rect.top + rect.height / 2;
+        const next = chats.map((chat) => chat.id).filter((id) => id !== sourceId);
+        const targetIndex = next.indexOf(targetId);
+        next.splice(before ? targetIndex : targetIndex + 1, 0, sourceId);
+        reorderCategoryChannels(reorderable.categoryId, next)
+            .then(() => actions.refreshChats())
+            .catch(() => actions.toast('Could not reorder chats', 'error'));
+    };
 
     if (!chats.length) {
         return (
@@ -162,6 +199,23 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
                         onSelect={onSelect}
                         onContextMenu={onContextMenu}
                         showTeamName={showTeamNames}
+                        draggable={!!reorderable}
+                        dragState={dragId === chat.id ? 'source' : (dragId && overId === chat.id ? 'over' : null)}
+                        onDragStart={() => setDragId(chat.id)}
+                        onDragOver={(event) => {
+                            if (dragId && dragId !== chat.id) {
+                                event.preventDefault();
+                                setOverId(chat.id);
+                            }
+                        }}
+                        onDrop={(event) => {
+                            event.preventDefault();
+                            dropChat(chat.id, event.clientY, event.currentTarget.getBoundingClientRect());
+                        }}
+                        onDragEnd={() => {
+                            setDragId(null);
+                            setOverId(null);
+                        }}
                     />
                 </React.Fragment>
             ))}

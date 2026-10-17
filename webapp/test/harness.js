@@ -268,6 +268,11 @@ global.fetch = async (url, options = {}) => {
     if (p === '/users/me/preferences') {
         return json([]);
     }
+    // Sidebar-category reorder (PUT /users/{user_id}/teams/{team_id}/channels/categories): the
+    // server echoes the updated categories back as an array.
+    if (options.method === 'PUT' && /^\/users\/[^/]+\/teams\/[^/]+\/channels\/categories$/.test(p)) {
+        return json(Array.isArray(post) ? post : [post]);
+    }
     if (p === '/users/ids' && options.method === 'POST') {
         const ids = Array.isArray(post) ? post : [];
         return json(ids.map((id) => users[id]).filter(Boolean));
@@ -402,7 +407,7 @@ const state = {
                 'cat-fav': {id: 'cat-fav', user_id: ME, team_id: TEAM, type: 'favorites', display_name: 'Favorites', sorting: 'manual', channel_ids: [], muted: false, collapsed: false},
                 'cat-ch': {id: 'cat-ch', user_id: ME, team_id: TEAM, type: 'channels', display_name: 'Channels', sorting: 'alpha', channel_ids: [TOWN], muted: false, collapsed: false},
                 'cat-dm': {id: 'cat-dm', user_id: ME, team_id: TEAM, type: 'direct_messages', display_name: 'Direct Messages', sorting: 'recent', channel_ids: [DM], muted: false, collapsed: false},
-                'cat-work': {id: 'cat-work', user_id: ME, team_id: TEAM, type: 'custom', display_name: 'Work stuff', sorting: 'manual', channel_ids: [TOWN], muted: false, collapsed: false},
+                'cat-work': {id: 'cat-work', user_id: ME, team_id: TEAM, type: 'custom', display_name: 'Work stuff', sorting: 'manual', channel_ids: [TOWN, DM], muted: false, collapsed: false},
             },
             orderByTeam: {[TEAM]: ['cat-fav', 'cat-ch', 'cat-dm', 'cat-work']},
         },

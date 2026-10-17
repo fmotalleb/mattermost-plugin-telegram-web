@@ -164,10 +164,12 @@ export function setEnabled(enabled: boolean) {
     updateSettings({mode: enabled ? 'on' : 'off'});
 }
 
-export const ACCENTS: Record<AccentName, {label: string; color: string; outgoing: string; outgoingDark: string}> = {
-    blue: {label: 'Blue', color: '#3390ec', outgoing: '#effdde', outgoingDark: '#766ac8'},
-    violet: {label: 'Violet', color: '#8774e1', outgoing: '#effdde', outgoingDark: '#7a6bd6'},
-    green: {label: 'Green', color: '#4dbb5d', outgoing: '#e9ffd5', outgoingDark: '#3f8f4c'},
-    orange: {label: 'Orange', color: '#f5a623', outgoing: '#fff3d6', outgoingDark: '#a4701f'},
-    red: {label: 'Red', color: '#e5544b', outgoing: '#ffe9e7', outgoingDark: '#a8473f'},
+// Bubble colors are themed in styles.css — outgoing bubbles are a lighter tint of the incoming
+// one in every theme (Telegram-style). This map only feeds the accent picker.
+export const ACCENTS: Record<AccentName, {label: string; color: string}> = {
+    blue: {label: 'Blue', color: '#3390ec'},
+    violet: {label: 'Violet', color: '#8774e1'},
+    green: {label: 'Green', color: '#4dbb5d'},
+    orange: {label: 'Orange', color: '#f5a623'},
+    red: {label: 'Red', color: '#e5544b'},
 };

@@ -350,6 +350,65 @@ root.render(React.createElement(TelegramUI));
         delete dom.window.HTMLTextAreaElement.prototype.scrollHeight;
     }
 
+    console.log('\n== favorites API ==');
+    // The star used to go through window.WebappUtils — a host helper plugins are not guaranteed
+    // to see — so "remove from favorites" silently called nothing. Seed Town Square as a
+    // favorite the way Mattermost stores it (a preference) and remove it from the context menu.
+    // Replace the preferences object (not just a key inside it): the selectors memoize on its
+    // identity, so an in-place mutation would never surface in the rendered rows.
+    state.entities.preferences = {
+        myPreferences: {
+            ...state.entities.preferences.myPreferences,
+            [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'true'},
+        },
+    };
+    notifyStoreChange();
+    await waitFor(() => document.querySelector('.tgw-chat-row-star'));
+    ok(!!document.querySelector('.tgw-chat-row-star'), 'seeding the favorite preference lights up the star on the row');
+    const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+    ok(!!favRow, 'town square row found for the favorites check');
+    if (favRow) {
+        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const removeEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.includes('Remove from favorites'));
+        ok(!!removeEntry, 'context menu offers removing the chat from favorites');
+        const prefCallsBefore = calls.length;
+        removeEntry?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => calls.slice(prefCallsBefore).some((call) => call === 'PUT /users/me/preferences'), 3000);
+        ok(calls.slice(prefCallsBefore).some((call) => call === 'PUT /users/me/preferences'), 'removing a favorite is sent to the preferences API');
+        const prefPayload = payloads.filter((entry) => entry.path === '/users/me/preferences').pop();
+        const prefEntry = prefPayload && prefPayload.body && prefPayload.body[0];
+        ok(!!prefEntry && prefEntry.category === 'favorite_channel' && prefEntry.name === ids.TOWN && prefEntry.value === 'false', `favorite preference cleared with value false (got: ${JSON.stringify(prefPayload && prefPayload.body)})`);
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
+    }
+
+    console.log('\n== drag to reorder ==');
+    // Category tabs reorder their chats by dragging, through Mattermost's own sidebar-category
+    // endpoint (PUT /users/{user_id}/teams/{team_id}/channels/categories).
+    const workTab = Array.from(document.querySelectorAll('.tgw-folder')).find((button) => button.textContent.includes('Work stuff'));
+    ok(!!workTab, 'folder tab rendered for the reorder check');
+    if (workTab) {
+        workTab.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelectorAll('.tgw-chat-row').length >= 2);
+        const rowsNow = Array.from(document.querySelectorAll('.tgw-chat-row'));
+        ok(rowsNow.length >= 2, `the category tab shows its chats (${rowsNow.length})`);
+        ok(rowsNow.some((row) => row.textContent.includes('Town Square')) && rowsNow.some((row) => row.textContent.includes('Alice Anderson')), 'both chats of the category render');
+        const callsBeforeDrag = calls.length;
+        rowsNow[0].dispatchEvent(new dom.window.Event('dragstart', {bubbles: true, cancelable: true}));
+        await tick(40);
+        rowsNow[1].dispatchEvent(new dom.window.Event('dragover', {bubbles: true, cancelable: true}));
+        await tick(40);
+        rowsNow[1].dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
+        await waitFor(() => calls.slice(callsBeforeDrag).some((call) => /^PUT \/users\/[^/]+\/teams\/[^/]+\/channels\/categories$/.test(call)), 3000);
+        ok(calls.slice(callsBeforeDrag).some((call) => /^PUT \/users\/[^/]+\/teams\/[^/]+\/channels\/categories$/.test(call)), 'drag sends the new order to Mattermost\u2019s sidebar-category endpoint');
+        const catPayload = payloads.filter((entry) => /\/channels\/categories$/.test(entry.path)).pop();
+        const savedCategory = catPayload && Array.isArray(catPayload.body) && catPayload.body[0];
+        ok(!!savedCategory && savedCategory.sorting === 'manual', `drag switches the category to manual sorting (got: ${JSON.stringify(savedCategory && savedCategory.sorting)})`);
+        const expectedOrder = `${ids.DM},${ids.TOWN}`;
+        ok(!!savedCategory && (savedCategory.channel_ids || []).join(',') === expectedOrder, `the dragged chat lands after the target (got: ${JSON.stringify(savedCategory && savedCategory.channel_ids)})`);
+    }
+
     console.log('\n== websocket ==');
     // Mattermost ships the post inside data.post as a JSON *string* (post.ToJson() on the server);
     // the raw string must be parsed or the cache silently ignores it.

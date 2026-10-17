@@ -2,6 +2,7 @@
 
 import React, {useEffect, useMemo, useState} from 'react';
 import {api} from '../mm/api';
+import {setChannelFavorite} from '../mm/favorites';
 import {getChatSummary, getMemberCount, getMyId, getPeersOfDirectChannel} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMUser} from '../mm/types';
@@ -88,16 +89,9 @@ export function InfoPanel() {
     const memberCount = isDirect ? 2 : (channelMemberCount || summary.memberCount);
 
     const toggleFavorite = () => {
-        const webapp = (window as any).WebappUtils;
-        if (!webapp?.channels?.favoriteChannel) {
-            actions.toast('Favorites are not available', 'error');
-            return;
-        }
-        if (summary.isFavorite) {
-            webapp.channels.unfavoriteChannel(channel.id);
-        } else {
-            webapp.channels.favoriteChannel(channel.id);
-        }
+        setChannelFavorite(channel.id, !summary.isFavorite).catch(() => {
+            actions.toast('Could not change favorites', 'error');
+        });
     };
 
     const toggleMute = () => {
