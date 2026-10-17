@@ -1,6 +1,7 @@
 // Formatting + naming helpers shared by the whole UI.
 
 import type {MMChannel, MMFileInfo, MMUser} from './types';
+import {replaceShortcodes} from './emoji';
 
 export const DAY = 24 * 60 * 60 * 1000;
 
@@ -290,7 +291,7 @@ export function escapeHtml(text: string): string {
 
 /** Turns message markdown into something acceptable for a oneline preview. */
 export function toPlainPreview(message: string, limit = 260): string {
-    let text = (message || '')
+    let text = replaceShortcodes(message || '')
         .replace(/```[\s\S]*?```/g, ' [code] ')
         .replace(/`([^`]*)`/g, '$1')
         .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [image] ')
@@ -387,4 +388,28 @@ export function copyToClipboard(text: string): Promise<void> {
         document.body.removeChild(textarea);
         resolve();
     });
+}
+
+/**
+ * First-strong text direction, the way Telegram flips the composer and message bubbles for
+ * Persian/Hebrew/Arabic input. Digits (ASCII and Arabic-Indic) are neutral: typing a phone
+ * number must not flip the box. Anything else falls through to the first Unicode letter.
+ */
+const RTL_RANGES = /[\u0590-\u05FF\u0600-\u06FF\u0700-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const NEUTRAL_DIGITS = /[0-9\u0660-\u0669\u06F0-\u06F9]/;
+const ANY_LETTER = /\p{L}/u;
+
+export function directionOf(text: string): 'ltr' | 'rtl' {
+    for (const char of text || '') {
+        if (NEUTRAL_DIGITS.test(char)) {
+            continue;
+        }
+        if (RTL_RANGES.test(char)) {
+            return 'rtl';
+        }
+        if (ANY_LETTER.test(char)) {
+            return 'ltr';
+        }
+    }
+    return 'ltr';
 }

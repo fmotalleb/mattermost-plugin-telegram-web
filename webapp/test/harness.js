@@ -179,6 +179,20 @@ const posts = {
 const calls = [];
 // Request bodies, so tests can assert what was actually sent (e.g. root_id on a reply).
 const payloads = [];
+// One-shot gate for POST /posts: tests hold the response to type into the composer while the
+// send is still in flight (the "input clears immediately" regression).
+let postsGate = null;
+function holdPosts() {
+    let release;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    postsGate = gate;
+    return () => {
+        postsGate = null;
+        release();
+    };
+}
 // In-memory stand-in for the plugin server component's tg_webui_user_view_tracking table.
 const viewTracking = new Map([
     ['p3', new Set([OTHER, THIRD])],
@@ -339,6 +353,9 @@ global.fetch = async (url, options = {}) => {
         }
     }
     if (p === '/posts') {
+        if (postsGate) {
+            await postsGate;
+        }
         return json({
             ...posts.p2,
             id: 'p-new',
@@ -473,6 +490,7 @@ module.exports = {
     state,
     store,
     ids: {ME, OTHER, TEAM, DM, TOWN},
+    holdPosts,
     notifyStoreChange: () => listeners.forEach((listener) => listener()),
     tick,
     ok,

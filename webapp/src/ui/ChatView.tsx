@@ -125,10 +125,10 @@ export function ChatView() {
             api.viewChannel(channel.id).catch(() => undefined);
         } catch (error: any) {
             markFailed(channel.id, optimistic.id);
-            actions.toast(error?.message || 'Message not sent', 'error');
+            // Rethrow so the composer can restore the draft; it also owns the toast.
             throw error;
         }
-    }, [channel, me, actions]);
+    }, [channel, me]);
 
     // Toggling is always about *my* participation in an emoji, never about the reaction object
     // the chip happened to hand us - that one may belong to whoever reacted first.

@@ -12,7 +12,7 @@
 
 const {
     dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
-    store, state, posts, ids, tick, ok, fail, report, notifyStoreChange,
+    store, state, posts, ids, tick, ok, fail, report, notifyStoreChange, holdPosts,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
@@ -138,6 +138,99 @@ root.render(React.createElement(TelegramUI));
             ok(!document.querySelector('.tgw-reply-bar'), 'reply bar closes after the reply was sent');
         } else {
             fail('composer textarea missing while replying');
+        }
+    }
+
+    console.log('\n== composer frees the input on send ==');
+    // Regression: the composer used to reset() only after the network round trip, so chars
+    // typed into the box while the send was in flight were wiped by the late cleanup.
+    {
+        const release = holdPosts();
+        const area = document.querySelector('.tgw-composer textarea');
+        const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+        valueSetter.call(area, 'first message');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        document.querySelector('.tgw-send-button').dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        // Give React a chance to flush the send handler; the request is still held by the gate.
+        await tick(50);
+        ok(area.value === '', 'input clears immediately, before the network round trip finishes');
+        valueSetter.call(area, 'chars typed while sending');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        release();
+        await waitFor(() => document.body.innerHTML.includes('first message'));
+        ok(document.body.innerHTML.includes('first message'), 'the held message still went out');
+        ok(area.value === 'chars typed while sending', 'text typed mid-send survives the cleanup');
+        // Clear the box so later sections start from a clean composer.
+        valueSetter.call(area, '');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+    }
+
+    console.log('\n== rtl / ltr direction ==');
+    {
+        const {directionOf} = require('../src/mm/utils');
+        ok(directionOf('سلام دنیا') === 'rtl', 'Persian text is detected as RTL');
+        ok(directionOf('hello') === 'ltr', 'Latin text is detected as LTR');
+        ok(directionOf('سلام 123') === 'rtl', 'digits do not flip the direction of RTL text');
+        ok(directionOf('123') === 'ltr', 'digits alone stay LTR');
+        ok(directionOf('👍 great') === 'ltr', 'emoji before a Latin word stays LTR');
+
+        const area = document.querySelector('.tgw-composer textarea');
+        const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+        valueSetter.call(area, 'سلام دنیا');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        ok(area.getAttribute('dir') === 'rtl', 'composer flips to RTL for Persian input');
+        valueSetter.call(area, 'hello');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        ok(area.getAttribute('dir') === 'ltr', 'composer flips back to LTR for Latin input');
+        valueSetter.call(area, '');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        ok(!!document.querySelector('.tgw-message-text[dir="auto"]'), 'message bodies carry dir=auto for per-line direction');
+    }
+
+    console.log('\n== emoji previews ==');
+    {
+        // p2 contains ":smile:" — the chat-list preview and reply previews must show the
+        // unicode emoji, not the raw shortcode. Start a reply on p2 to inspect its preview.
+        const {toPlainPreview} = require('../src/mm/utils');
+        ok(toPlainPreview('hi :smile: there').includes('😄'), 'toPlainPreview renders shortcodes as unicode emoji');
+        ok(toPlainPreview('hi :unknown-emoji: there').includes(':unknown-emoji:'), 'unknown shortcodes pass through unchanged');
+        const p2row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
+        const p2Reply = p2row?.querySelector('.tgw-msg-toolbar button[title="Reply"]');
+        if (p2Reply) {
+            p2Reply.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await tick(60);
+            const preview = document.querySelector('.tgw-reply-bar-text')?.textContent || '';
+            ok(preview.includes('😄'), `reply preview shows the unicode emoji (${preview})`);
+            // Cancel the reply again.
+            document.querySelector('.tgw-composer textarea')?.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+            await tick(30);
+            ok(!document.querySelector('.tgw-reply-bar'), 'escape cancels the reply bar');
+        }
+    }
+
+    console.log('\n== post menu reactors ==');
+    {
+        const p3row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p3');
+        ok(!!p3row, 'p3 rendered for the reactor-menu check');
+        if (p3row) {
+            p3row.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
+            await waitFor(() => document.querySelector('.tgw-menu'));
+            const items = Array.from(document.querySelectorAll('.tgw-menu-item'));
+            const reactionRows = items.filter((item) => item.querySelector('.tgw-reaction-emoji'));
+            ok(reactionRows.length >= 1, `post menu lists the reactors (${reactionRows.length} rows)`);
+            const tadaRow = items.find((item) => item.textContent.includes('Alice Anderson') && item.textContent.includes('🎉'));
+            ok(!!tadaRow, 'reactor row shows the reactor name, the emoji and a timestamp');
+            if (tadaRow) {
+                ok(tadaRow.disabled, 'reactor rows are informational (disabled)');
+            }
+            dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+            await waitFor(() => !document.querySelector('.tgw-menu'));
         }
     }
 

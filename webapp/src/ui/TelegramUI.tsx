@@ -4,11 +4,11 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
-import {getBlock, loadChannel, receivePost} from '../mm/posts';
+import {getBlock, getReactions, loadChannel, receivePost} from '../mm/posts';
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
-import {copyToClipboard, toPlainPreview} from '../mm/utils';
+import {copyToClipboard, displayName, formatMessageStamp, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost} from '../mm/types';
 import {ChatView} from './ChatView';
@@ -17,6 +17,7 @@ import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
 import {Menu} from './menu';
 import type {MenuEntry} from './menu';
+import {ReactionEmoji} from './MessageList';
 import {SearchPanel} from './SearchPanel';
 import {Sidebar} from './Sidebar';
 import {ThreadPanel} from './ThreadPanel';
@@ -321,7 +322,17 @@ export function TelegramUI() {
                     <Modals/>
                     <ConfirmModal/>
                     <ImageViewer/>
-                    {contextMenu && <Menu x={contextMenu.x} y={contextMenu.y} items={contextMenu.items} onClose={() => setContextMenu(null)}/>}
+                    {contextMenu && (
+                        <Menu
+                            x={contextMenu.x}
+                            y={contextMenu.y}
+                            items={contextMenu.items}
+                            onClose={() => setContextMenu(null)}
+                            // Reaction rows carry a name and a timestamp; the default 220px
+                            // would ellipsise them into uselessness.
+                            width={contextMenu.items.some((item) => item !== 'separator' && item.key.startsWith('reaction-')) ? 300 : 220}
+                        />
+                    )}
                     {reactionPicker && (
                         <div
                             className="tgw-floating-picker"
@@ -373,6 +384,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
     const state = getState();
     const myId = state.entities?.users?.currentUserId || '';
     const isOwn = post.user_id === myId;
+    const timeFormat = getTimeFormat(state);
     const items: MenuEntry[] = [
         {key: 'reply', label: 'Reply', onClick: () => handlers.reply(post)},
         {key: 'react', label: 'Add reaction', onClick: () => handlers.react(post)},
@@ -383,6 +395,25 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         },
         {key: 'unread', label: 'Mark as unread', onClick: () => handlers.markUnread(post)},
     ];
+    // Telegram lists everyone who reacted right in the post menu, newest first. Rows are
+    // informational (disabled), grouped per emoji so the same reaction stays together.
+    const reactions = getReactions(getBlock(post.channel_id), post.id)
+        .slice()
+        .sort((a, b) => b.create_at - a.create_at);
+    if (reactions.length) {
+        const customEmoji = state.entities?.emojis?.customEmoji || {};
+        items.push('separator');
+        reactions.forEach((reaction) => {
+            const user = state.entities?.users?.profiles?.[reaction.user_id];
+            const who = reaction.user_id === myId ? 'You' : (displayName(user) || reaction.user_id);
+            items.push({
+                key: `reaction-${reaction.user_id}-${reaction.emoji_name}`,
+                label: `${who} · ${formatMessageStamp(reaction.create_at, timeFormat)}`,
+                icon: <ReactionEmoji name={reaction.emoji_name} customEmoji={customEmoji}/>,
+                disabled: true,
+            });
+        });
+    }
     if (post.reply_count > 0 || post.root_id) {
         items.push({key: 'thread', label: 'Open thread', onClick: () => handlers.thread(post)});
     }

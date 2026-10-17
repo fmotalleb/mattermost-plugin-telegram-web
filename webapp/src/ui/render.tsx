@@ -92,7 +92,7 @@ function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (mess
 export function MessageBody({message, postId, editedAt, mentionKeys, className}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
     const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
-    const fallback = <span className={className} onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
+    const fallback = <span className={className} dir="auto" onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
 
     if (!message) {
         return fallback;
@@ -137,7 +137,7 @@ export function MessageBody({message, postId, editedAt, mentionKeys, className}:
 
     return (
         <BodyBoundary fallback={fallback}>
-            <span className={`tgw-message-body ${className || ''}`} onClick={onClick}>{rendered}</span>
+            <span className={`tgw-message-body ${className || ''}`} dir="auto" onClick={onClick}>{rendered}</span>
         </BodyBoundary>
     );
 }

@@ -3,7 +3,7 @@
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {getBlock} from '../mm/posts';
-import {attachmentSummary, displayName, fileKindOf, formatBytes, formatDuration, throttle, toPlainPreview} from '../mm/utils';
+import {attachmentSummary, directionOf, displayName, fileKindOf, formatBytes, formatDuration, throttle, toPlainPreview} from '../mm/utils';
 import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
 import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
@@ -46,7 +46,6 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     const {ui, actions, me} = useTg();
     const [message, setMessage] = useState('');
     const [files, setFiles] = useState<PendingFile[]>([]);
-    const [sending, setSending] = useState(false);
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +126,11 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         autoGrow(textareaRef.current, 0);
     };
 
+    // Mirror of the files state for the send-failure path: the closure of an in-flight send
+    // would otherwise see the snapshot from when it started, not what is in the tray now.
+    const filesRef = useRef(files);
+    filesRef.current = files;
+
     const insertMarkdown = (prefix: string, suffix = prefix, placeholderText = '') => {
         const element = textareaRef.current;
         if (!element) {
@@ -182,39 +186,44 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         if (!trimmed && !readyFiles.length) {
             return;
         }
-        if (sending) {
-            return;
+        // Snapshot the payload and free the input right away: the network round trip can take a
+        // while, and anything typed into the box while it is in flight must survive — a late
+        // reset used to wipe the next message the user had already started composing.
+        const voiceEntry = ready.find((entry) => entry.voice);
+        const payload = {
+            message: trimmed,
+            fileIds: readyFiles,
+            rootId: threadRootId,
+            files: ready.map((entry) => entry.info!),
+            voice: voiceEntry && voiceEntry.info
+                ? {fileId: voiceEntry.info.id, durationMs: voiceEntry.voice!.durationMs, levels: voiceEntry.voice!.levels}
+                : undefined,
+        };
+        const wasEditing = editing;
+        reset();
+        setShowEmoji(false);
+        // The reply bar must disappear once the reply went out, otherwise every later message
+        // would be threaded as well. The root id is already baked into the payload above.
+        if (replyTo && !wasEditing) {
+            onCancelReply();
         }
-        setSending(true);
         try {
-            if (editing) {
-                await api.patchPost(editing.id, {message: trimmed});
+            if (wasEditing) {
+                await api.patchPost(wasEditing.id, {message: trimmed});
                 onCancelEdit();
-                reset();
             } else {
-                const voiceEntry = ready.find((entry) => entry.voice);
-                await onSend({
-                    message: trimmed,
-                    fileIds: readyFiles,
-                    rootId: threadRootId,
-                    files: ready.map((entry) => entry.info!),
-                    voice: voiceEntry && voiceEntry.info
-                        ? {fileId: voiceEntry.info.id, durationMs: voiceEntry.voice!.durationMs, levels: voiceEntry.voice!.levels}
-                        : undefined,
-                });
-                reset();
-                // The reply bar must disappear once the reply went out, otherwise every later
-                // message would be threaded as well.
-                if (replyTo) {
-                    onCancelReply();
-                }
+                await onSend(payload);
                 onSent();
             }
-            setShowEmoji(false);
         } catch (error: any) {
-            actions.toast(error?.message || 'Could not send the message', 'error');
+            // Put the draft back, but only if nothing new was typed while the request was out.
+            const element = textareaRef.current;
+            if (element && !element.value.trim() && !filesRef.current.length) {
+                setMessage(wasEditing ? (wasEditing.message || '') : trimmed);
+                setFiles(ready);
+            }
+            actions.toast(error?.message || (wasEditing ? 'Could not save the changes' : 'Could not send the message'), 'error');
         }
-        setSending(false);
     };
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -403,6 +412,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                     <textarea
                         ref={textareaRef}
                         value={message}
+                        dir={directionOf(message)}
                         placeholder={placeholderText}
                         rows={1}
                         spellCheck={false}
@@ -447,7 +457,6 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                         type="button"
                         className={`tgw-send-button ${message.trim() || files.length ? 'tgw-send-button-active' : ''}`}
                         onClick={send}
-                        disabled={sending}
                         title={editing ? 'Save changes' : 'Send'}
                     >
                         {editing ? <IconEdit size={18}/> : <IconSend size={18}/>}

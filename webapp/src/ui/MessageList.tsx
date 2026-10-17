@@ -648,7 +648,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
     );
 }
 
-function ReactionEmoji({name, customEmoji}: {name: string; customEmoji: Record<string, {id: string}>}) {
+export function ReactionEmoji({name, customEmoji}: {name: string; customEmoji: Record<string, {id: string}>}) {
     const custom = customEmoji?.[name];
     if (custom) {
         return <img className="tgw-reaction-emoji" src={api.customEmojiImageURL(custom.id)} alt={`:${name}:`}/>;

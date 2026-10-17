@@ -1017,6 +1017,16 @@
     line-height: 1.35;
     white-space: pre-wrap;
     word-break: break-word;
+    /* Per-paragraph first-strong direction, the way Telegram renders mixed LTR/RTL chats.
+       unicode-bidi is not inherited, so the block children below need it too. */
+    unicode-bidi: plaintext;
+}
+
+.tgw-message-text p,
+.tgw-message-text li,
+.tgw-message-text blockquote,
+.tgw-message-text pre {
+    unicode-bidi: plaintext;
 }
 
 .tgw-message-text p {
@@ -2107,6 +2117,8 @@ img.tgw-reaction-emoji {
     box-shadow: var(--tgw-shadow-strong);
     padding: 4px;
     border: 1px solid var(--tgw-border);
+    max-height: min(70vh, 480px);
+    overflow-y: auto;
 }
 
 .tgw-menu-item {
@@ -2127,6 +2139,15 @@ img.tgw-reaction-emoji {
 
 .tgw-menu-item:hover {
     background: var(--tgw-hover);
+}
+
+/* Reactor rows in the post menu are informational: no hover, default cursor. */
+.tgw-menu-item:disabled {
+    cursor: default;
+}
+
+.tgw-menu-item:disabled:hover {
+    background: transparent;
 }
 
 .tgw-menu-item-danger {
