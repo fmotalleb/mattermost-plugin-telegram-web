@@ -10,6 +10,10 @@
     /* Link/URL text follows the accent in light mode. */
     --tgw-link: var(--tgw-accent);
     --tgw-link-hover: var(--tgw-accent-hover);
+    /* Links painted *inside* an own (outgoing) bubble: light themes keep the accent blue on the
+       pale bubble, dark themes override this below — see .tgw-msg-out .tgw-message-text a. */
+    --tgw-out-link: var(--tgw-link);
+    --tgw-out-link-hover: var(--tgw-link-hover);
     --tgw-bg: #ffffff;
     --tgw-bg-secondary: #ffffff;
     --tgw-sidebar: #ffffff;
@@ -75,6 +79,10 @@
     /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #181818. */
     --tgw-link: #6ab3f3;
     --tgw-link-hover: #8bc7f8;
+    /* Own messages sit on a saturated accent bubble (#766ac8 and friends): the link blue is
+       unreadable there, so links inside outgoing bubbles go near-white. */
+    --tgw-out-link: #e8f1fb;
+    --tgw-out-link-hover: #ffffff;
     --tgw-composer-bar: #181818;
     --tgw-composer-input-bg: #242424;
     --tgw-composer-input-border: #323232;
@@ -144,6 +152,8 @@
     --tgw-voice-bar: rgba(255, 255, 255, 0.28);
     --tgw-link: #6ab3f3;
     --tgw-link-hover: #8bc7f8;
+    --tgw-out-link: #e8f1fb;
+    --tgw-out-link-hover: #ffffff;
     --tgw-composer-bar: #131c27;
     --tgw-composer-input-bg: #1c2938;
     --tgw-composer-input-border: #2b3c52;
@@ -954,15 +964,21 @@
 
 .tgw-message-text p:last-child {
     margin-bottom: 0;
-}
-
-.tgw-message-text a {
+}.tgw-message-text a {
     color: var(--tgw-link);
     text-decoration: none;
 }
-
 .tgw-message-text a:hover {
     text-decoration: underline;
+}
+/* URLs inside own messages: the accent blue vanishes on the saturated outgoing bubble (the
+   default dark blue accent paints it purple #766ac8), so outgoing links carry their own,
+   near-white tint in the dark themes. */
+.tgw-msg-out .tgw-message-text a {
+    color: var(--tgw-out-link);
+}
+.tgw-msg-out .tgw-message-text a:hover {
+    color: var(--tgw-out-link-hover);
 }
 
 .tgw-message-text code,
