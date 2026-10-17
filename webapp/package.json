@@ -10,6 +10,7 @@
         "check-types": "tsc --noEmit",
         "test:smoke": "node test/smoke.js",
         "test:bundle": "node test/bundle.js",
+        "test:browser": "node test/browser.js",
         "preview": "node test/preview.js"
     },
     "devDependencies": {

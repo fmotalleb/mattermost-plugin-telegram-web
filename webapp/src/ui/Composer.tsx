@@ -43,7 +43,7 @@ interface PendingFile {
 }
 
 export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
-    const {actions, me} = useTg();
+    const {ui, actions, me} = useTg();
     const [message, setMessage] = useState('');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [sending, setSending] = useState(false);
@@ -78,10 +78,29 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         }
     }, [replyTo]);
 
-    // Focus the input whenever a chat is opened or switched, like Telegram does.
+    // Focus the input whenever a chat is opened, re-opened or switched, like Telegram does.
+    // openChat() also pushes the Mattermost route, so the host app re-renders right behind us and
+    // can take the keyboard for its own message box — keystrokes would then go into a field hidden
+    // under this overlay. For a short window after the open, reclaim focus whenever it ends up
+    // *outside* .tgw-root; focus placed inside our own overlay (sidebar search, modals, menus) is
+    // left alone.
     useEffect(() => {
-        textareaRef.current?.focus();
-    }, [channel.id]);
+        const composer = textareaRef.current;
+        if (!composer) {
+            return undefined;
+        }
+        composer.focus();
+        const reclaim = () => {
+            const active = document.activeElement as HTMLElement | null;
+            const overlay = document.querySelector('.tgw-root');
+            const insideOverlay = !!active && !!overlay && (overlay === active || overlay.contains(active));
+            if (active !== composer && !insideOverlay && document.contains(composer)) {
+                composer.focus();
+            }
+        };
+        const timers = [setTimeout(reclaim, 80), setTimeout(reclaim, 400)];
+        return () => timers.forEach((timer) => clearTimeout(timer));
+    }, [channel.id, ui.chatSeq]);
 
     // The textarea height is imperative (style.height), so every programmatic message change —
     // loading a long message for editing, inserting emoji/markdown — must re-measure, not just

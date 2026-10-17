@@ -307,6 +307,49 @@ root.render(React.createElement(TelegramUI));
         }
     }
 
+    // The box must *grow* for a long message, not just get re-measured. jsdom does no layout
+    // (scrollHeight is always 0), so give the textarea a content-based scrollHeight for this
+    // check and assert the height the composer applies actually rises past one line.
+    const ownTextarea = document.querySelector('.tgw-composer textarea');
+    ok(!!ownTextarea, 'composer available for the long-edit check');
+    if (ownTextarea) {
+        const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+        const longEditText = 'Preparing the release checklist: deployments, rollbacks, feature flags, canaries, dashboards, '
+            + 'on-call rotations and the runbook all have to be linked from this message so reviewers find everything. '
+            + 'Telemetry additions, migration notes, rollout steps and the customer communication draft are listed below.';
+        valueSetter.call(ownTextarea, longEditText);
+        ownTextarea.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+        document.querySelector('.tgw-send-button').dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(80);
+        ok(document.body.innerHTML.includes('release checklist'), 'long message sent');
+        valueSetter.call(ownTextarea, '');
+        ownTextarea.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+
+        // Approximate a browser: ~60 chars per line, ~20px line height, plus padding.
+        Object.defineProperty(dom.window.HTMLTextAreaElement.prototype, 'scrollHeight', {
+            configurable: true,
+            get() {
+                if (!this.value) {
+                    return 0;
+                }
+                return Math.max(24, Math.ceil(this.value.length / 60) * 20 + 14);
+            },
+        });
+        ownTextarea.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true, cancelable: true}));
+        await tick(60);
+        const longEditArea = document.querySelector('.tgw-composer textarea');
+        const appliedHeight = longEditArea ? parseInt(longEditArea.style.height, 10) : 0;
+        ok(!!longEditArea && longEditArea.value.includes('release checklist'), 'the long message loaded for editing');
+        ok(appliedHeight >= 100, `the edit box grew past one line for a long message (style height: ${longEditArea && longEditArea.style.height})`);
+        if (longEditArea) {
+            longEditArea.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
+            await tick(30);
+        }
+        delete dom.window.HTMLTextAreaElement.prototype.scrollHeight;
+    }
+
     console.log('\n== websocket ==');
     // Mattermost ships the post inside data.post as a JSON *string* (post.ToJson() on the server);
     // the raw string must be parsed or the cache silently ignores it.

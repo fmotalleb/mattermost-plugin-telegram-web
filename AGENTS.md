@@ -27,4 +27,5 @@ Minimum toolchains: Node 24+, Go 1.26 (see `server/go.mod`). There is no linter 
 
 - Not Jest. Plain Node scripts under `webapp/test/` run in jsdom against a simulated store and stubbed `fetch` (`webapp/test/harness.js` — extend it when new host globals or API endpoints are needed).
 - `test/smoke.js` mounts `src/` directly (fast feedback on render/selectors/handlers). `test/bundle.js` loads the built `dist/main.js` behind a fake plugin host and checks artifact-only properties (self-registration, externals/CSS inlining, WS events, `tgw:disable`, `uninitialize`). Run both; the bundle suite fails without a current `make bundle`.
+- `test/browser.js` (`npm run test:browser`) runs the built bundle in headless Chrome (CDP, needs `google-chrome` or `CHROME_PATH`) with a hostile host that grabs focus on route changes. Use it for anything jsdom cannot see: focus behavior and real layout (composer height, `scrollHeight`). Not part of `make test` because CI may lack a browser.
 - `npm run preview` regenerates `docs/ui-preview*.html` from the real components — regenerate if you change UI structure or the stylesheet in a user-visible way.

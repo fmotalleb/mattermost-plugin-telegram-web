@@ -34,7 +34,10 @@ function SearchResults({term}: {term: string}) {
 
     useEffect(() => {
         const trimmed = term.trim();
-        if (trimmed.length < 3 || !teamId) {
+        // Mirror the chats/contacts results above: whatever the user typed is worth searching in
+        // the messages too. The debounce keeps keystrokes from flooding the server, and a server
+        // that rejects a too-short term just yields no message hits (the catch below).
+        if (!trimmed || !teamId) {
             setMessageHits([]);
             return undefined;
         }

@@ -31,6 +31,7 @@ interface Toast {
 
 const INITIAL_UI: TgUIState = {
     selectedChannelId: '',
+    chatSeq: 0,
     activeTabId: '__all',
     search: '',
     searchOpen: false,
@@ -154,6 +155,7 @@ export function TelegramUI() {
         setUIState((current) => ({
             ...current,
             selectedChannelId: channelId,
+            chatSeq: current.chatSeq + 1,
             search: opts.keepSearch ? current.search : '',
             searchOpen: false,
             mobilePane: 'chat',

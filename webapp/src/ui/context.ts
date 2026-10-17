@@ -27,6 +27,8 @@ export interface ContextTarget {
 
 export interface TgUIState {
     selectedChannelId: string;
+    /** Bumped by openChat(), so the composer can grab the input even when the same chat is re-opened. */
+    chatSeq: number;
     activeTabId: string;
     search: string;
     /** Wide (all-messages) search results panel open in the main pane, like Mattermost's search. */
