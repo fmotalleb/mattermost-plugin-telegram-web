@@ -250,15 +250,19 @@ root.render(React.createElement(TelegramUI));
             p3row.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
             await waitFor(() => document.querySelector('.tgw-menu'));
             const items = Array.from(document.querySelectorAll('.tgw-menu-item'));
-            // The quick-reaction rows carry an emoji icon too, so only the disabled rows below
-            // them (Telegram's "who reacted" list) count as reactors.
-            const reactionRows = items.filter((item) => item.querySelector('.tgw-reaction-emoji') && item.disabled);
-            ok(reactionRows.length >= 1, `post menu lists the reactors (${reactionRows.length} rows)`);
-            const tadaRow = items.find((item) => item.textContent.includes('Alice Anderson') && item.textContent.includes('🎉'));
-            ok(!!tadaRow, 'reactor row shows the reactor name, the emoji and a timestamp');
-            if (tadaRow) {
-                ok(tadaRow.disabled, 'reactor rows are informational (disabled)');
-            }
+            // Reactors are grouped: a bare emoji row heads each group and the people who picked
+            // it follow underneath. (The quick-reaction strip is not a .tgw-menu-item.)
+            const groupHeaders = items.filter((item) => item.querySelector('.tgw-reaction-emoji') && item.disabled);
+            ok(groupHeaders.length >= 1, `reaction groups rendered under their emoji (${groupHeaders.length} groups)`);
+            const tadaHeader = groupHeaders.find((item) => item.textContent.includes('🎉'));
+            ok(!!tadaHeader, 'the tada reaction heads its own group');
+            const reactor = tadaHeader?.nextElementSibling;
+            ok(!!reactor && reactor.classList.contains('tgw-menu-item'), 'the group is followed by the reactors who used it');
+            ok(!!reactor && (reactor.textContent || '').trim() === 'Alice', `the reactor row keeps just the first name (${reactor && (reactor.textContent || '').trim()})`);
+            const details = (reactor && reactor.getAttribute('title')) || '';
+            ok(details.includes('Alice Anderson (alley)'), `hovering the name shows the full name (${details})`);
+            ok(details.includes(' · ') && (details.includes('Today') || details.includes('Yesterday') || /\d{4}/.test(details)), 'hovering also shows when they reacted');
+            ok(!!reactor && reactor.disabled, 'reactor rows are informational (disabled)');
             dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
             await waitFor(() => !document.querySelector('.tgw-menu'));
         }
@@ -271,13 +275,17 @@ root.render(React.createElement(TelegramUI));
         ok(!!p3row, 'p3 rendered for the quick-reaction check');
         p3row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
         await waitFor(() => document.querySelector('.tgw-menu'));
+        const emojiRow = await waitFor(() => document.querySelector('.tgw-menu-emoji-row'));
+        ok(!!emojiRow, 'the post menu opens with the quick-reaction row');
+        const emojiButtons = Array.from(document.querySelectorAll('.tgw-menu-emoji'));
+        ok(emojiButtons.map((button) => button.textContent).join('') === '🙏👍👎💪', `the row holds all four emoji (${emojiButtons.map((button) => button.textContent).join(' ')})`);
+        ok(!!emojiRow && emojiRow.textContent === '🙏👍👎💪', 'the emoji row shows only the emoji, no captions');
         const menuItems = Array.from(document.querySelectorAll('.tgw-menu-item'));
-        const quickRows = menuItems.filter((item) => ['🙏', '👍', '👎', '💪'].some((char) => item.textContent.includes(char)));
-        ok(quickRows.length === 4, `the post menu opens with the four quick reactions (${quickRows.length})`);
+        ok(!!menuItems[0] && menuItems[0].textContent.includes('Reply'), 'the labelled entries (Reply …) follow the emoji row');
 
         const beforeReact = calls.length;
-        const likeRow = quickRows.find((item) => item.textContent.includes('👍'));
-        likeRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        const likeButton = emojiButtons.find((button) => button.textContent === '👍');
+        likeButton?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => calls.slice(beforeReact).some((call) => call === 'POST /reactions'), 3000);
         const reactionPayload = payloads.filter((entry) => entry.path === '/reactions').pop();
         ok(reactionPayload?.body?.emoji_name === '+1', `picking \ud83d\udc4d reacts with “+1” (got: ${JSON.stringify(reactionPayload && reactionPayload.body)})`);
@@ -285,14 +293,14 @@ root.render(React.createElement(TelegramUI));
         const chipShown = await waitFor(() => Array.from(document.querySelectorAll('.tgw-reaction')).some((chip) => chip.textContent.includes('👍')));
         ok(!!chipShown, 'the reaction chip appears without a reload');
 
-        // Opening the menu again shows the row I joined as ticked; clicking it takes the
+        // Opening the menu again shows the emoji I joined as tinted; clicking it takes the
         // reaction away again.
         const beforeRemove = calls.length;
         p3row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
         await waitFor(() => document.querySelector('.tgw-menu'));
-        const joinedRow = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('👍'));
-        ok(!!joinedRow && joinedRow.textContent.includes('✓'), 'a reaction I already joined is ticked in the menu');
-        joinedRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        const joinedButton = Array.from(document.querySelectorAll('.tgw-menu-emoji')).find((button) => button.textContent === '👍');
+        ok(!!joinedButton && joinedButton.classList.contains('tgw-menu-emoji-active'), 'a reaction I already joined stays tinted in the row');
+        joinedButton?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => calls.slice(beforeRemove).some((call) => call.startsWith('DELETE') && call.includes('/reactions/')), 3000);
         ok(calls.slice(beforeRemove).some((call) => call.startsWith('DELETE') && call.includes('/reactions/')), 'clicking it again removes my reaction');
     }

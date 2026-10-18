@@ -2195,6 +2195,38 @@ img.tgw-reaction-emoji {
     margin: 4px 6px;
 }
 
+/* Quick-reaction strip on top of the post menu: one row, bare emoji, no captions. */
+.tgw-menu-emoji-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px;
+    padding: 6px 8px;
+}
+
+.tgw-menu-emoji {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 22px;
+    line-height: 1;
+    padding: 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.tgw-menu-emoji:hover {
+    background: var(--tgw-hover);
+    transform: scale(1.15);
+}
+
+/* Emoji I already reacted with stay tinted — one tap away again. */
+.tgw-menu-emoji-active {
+    background: var(--tgw-accent-soft);
+}
+
 .tgw-modal-backdrop {
     position: fixed;
     inset: 0;

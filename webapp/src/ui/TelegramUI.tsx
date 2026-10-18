@@ -8,7 +8,7 @@ import {getBlock, getReactions, loadChannel, receivePost, receiveReaction} from 
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
-import {copyToClipboard, displayName, formatMessageStamp, toPlainPreview} from '../mm/utils';
+import {copyToClipboard, displayName, formatDateSeparator, formatTime, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
 import {ChatView} from './ChatView';
@@ -399,12 +399,13 @@ interface BuildMenuHandlers {
     openChat: (channelId: string, opts?: {postId?: string}) => void;
 }
 
-// Telegram's quick reactions: 🙏 👍 👎 💪, one click from the top of the post context menu.
+// Telegram's quick reactions: 🙏 👍 👎 💪 as one bare row on top of the post context menu —
+// no captions, each emoji is the whole button.
 const QUICK_REACTIONS = [
-    {name: 'pray', label: 'Thanks'},
-    {name: '+1', label: 'Like'},
-    {name: '-1', label: 'Dislike'},
-    {name: 'muscle', label: 'Strong'},
+    {name: 'pray', char: '🙏'},
+    {name: '+1', char: '👍'},
+    {name: '-1', char: '👎'},
+    {name: 'muscle', char: '💪'},
 ];
 
 function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): MenuEntry[] {
@@ -422,15 +423,15 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
             .map((reaction) => reaction.emoji_name),
     );
     const items: MenuEntry[] = [
-        // Quick reactions sit on top, Telegram-style. The tick marks the ones I already joined,
-        // so the same row doubles as a one-tap un-react.
-        ...QUICK_REACTIONS.map((entry) => ({
-            key: `quick-${entry.name}`,
-            label: entry.label,
-            icon: <ReactionEmoji name={entry.name} customEmoji={customEmoji}/>,
-            checked: joined.has(entry.name),
-            onClick: () => handlers.quickReact(post, entry.name),
-        })),
+        // One row of bare emoji on top, Telegram-style; the emojis I already joined stay tinted,
+        // so the same buttons double as a one-tap un-react.
+        {
+            key: 'quick-reactions',
+            kind: 'emoji-row',
+            emojis: QUICK_REACTIONS.map((entry) => ({name: entry.name, char: entry.char})),
+            active: (name: string) => joined.has(name),
+            onPick: (name: string) => handlers.quickReact(post, name),
+        },
         'separator',
         {key: 'reply', label: 'Reply', onClick: () => handlers.reply(post)},
         {key: 'react', label: 'Add reaction', onClick: () => handlers.react(post)},
@@ -441,21 +442,39 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         },
         {key: 'unread', label: 'Mark as unread', onClick: () => handlers.markUnread(post)},
     ];
-    // Telegram lists everyone who reacted right in the post menu, newest first. Rows are
-    // informational (disabled), grouped per emoji so the same reaction stays together.
+    // Telegram's reactor list goes into the post menu grouped by emoji: one bare emoji row heads
+    // each group, then the people who used it. Rows keep just the first name — hovering one
+    // explains the rest: the full name and when that person reacted.
     const reactions = getReactions(getBlock(post.channel_id), post.id)
         .slice()
         .sort((a, b) => b.create_at - a.create_at);
     if (reactions.length) {
-        items.push('separator');
+        const groups = new Map<string, MMReaction[]>();
         reactions.forEach((reaction) => {
-            const user = state.entities?.users?.profiles?.[reaction.user_id];
-            const who = reaction.user_id === myId ? 'You' : (displayName(user) || reaction.user_id);
+            const members = groups.get(reaction.emoji_name);
+            if (members) {
+                members.push(reaction);
+            } else {
+                groups.set(reaction.emoji_name, [reaction]);
+            }
+        });
+        items.push('separator');
+        groups.forEach((members, emojiName) => {
             items.push({
-                key: `reaction-${reaction.user_id}-${reaction.emoji_name}`,
-                label: `${who} · ${formatMessageStamp(reaction.create_at, timeFormat)}`,
-                icon: <ReactionEmoji name={reaction.emoji_name} customEmoji={customEmoji}/>,
+                key: `reaction-group-${emojiName}`,
+                label: '',
+                icon: <ReactionEmoji name={emojiName} customEmoji={customEmoji}/>,
                 disabled: true,
+            });
+            members.forEach((reaction) => {
+                const user = state.entities?.users?.profiles?.[reaction.user_id];
+                const full = displayName(user) || reaction.user_id;
+                items.push({
+                    key: `reaction-${reaction.user_id}-${emojiName}`,
+                    label: reaction.user_id === myId ? 'You' : full.split(' ')[0],
+                    title: `${full} · ${formatDateSeparator(reaction.create_at, timeFormat)}, ${formatTime(reaction.create_at, timeFormat)}`,
+                    disabled: true,
+                });
             });
         });
     }

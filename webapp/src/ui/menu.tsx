@@ -11,10 +11,34 @@ export interface MenuItem {
     danger?: boolean;
     checked?: boolean;
     disabled?: boolean;
+    /** Native tooltip shown on hover — the reactor rows use it for "full name · reaction time". */
+    title?: string;
     onClick?: () => void;
 }
 
-export type MenuEntry = MenuItem | 'separator';
+export interface MenuEmojiPick {
+    name: string;
+    char: string;
+}
+
+/**
+ * One row of bare emoji (Telegram's quick-reaction strip on top of the post menu): no labels,
+ * each emoji is its own button; `active` marks the ones the user already joined.
+ */
+export interface EmojiRowEntry {
+    key: string;
+    kind: 'emoji-row';
+    emojis: MenuEmojiPick[];
+    active?: (name: string) => boolean;
+    onPick: (name: string) => void;
+}
+
+export type MenuEntry = MenuItem | EmojiRowEntry | 'separator';
+
+/** Runtime-checkable discriminator for the render below (MenuItem carries no `kind` field). */
+function isEmojiRow(item: MenuItem | EmojiRowEntry): item is EmojiRowEntry {
+    return typeof (item as EmojiRowEntry).kind === 'string' && (item as EmojiRowEntry).kind === 'emoji-row';
+}
 
 export interface MenuProps {
     x: number;
@@ -86,21 +110,48 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                 if (item === 'separator') {
                     return <div key={`sep-${index}`} className="tgw-menu-separator"/>;
                 }
+                if (isEmojiRow(item)) {
+                    return (
+                        <div key={item.key} className="tgw-menu-emoji-row" role="group">
+                            {item.emojis.map((emoji) => {
+                                const active = !!item.active && item.active(emoji.name);
+                                return (
+                                    <button
+                                        key={emoji.name}
+                                        type="button"
+                                        role="menuitem"
+                                        aria-label={`React with ${emoji.name}`}
+                                        aria-pressed={active}
+                                        className={`tgw-menu-emoji ${active ? 'tgw-menu-emoji-active' : ''}`}
+                                        onClick={() => {
+                                            onClose();
+                                            item.onPick(emoji.name);
+                                        }}
+                                    >
+                                        {emoji.char}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    );
+                }
+                const entry: MenuItem = item;
                 return (
                     <button
-                        key={item.key}
+                        key={entry.key}
                         type="button"
                         role="menuitem"
-                        disabled={item.disabled}
-                        className={`tgw-menu-item ${item.danger ? 'tgw-menu-item-danger' : ''}`}
+                        disabled={entry.disabled}
+                        title={entry.title}
+                        className={`tgw-menu-item ${entry.danger ? 'tgw-menu-item-danger' : ''}`}
                         onClick={() => {
                             onClose();
-                            item.onClick?.();
+                            entry.onClick?.();
                         }}
                     >
-                        {item.icon && <span className="tgw-menu-item-icon">{item.icon}</span>}
-                        <span className="tgw-menu-item-label">{item.label}</span>
-                        {item.checked && <span className="tgw-menu-item-check">✓</span>}
+                        {entry.icon && <span className="tgw-menu-item-icon">{entry.icon}</span>}
+                        <span className="tgw-menu-item-label">{entry.label}</span>
+                        {entry.checked && <span className="tgw-menu-item-check">✓</span>}
                     </button>
                 );
             })}
