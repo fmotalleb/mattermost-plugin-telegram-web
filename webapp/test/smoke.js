@@ -247,13 +247,28 @@ root.render(React.createElement(TelegramUI));
         const p3row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p3');
         ok(!!p3row, 'p3 rendered for the reactor-menu check');
         if (p3row) {
+            // A second emoji from someone else gives us two groups, which is what makes the
+            // divider between them observable.
+            handleSocketEvent('reaction_added', {event: 'reaction_added', data: {reaction: JSON.stringify({user_id: ids.OTHER, post_id: 'p3', emoji_name: 'muscle', create_at: Date.now()})}});
+            await tick(30);
             p3row.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
             await waitFor(() => document.querySelector('.tgw-menu'));
             const items = Array.from(document.querySelectorAll('.tgw-menu-item'));
             // Reactors are grouped: a bare emoji row heads each group and the people who picked
             // it follow underneath. (The quick-reaction strip is not a .tgw-menu-item.)
             const groupHeaders = items.filter((item) => item.querySelector('.tgw-reaction-emoji') && item.disabled);
-            ok(groupHeaders.length >= 1, `reaction groups rendered under their emoji (${groupHeaders.length} groups)`);
+            ok(groupHeaders.length === 2, `two reaction groups rendered under their emoji (${groupHeaders.length})`);
+            const firstHeader = groupHeaders[0];
+            const secondHeader = groupHeaders[1];
+            let dividersBetween = 0;
+            let cursor = firstHeader ? firstHeader.nextElementSibling : null;
+            while (cursor && cursor !== secondHeader) {
+                if (cursor.classList.contains('tgw-menu-separator')) {
+                    dividersBetween += 1;
+                }
+                cursor = cursor.nextElementSibling;
+            }
+            ok(dividersBetween === 1, `a horizontal divider separates the reaction groups (${dividersBetween})`);
             const tadaHeader = groupHeaders.find((item) => item.textContent.includes('🎉'));
             ok(!!tadaHeader, 'the tada reaction heads its own group');
             const reactor = tadaHeader?.nextElementSibling;

@@ -459,7 +459,11 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
             }
         });
         items.push('separator');
-        groups.forEach((members, emojiName) => {
+        Array.from(groups.entries()).forEach(([emojiName, members], index) => {
+            // Horizontal divider between consecutive groups so 🙏 members never blur into 👍's.
+            if (index > 0) {
+                items.push('separator');
+            }
             items.push({
                 key: `reaction-group-${emojiName}`,
                 label: '',
