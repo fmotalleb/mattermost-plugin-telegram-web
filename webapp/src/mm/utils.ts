@@ -295,14 +295,24 @@ export function escapeHtml(text: string): string {
         .replace(/'/g, '&#39;');
 }
 
-/** Turns message markdown into something acceptable for a oneline preview. */
+/**
+ * Turns message markdown into something acceptable for a oneline preview.
+ *
+ * Emphasis is stripped pair-wise, never character-wise: the old blanket `(**|__|~~|*|_)` also
+ * deleted the underscore inside `:party_parrot:` and inside ordinary words like `snake_case`,
+ * which both mangled the preview and unmoored custom emoji shortcodes from their lookup.
+ */
 export function toPlainPreview(message: string, limit = 260): string {
     let text = replaceShortcodes(message || '')
         .replace(/```[\s\S]*?```/g, ' [code] ')
         .replace(/`([^`]*)`/g, '$1')
         .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [image] ')
         .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/(\*\*|__|~~|\*|_)/g, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/~~([^~]+)~~/g, '$1')
+        .replace(/(^|[^\w])\*([^*\s]+)\*(?=[^\w]|$)/g, '$1$2')
+        .replace(/(^|[^\w])_([^_\s]+)_(?=[^\w]|$)/g, '$1$2')
         .replace(/^\s*&gt;\s?/gm, '')
         .replace(/^\s*>\s?/gm, '')
         .replace(/\s+/g, ' ')

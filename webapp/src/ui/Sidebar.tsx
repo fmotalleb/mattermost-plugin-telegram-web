@@ -18,6 +18,7 @@ import {getStatus, getTeams as teamsSelector, getUser} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
 import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from '../mm/utils';
+import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
 import {ChatList} from './ChatList';
@@ -138,7 +139,7 @@ function SearchResults({term}: {term: string}) {
                                         <span className="tgw-chat-row-time">{formatChatTime(hit.post.create_at, timeFormat)}</span>
                                     </span>
                                     <span className="tgw-chat-row-bottom">
-                                        <span className="tgw-chat-row-preview">{truncate(toPlainPreview(hit.post.message), 90)}</span>
+                                        <span className="tgw-chat-row-preview"><EmojiText text={truncate(toPlainPreview(hit.post.message), 90)}/></span>
                                     </span>
                                 </span>
                             </button>

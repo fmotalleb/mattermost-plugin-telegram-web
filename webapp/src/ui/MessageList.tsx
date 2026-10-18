@@ -25,6 +25,7 @@ import {
 } from '../mm/utils';
 import {useTg} from './context';
 import type {ContextTarget} from './context';
+import {EmojiText} from './EmojiText';
 import {MessageBody} from './render';
 import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconEye, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
 
@@ -350,7 +351,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         onClick={() => onOpenThread(rootPost)}
                     >
                         <span className="tgw-msg-reply-author">{replyAuthorName(rootPost, myId)}</span>
-                        <span className="tgw-msg-reply-text">{toPlainPreview(rootPost.message, 120) || attachmentSummary(filesOfPost(rootPost)) || 'Attachment'}</span>
+                        <span className="tgw-msg-reply-text"><EmojiText text={toPlainPreview(rootPost.message, 120) || attachmentSummary(filesOfPost(rootPost)) || 'Attachment'}/></span>
                     </button>
                 )}
                 <MessageBody

@@ -1257,6 +1257,16 @@ img.tgw-reaction-emoji {
     height: 16px;
 }
 
+/* Custom emoji inside plain-text excerpts (chat row previews, reply bars, search hits): sized
+   to the surrounding text so the line does not jump. */
+.tgw-inline-emoji {
+    display: inline-block;
+    height: 1.2em;
+    width: auto;
+    vertical-align: -0.2em;
+    object-fit: contain;
+}
+
 .tgw-thread-link {
     display: block;
     border: none;

@@ -9,6 +9,7 @@ import {useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
 import {attachmentSummary, displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
 import {useTg} from './context';
+import {EmojiText} from './EmojiText';
 import {Avatar, Badge, IconMute, IconStar} from './primitives';
 
 function usePreview(channelId: string): MMPost | null {
@@ -103,7 +104,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                     <span className="tgw-chat-row-preview">
                         {summary.lastPostAt || text ? (
                             settings.showPreviews ? (
-                                <span className={lastPost?._pending ? 'tgw-preview-pending' : ''}>{text || placeholderFor(summary)}</span>
+                                <span className={lastPost?._pending ? 'tgw-preview-pending' : ''}>{text ? <EmojiText text={text}/> : placeholderFor(summary)}</span>
                             ) : (
                                 placeholderFor(summary) || '\u00a0'
                             )

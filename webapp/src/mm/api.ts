@@ -400,6 +400,15 @@ export class MattermostAPI {
         return this.request<MMCustomEmoji[]>(`/emoji${buildQuery({page, per_page: perPage})}`);
     }
 
+    /**
+     * One custom emoji by its shortcode name (GET /emojios/name/{name}).
+     * Rejects with 404 when the server has no custom emoji by that name — preview lines look a
+     * name up once and keep the plain text if nothing comes back.
+     */
+    getCustomEmojiByName(name: string): Promise<MMCustomEmoji> {
+        return this.request<MMCustomEmoji>(`/emojios/name/${encodeURIComponent(name)}`);
+    }
+
     searchCustomEmojis(term: string): Promise<MMCustomEmoji[]> {
         return this.request<MMCustomEmoji[]>('/emoji/search', {method: 'POST', body: {term, prefix_only: false}});
     }

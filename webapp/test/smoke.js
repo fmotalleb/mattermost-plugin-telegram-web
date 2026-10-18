@@ -214,6 +214,11 @@ root.render(React.createElement(TelegramUI));
         const {toPlainPreview} = require('../src/mm/utils');
         ok(toPlainPreview('hi :smile: there').includes('😄'), 'toPlainPreview renders shortcodes as unicode emoji');
         ok(toPlainPreview('hi :unknown-emoji: there').includes(':unknown-emoji:'), 'unknown shortcodes pass through unchanged');
+        // The markdown cleanup must strip emphasis pair-wise: a blanket `**|__|*|_` stripper ate
+        // the underscore inside `:party_parrot:` and inside ordinary words like `snake_case`.
+        ok(toPlainPreview('use snake_case names in commits').includes('snake_case'), 'underscores in plain text survive the markdown cleanup');
+        ok(toPlainPreview('deploy done :party_parrot: dance').includes(':party_parrot:'), 'a custom emoji shortcode keeps its shape in preview text');
+        ok(toPlainPreview('__bold__ and _italic_ markers').includes('bold and italic'), 'bold and italic markers are still stripped pairwise');
         // The full Mattermost system set resolves, not just the curated picker rows.
         const {EMOJI_CATEGORIES, emojiChar, replaceShortcodes, searchEmoji} = require('../src/mm/emoji');
         ok(replaceShortcodes('go :space_invader: go').includes('👾'), ':space_invader: expands to its emoji');
@@ -245,7 +250,9 @@ root.render(React.createElement(TelegramUI));
             p3row.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
             await waitFor(() => document.querySelector('.tgw-menu'));
             const items = Array.from(document.querySelectorAll('.tgw-menu-item'));
-            const reactionRows = items.filter((item) => item.querySelector('.tgw-reaction-emoji'));
+            // The quick-reaction rows carry an emoji icon too, so only the disabled rows below
+            // them (Telegram's "who reacted" list) count as reactors.
+            const reactionRows = items.filter((item) => item.querySelector('.tgw-reaction-emoji') && item.disabled);
             ok(reactionRows.length >= 1, `post menu lists the reactors (${reactionRows.length} rows)`);
             const tadaRow = items.find((item) => item.textContent.includes('Alice Anderson') && item.textContent.includes('🎉'));
             ok(!!tadaRow, 'reactor row shows the reactor name, the emoji and a timestamp');
@@ -255,6 +262,39 @@ root.render(React.createElement(TelegramUI));
             dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
             await waitFor(() => !document.querySelector('.tgw-menu'));
         }
+    }
+
+    console.log('\n== quick reactions from the post menu ==');
+    {
+        // Telegram puts one-tap reactions on top of the post context menu: 🙏 👍 👎 💪.
+        const p3row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p3');
+        ok(!!p3row, 'p3 rendered for the quick-reaction check');
+        p3row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const menuItems = Array.from(document.querySelectorAll('.tgw-menu-item'));
+        const quickRows = menuItems.filter((item) => ['🙏', '👍', '👎', '💪'].some((char) => item.textContent.includes(char)));
+        ok(quickRows.length === 4, `the post menu opens with the four quick reactions (${quickRows.length})`);
+
+        const beforeReact = calls.length;
+        const likeRow = quickRows.find((item) => item.textContent.includes('👍'));
+        likeRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => calls.slice(beforeReact).some((call) => call === 'POST /reactions'), 3000);
+        const reactionPayload = payloads.filter((entry) => entry.path === '/reactions').pop();
+        ok(reactionPayload?.body?.emoji_name === '+1', `picking \ud83d\udc4d reacts with “+1” (got: ${JSON.stringify(reactionPayload && reactionPayload.body)})`);
+        ok(!document.querySelector('.tgw-menu'), 'picking a quick reaction closes the menu');
+        const chipShown = await waitFor(() => Array.from(document.querySelectorAll('.tgw-reaction')).some((chip) => chip.textContent.includes('👍')));
+        ok(!!chipShown, 'the reaction chip appears without a reload');
+
+        // Opening the menu again shows the row I joined as ticked; clicking it takes the
+        // reaction away again.
+        const beforeRemove = calls.length;
+        p3row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const joinedRow = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('👍'));
+        ok(!!joinedRow && joinedRow.textContent.includes('✓'), 'a reaction I already joined is ticked in the menu');
+        joinedRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => calls.slice(beforeRemove).some((call) => call.startsWith('DELETE') && call.includes('/reactions/')), 3000);
+        ok(calls.slice(beforeRemove).some((call) => call.startsWith('DELETE') && call.includes('/reactions/')), 'clicking it again removes my reaction');
     }
 
     console.log('\n== attachments, thread, image viewer ==');
@@ -555,6 +595,26 @@ root.render(React.createElement(TelegramUI));
     handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({...posts.p1, id: 'p-preview', create_at: Date.now(), channel_id: ids.DM, message: 'newest in the dm', root_id: '', metadata: {}})}});
     await tick(60);
     ok(document.body.innerHTML.includes('newest in the dm'), 'chat list preview updates for a channel that is not open');
+
+    console.log('\n== chat preview emoji ==');
+    {
+        // The chat-row preview is plain text, so a custom emoji (which has no unicode character
+        // at all) is drawn from the server's own image while an unknown name stays as typed.
+        handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({
+            id: 'p-preview-emoji', create_at: Date.now(), update_at: Date.now(), edit_at: 0, delete_at: 0,
+            user_id: posts.p1.user_id, channel_id: ids.DM, message: 'dance :party_parrot: and :shipit: now',
+            type: '', props: {}, root_id: '', metadata: {}})}});
+        await waitFor(() => !!document.querySelector('.tgw-chat-row-preview img.tgw-inline-emoji'));
+        // Scope to the DM's own row: the active folder tab lists Town Square first.
+        const dmRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
+        const previewCell = dmRow?.querySelector('.tgw-chat-row-preview');
+        const customImg = previewCell?.querySelector('img.tgw-inline-emoji');
+        ok(customImg?.getAttribute('alt') === ':party_parrot:', 'a custom emoji renders as an image in the chat preview');
+        ok((customImg?.getAttribute('src') || '').includes('/emoji/emoji-1/image'), 'the image points at the server-served custom emoji');
+        const previewText = previewCell?.textContent || '';
+        ok(previewText.includes(':shipit:'), 'a name the server does not have stays as typed');
+        ok(!previewText.includes(':party_parrot:'), 'the resolved custom emoji is no longer raw text');
+    }
 
     console.log('\n== search ==');
     const searchInput = document.querySelector('.tgw-search input');

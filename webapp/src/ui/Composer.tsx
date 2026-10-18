@@ -4,6 +4,7 @@ import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'reac
 import {api} from '../mm/api';
 import {getBlock} from '../mm/posts';
 import {attachmentSummary, directionOf, displayName, fileKindOf, formatBytes, formatDuration, throttle, toPlainPreview} from '../mm/utils';
+import {EmojiText} from './EmojiText';
 import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
 import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
@@ -279,7 +280,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 <div className="tgw-reply-bar">
                     <span className="tgw-reply-bar-body">
                         <span className="tgw-reply-bar-title">Reply to {replyAuthor ? displayName(replyAuthor) : 'message'}</span>
-                        <span className="tgw-reply-bar-text">{toPlainPreview(replyTo.message, 100) || attachmentSummary(replyTo.metadata?.files) || 'Attachment'}</span>
+                        <span className="tgw-reply-bar-text"><EmojiText text={toPlainPreview(replyTo.message, 100) || attachmentSummary(replyTo.metadata?.files) || 'Attachment'}/></span>
                     </span>
                     <button type="button" className="tgw-reply-bar-close" onClick={onCancelReply} title="Cancel reply">
                         <IconClose size={16}/>
@@ -290,7 +291,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                 <div className="tgw-reply-bar tgw-edit-bar">
                     <span className="tgw-reply-bar-body">
                         <span className="tgw-reply-bar-title"><IconEdit size={14}/> Editing message</span>
-                        <span className="tgw-reply-bar-text">{toPlainPreview(editing.message, 100)}</span>
+                        <span className="tgw-reply-bar-text"><EmojiText text={toPlainPreview(editing.message, 100)}/></span>
                     </span>
                     <button
                         type="button"

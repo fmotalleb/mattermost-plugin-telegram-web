@@ -11,33 +11,10 @@ import {getState, useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
 import {displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
 import {useTg} from './context';
+import {EmojiText} from './EmojiText';
 import {Avatar, IconClose, IconSearch} from './primitives';
 
 const PER_PAGE = 30;
-
-function highlight(text: string, term: string): React.ReactNode {
-    if (!term) {
-        return text;
-    }
-    const parts: React.ReactNode[] = [];
-    const lower = text.toLowerCase();
-    const needle = term.toLowerCase();
-    let index = 0;
-    let key = 0;
-    for (;;) {
-        const at = lower.indexOf(needle, index);
-        if (at === -1) {
-            break;
-        }
-        if (at > index) {
-            parts.push(text.slice(index, at));
-        }
-        parts.push(<mark key={key++} className="tgw-search-mark">{text.slice(at, at + needle.length)}</mark>);
-        index = at + needle.length;
-    }
-    parts.push(text.slice(index));
-    return <>{parts}</>;
-}
 
 export function SearchPanel() {
     const {ui, actions, timeFormat, me} = useTg();
@@ -179,7 +156,7 @@ export function SearchPanel() {
                             </span>
                             <span className="tgw-search-hit-text">
                                 {me?.id === post.user_id && <span className="tgw-search-hit-you">You: </span>}
-                                {highlight(truncate(toPlainPreview(post.message) || 'Attachment', 280), term)}
+                                <EmojiText text={truncate(toPlainPreview(post.message) || 'Attachment', 280)} term={term}/>
                             </span>
                         </span>
                     </button>

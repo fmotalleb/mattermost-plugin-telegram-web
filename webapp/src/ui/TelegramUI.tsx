@@ -4,13 +4,13 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
-import {getBlock, getReactions, loadChannel, receivePost} from '../mm/posts';
+import {getBlock, getReactions, loadChannel, receivePost, receiveReaction} from '../mm/posts';
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
 import {copyToClipboard, displayName, formatMessageStamp, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
-import type {MMChannel, MMPost} from '../mm/types';
+import type {MMChannel, MMPost, MMReaction} from '../mm/types';
 import {ChatView} from './ChatView';
 import {ConfirmModal, ImageViewer, Modals} from './Modals';
 import {EmojiPicker} from './EmojiPicker';
@@ -220,6 +220,26 @@ export function TelegramUI() {
                     },
                 }),
                 react: (post) => setReactionPicker({post, x: target.x, y: target.y}),
+                quickReact: (post, emojiName) => {
+                    const current = getState();
+                    const myUserId = current.entities?.users?.currentUserId || '';
+                    if (!myUserId || !emojiName) {
+                        return;
+                    }
+                    const mine = getReactions(getBlock(post.channel_id), post.id)
+                        .some((reaction) => reaction.user_id === myUserId && reaction.emoji_name === emojiName);
+                    const optimistic: MMReaction = {user_id: myUserId, post_id: post.id, emoji_name: emojiName, create_at: Date.now()};
+                    // Toggle locally right away — the websocket echo overwrites it with the
+                    // authoritative record and the failure branch puts it back if the API says no.
+                    receiveReaction(optimistic, !mine);
+                    const call = mine
+                        ? api.removeReaction(myUserId, post.id, emojiName)
+                        : api.addReaction(myUserId, post.id, emojiName);
+                    call.catch(() => {
+                        receiveReaction(optimistic, mine);
+                        toast('Could not update the reaction', 'error');
+                    });
+                },
                 thread: (post) => setUI({threadRootId: post.root_id || post.id}),
                 markUnread: (post) => {
                     markPostUnread(post)
@@ -371,11 +391,21 @@ interface BuildMenuHandlers {
     edit: (post: MMPost) => void;
     del: (post: MMPost) => void;
     react: (post: MMPost) => void;
+    /** One-tap reaction rows at the top of the menu; the handler toggles it on/off. */
+    quickReact: (post: MMPost, emojiName: string) => void;
     thread: (post: MMPost) => void;
     markUnread: (post: MMPost) => void;
     toast: (message: string, kind?: 'info' | 'error' | 'success') => void;
     openChat: (channelId: string, opts?: {postId?: string}) => void;
 }
+
+// Telegram's quick reactions: 🙏 👍 👎 💪, one click from the top of the post context menu.
+const QUICK_REACTIONS = [
+    {name: 'pray', label: 'Thanks'},
+    {name: '+1', label: 'Like'},
+    {name: '-1', label: 'Dislike'},
+    {name: 'muscle', label: 'Strong'},
+];
 
 function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): MenuEntry[] {
     if (!post) {
@@ -385,7 +415,23 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
     const myId = state.entities?.users?.currentUserId || '';
     const isOwn = post.user_id === myId;
     const timeFormat = getTimeFormat(state);
+    const customEmoji = state.entities?.emojis?.customEmoji || {};
+    const joined = new Set(
+        getReactions(getBlock(post.channel_id), post.id)
+            .filter((reaction) => reaction.user_id === myId)
+            .map((reaction) => reaction.emoji_name),
+    );
     const items: MenuEntry[] = [
+        // Quick reactions sit on top, Telegram-style. The tick marks the ones I already joined,
+        // so the same row doubles as a one-tap un-react.
+        ...QUICK_REACTIONS.map((entry) => ({
+            key: `quick-${entry.name}`,
+            label: entry.label,
+            icon: <ReactionEmoji name={entry.name} customEmoji={customEmoji}/>,
+            checked: joined.has(entry.name),
+            onClick: () => handlers.quickReact(post, entry.name),
+        })),
+        'separator',
         {key: 'reply', label: 'Reply', onClick: () => handlers.reply(post)},
         {key: 'react', label: 'Add reaction', onClick: () => handlers.react(post)},
         {
@@ -401,7 +447,6 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         .slice()
         .sort((a, b) => b.create_at - a.create_at);
     if (reactions.length) {
-        const customEmoji = state.entities?.emojis?.customEmoji || {};
         items.push('separator');
         reactions.forEach((reaction) => {
             const user = state.entities?.users?.profiles?.[reaction.user_id];
