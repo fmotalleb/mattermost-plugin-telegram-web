@@ -42,6 +42,18 @@
                     {
                         "display_name": "Dark",
                         "value": "dark"
+                    },
+                    {
+                        "display_name": "Tinted",
+                        "value": "tinted"
+                    },
+                    {
+                        "display_name": "Ice",
+                        "value": "ice"
+                    },
+                    {
+                        "display_name": "Midnight",
+                        "value": "midnight"
                     }
                 ]
             },
@@ -73,6 +85,60 @@
                         "value": "red"
                     }
                 ]
+            },
+            {
+                "key": "DefaultWallpaper",
+                "display_name": "Default chat background",
+                "type": "dropdown",
+                "help_text": "Default chat wallpaper pattern for users that did not pick one yet.",
+                "default": "doodles",
+                "options": [
+                    {
+                        "display_name": "Doodles",
+                        "value": "doodles"
+                    },
+                    {
+                        "display_name": "Plain",
+                        "value": "none"
+                    },
+                    {
+                        "display_name": "Dots",
+                        "value": "dots"
+                    },
+                    {
+                        "display_name": "Grid",
+                        "value": "grid"
+                    },
+                    {
+                        "display_name": "Checker",
+                        "value": "checker"
+                    },
+                    {
+                        "display_name": "Diagonal",
+                        "value": "diagonal"
+                    }
+                ]
+            },
+            {
+                "key": "DefaultGlassyMode",
+                "display_name": "Default glassy translucent panels",
+                "type": "bool",
+                "help_text": "Default for the translucent, blurred chrome (panels, header, composer).",
+                "default": true
+            },
+            {
+                "key": "DefaultCompactMode",
+                "display_name": "Default compact mode",
+                "type": "bool",
+                "help_text": "Default for the tighter chat list and message spacing.",
+                "default": false
+            },
+            {
+                "key": "DefaultAnimations",
+                "display_name": "Default animations",
+                "type": "bool",
+                "help_text": "Default for interface animations (spinners, transitions, the header gloss).",
+                "default": true
             }
         ]
     }

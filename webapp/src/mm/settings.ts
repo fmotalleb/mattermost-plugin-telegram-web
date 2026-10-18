@@ -46,6 +46,9 @@ export interface PluginSettings {
     folderTabs: boolean;
     /** Translucent, blurred chrome (Settings > Appearance). On by default. */
     glassyMode: boolean;
+    /** Order of the folder's category tabs after drag-reordering (category ids). Persisted like
+        every other setting: the Mattermost user preference + a localStorage mirror. */
+    tabOrder: string[];
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -58,6 +61,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     animations: true,
     folderTabs: true,
     glassyMode: true,
+    tabOrder: [],
 };
 
 const listeners = new Set<() => void>();
@@ -112,6 +116,19 @@ function serverDefaults(): Partial<PluginSettings> {
         }
         if (pluginConfig.DefaultAccent) {
             defaults.accent = pluginConfig.DefaultAccent as AccentName;
+        }
+        // "Default style and background" (System Console → plugin settings):
+        if (pluginConfig.DefaultWallpaper !== undefined && WALLPAPER_LABELS[pluginConfig.DefaultWallpaper as WallpaperName]) {
+            defaults.wallpaper = pluginConfig.DefaultWallpaper as WallpaperName;
+        }
+        if (pluginConfig.DefaultGlassyMode !== undefined) {
+            defaults.glassyMode = pluginConfig.DefaultGlassyMode === true || pluginConfig.DefaultGlassyMode === 'true';
+        }
+        if (pluginConfig.DefaultCompactMode !== undefined) {
+            defaults.compactMode = pluginConfig.DefaultCompactMode === true || pluginConfig.DefaultCompactMode === 'true';
+        }
+        if (pluginConfig.DefaultAnimations !== undefined) {
+            defaults.animations = pluginConfig.DefaultAnimations === true || pluginConfig.DefaultAnimations === 'true';
         }
         return defaults;
     } catch (err) {

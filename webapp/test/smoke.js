@@ -99,6 +99,63 @@ root.render(React.createElement(TelegramUI));
     clickFolder('All');
     await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
 
+    // The category tabs drag to reorder, and the order persists exactly like other settings:
+    // the settings user preference plus a localStorage mirror. All/Unread stay pinned at the
+    // front, Contacts at the end.
+    console.log('== folder tab reordering ==');
+    const folderLabels = () => Array.from(document.querySelectorAll('.tgw-folder'))
+        .map((btn) => (btn.textContent || '').replace(/\d+\+?$/, '').trim());
+    const defaultTabOrder = folderLabels().join(',');
+    const folderStarting = (label) => Array.from(document.querySelectorAll('.tgw-folder'))
+        .find((btn) => (btn.textContent || '').startsWith(label));
+    const workTabBtn = folderStarting('Work stuff');
+    const groupsTabBtn = folderStarting('Groups');
+    ok(!!workTabBtn && !!groupsTabBtn, 'both category tabs render for the tab reorder check');
+    if (workTabBtn && groupsTabBtn) {
+        workTabBtn.dispatchEvent(new dom.window.Event('dragstart', {bubbles: true, cancelable: true}));
+        await tick(30);
+        ok(workTabBtn.classList.contains('tgw-folder-dragging'), 'the dragged folder shows its dragging state');
+        groupsTabBtn.dispatchEvent(new dom.window.Event('dragover', {bubbles: true, cancelable: true}));
+        await tick(30);
+        ok(groupsTabBtn.classList.contains('tgw-folder-dragover'), 'the drop target folder highlights');
+        groupsTabBtn.dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
+        const expectedTabOrder = 'All,Unread,Work stuff,Groups,Direct Messages,Contacts';
+        await waitFor(() => folderLabels().join(',') === expectedTabOrder);
+        const reordered = folderLabels().join(',');
+        ok(reordered === expectedTabOrder,
+            `the dropped category lands before its target, with All/Unread/Contacts pinned (${reordered})`);
+
+        const persistedTabOrder = () => {
+            const candidates = payloads.filter((entry) => entry.path === '/users/me/preferences'
+                && Array.isArray(entry.body) && entry.body[0] && entry.body[0].name === 'settings');
+            for (let index = candidates.length - 1; index >= 0; index--) {
+                let parsed = null;
+                try {
+                    parsed = JSON.parse(candidates[index].body[0].value);
+                } catch (err) {
+                    parsed = null;
+                }
+                // Skip the startup write, which still carries the default (empty) order.
+                if (parsed && Array.isArray(parsed.tabOrder) && parsed.tabOrder.length > 0) {
+                    return parsed.tabOrder;
+                }
+            }
+            return null;
+        };
+        await waitFor(() => !!persistedTabOrder(), 3000);
+        const savedOrder = persistedTabOrder();
+        ok(Array.isArray(savedOrder) && savedOrder.join(',') === 'cat-work,cat-ch,cat-dm',
+            `the folder order is saved in the settings user preference (${savedOrder ? savedOrder.join(',') : 'none'})`);
+        const localMirror = JSON.parse(dom.window.localStorage.getItem('tgw.settings.com.telegramweb.ui') || '{}');
+        ok(Array.isArray(localMirror.tabOrder) && localMirror.tabOrder.join(',') === 'cat-work,cat-ch,cat-dm',
+            'the folder order is mirrored in localStorage');
+
+        // Back to the default order for the rest of the suite.
+        updateSettings({tabOrder: []});
+        await waitFor(() => folderLabels().join(',') === defaultTabOrder);
+        ok(folderLabels().join(',') === defaultTabOrder, 'clearing the saved order restores the default tab order');
+    }
+
     // One status dot per avatar, overlaying the circle; an online peer must not gain a second,
     // row-level dot next to the avatar's own badge.
     console.log('== status dots ==');
@@ -912,6 +969,32 @@ root.render(React.createElement(TelegramUI));
 
     console.log('\n== settings ==');
     ok(getSettings().mode === 'on', 'plugin settings loaded (server default applied)');
+
+    // Server-side style + background defaults (System Console → plugin settings) apply to a user
+    // without their own saved copy; the user's own preference wins once it exists.
+    const settingsLocalKey = 'tgw.settings.com.telegramweb.ui';
+    const pluginConfigKey = 'com.telegramweb.ui';
+    const savedLocalSettings = dom.window.localStorage.getItem(settingsLocalKey);
+    const originalPluginConfig = {...(state.entities.general.config.PluginSettings.Plugins[pluginConfigKey] || {})};
+    dom.window.localStorage.removeItem(settingsLocalKey);
+    state.entities.general.config.PluginSettings.Plugins[pluginConfigKey] = {
+        ...originalPluginConfig,
+        DefaultWallpaper: 'dots',
+        DefaultCompactMode: true,
+        DefaultGlassyMode: false,
+    };
+    initSettings();
+    await tick(60);
+    ok(getSettings().wallpaper === 'dots', `the admin default background from the plugin config wins for fresh users (${getSettings().wallpaper})`);
+    ok(getSettings().compactMode === true && getSettings().glassyMode === false, 'the admin default style flags are applied');
+    state.entities.general.config.PluginSettings.Plugins[pluginConfigKey] = originalPluginConfig;
+    if (savedLocalSettings !== null) {
+        dom.window.localStorage.setItem(settingsLocalKey, savedLocalSettings);
+    }
+    initSettings();
+    await tick(60);
+    ok(getSettings().wallpaper === 'doodles' && getSettings().compactMode === false && getSettings().glassyMode === true,
+        `the user's own settings win again after the server-defaults check (${getSettings().wallpaper}, compact=${getSettings().compactMode}, glassy=${getSettings().glassyMode})`);
 
     ok(getSettings().glassyMode === true, 'glassy panels default to on');
     updateSettings({accent: 'violet', compactMode: true, theme: 'dark'});

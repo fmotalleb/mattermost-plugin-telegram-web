@@ -22,6 +22,7 @@ import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from
 import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
+import {updateSettings} from '../mm/settings';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
@@ -173,6 +174,9 @@ export function Sidebar() {
     const {ui, actions, tabs, timeFormat, settings, me} = useTg();
     const chats = useSelector((state) => getTabChats(state, ui.activeTabId));
     const tabUnread = useSelector((state) => getTabUnreadCounts(state, tabs));
+    // Drag-to-reorder state of the folder tabs (category tabs only).
+    const [tabDrag, setTabDrag] = useState<string | null>(null);
+    const [tabOver, setTabOver] = useState<string | null>(null);
     const contacts = useSelector(getContacts);
     const myId = useSelector(getMyId);
     const myStatus = useSelector((state) => getStatus(state, myId));
@@ -381,12 +385,58 @@ export function Sidebar() {
                 <nav className="tgw-folders">
                     {tabs.map((entry) => {
                         const unread = tabUnread[entry.id] || 0;
+                        const isCategory = entry.kind === 'category';
                         return (
                             <button
                                 type="button"
                                 key={entry.id}
-                                className={`tgw-folder ${entry.id === ui.activeTabId ? 'tgw-folder-active' : ''}`}
+                                draggable={isCategory}
+                                className={`tgw-folder${entry.id === ui.activeTabId ? ' tgw-folder-active' : ''}${tabDrag === entry.id ? ' tgw-folder-dragging' : ''}${tabOver === entry.id ? ' tgw-folder-dragover' : ''}`}
                                 onClick={() => actions.setTab(entry.id)}
+                                // Category tabs reorder by dragging. The order is stored like any
+                                // other setting (user preference + localStorage mirror), while
+                                // getTabs() keeps All/Unread pinned first and Contacts last.
+                                onDragStart={(event) => {
+                                    if (!isCategory) {
+                                        return;
+                                    }
+                                    setTabDrag(entry.id);
+                                    const transfer = (event as any).dataTransfer;
+                                    if (transfer) {
+                                        try {
+                                            transfer.setData('text/plain', entry.id);
+                                            transfer.effectAllowed = 'move';
+                                        } catch {
+                                            // Synthetic events (jsdom) carry no usable transfer.
+                                        }
+                                    }
+                                }}
+                                onDragOver={(event) => {
+                                    if (!isCategory || !tabDrag || tabDrag === entry.id) {
+                                        return;
+                                    }
+                                    event.preventDefault();
+                                    setTabOver(entry.id);
+                                }}
+                                onDragLeave={() => setTabOver((current) => (current === entry.id ? null : current))}
+                                onDrop={(event) => {
+                                    event.preventDefault();
+                                    const dragged = tabDrag;
+                                    setTabDrag(null);
+                                    setTabOver(null);
+                                    if (!isCategory || !dragged || dragged === entry.id) {
+                                        return;
+                                    }
+                                    const categoryIds = tabs.filter((tab) => tab.kind === 'category').map((tab) => tab.id);
+                                    const without = categoryIds.filter((id) => id !== dragged);
+                                    const at = without.indexOf(entry.id);
+                                    without.splice(at === -1 ? without.length : at, 0, dragged);
+                                    updateSettings({tabOrder: without});
+                                }}
+                                onDragEnd={() => {
+                                    setTabDrag(null);
+                                    setTabOver(null);
+                                }}
                             >
                                 {entry.label}
                                 {unread > 0 && <span className="tgw-folder-badge">{unread > 99 ? '99+' : unread}</span>}

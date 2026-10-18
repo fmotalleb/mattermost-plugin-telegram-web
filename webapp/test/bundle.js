@@ -115,6 +115,11 @@ const registry = {
         'every accent and compact mode have styling in the bundled CSS');
     ok(cssText.includes('.tgw-wallpaper-doodles') && cssText.includes('.tgw-wallpaper-checker'),
         'the chat wallpaper patterns are bundled in the CSS');
+    ok(cssText.includes('--tgw-wallpaper-size: 440px') && cssText.includes('0 0, 27px 0, 0 0, 0 43px')
+        && cssText.includes('repeating-linear-gradient(-45deg'),
+        'the wallpapers are rebuilt to hide their tiling (big doodle tile, uneven grid, mixed stripe periods)');
+    ok(cssText.includes('.tgw-chat:not(.tgw-search-panel) > .tgw-chat-header') && cssText.includes('backdrop-filter: blur('),
+        'the chat header floats over the message list with a live backdrop blur');
     ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
         'the Vazirmatn webfont is inlined as a data URI');
     ok(!cssText.includes('.tgw-root.tgw-glassy .tgw-chat {') && !cssText.includes('.tgw-theme-dark .tgw-chat,') && !cssText.includes('.tgw-theme-midnight .tgw-chat,'),

@@ -51,6 +51,9 @@
        below so the same pattern reads in both. */
     --tgw-wallpaper-tint: rgba(0, 0, 0, 0.075);
     --tgw-wallpaper: none;
+    /* Translucent paint of the floating chat header: the live backdrop-filter blurs right
+       through it, so the messages passing underneath read as frosted shapes. */
+    --tgw-header-bg: rgba(255, 255, 255, 0.78);
     --tgw-in-bubble: #ffffff;
     --tgw-out-bubble: #eeffde;
     --tgw-reaction: #f1f1f1;
@@ -98,6 +101,7 @@
     --tgw-active: #2b2b2b;
     --tgw-chat-bg: #0d0d0d;
     --tgw-wallpaper-tint: rgba(255, 255, 255, 0.085);
+    --tgw-header-bg: rgba(24, 24, 26, 0.78);
     --tgw-in-bubble: #181818;
     /* Telegram's night themes don't paint own messages in an accent colour: the outgoing bubble
        is the incoming one, one step lighter. */
@@ -138,6 +142,7 @@
     --tgw-composer-bar: #efeae1;
     --tgw-composer-input-bg: #ffffff;
     --tgw-composer-input-border: #e0d8ca;
+    --tgw-header-bg: rgba(246, 243, 238, 0.8);
 }
 
 /* Ice — a crisp cool-toned day theme: pale blue-grey panels over a glacier wallpaper. */
@@ -159,6 +164,7 @@
     --tgw-composer-bar: #eaeff6;
     --tgw-composer-input-bg: #ffffff;
     --tgw-composer-input-border: #d9e2ec;
+    --tgw-header-bg: rgba(244, 247, 251, 0.8);
 }
 
 /* Midnight — Telegram's deep-blue night theme, blue-grey chrome over a near-black sea. */
@@ -175,6 +181,7 @@
     --tgw-active: #213045;
     --tgw-chat-bg: #0a1017;
     --tgw-wallpaper-tint: rgba(255, 255, 255, 0.075);
+    --tgw-header-bg: rgba(19, 28, 39, 0.8);
     --tgw-in-bubble: #16212e;
     --tgw-out-bubble: #2f5377;
     --tgw-reaction: #1a2635;
@@ -317,6 +324,15 @@
 .tgw-folder-active {
     color: var(--tgw-link);
     background: var(--tgw-accent-soft);
+}
+
+/* Drag-to-reorder a category tab (see Sidebar.tsx). */
+.tgw-folder-dragging {
+    opacity: 0.5;
+}
+
+.tgw-folder-dragover {
+    box-shadow: inset 0 0 0 2px var(--tgw-accent);
 }
 
 /* Unread message tally inside a folder tab: same palette as the chat row badges, small enough
@@ -719,35 +735,47 @@
    One class per pattern (mirrored on .tgw-root from Settings > Appearance, and on the preview
    swatches in that dialog) fills --tgw-wallpaper; .tgw-chat paints it over the theme colour.
    Patterns are pure CSS gradients tinted with --tgw-wallpaper-tint, except "doodles" which is
-   a Telegram-style SVG tile (mid-grey ink, so it reads on light and dark chat backgrounds). */
+   a Telegram-style SVG tile (mid-grey ink, so it reads on light and dark chat backgrounds).
+   Every pattern hides its repetition, Telegram-style: a large tile, several stripe periods that
+   never share a beat, offset layers and motifs cropped by the tile edges — no visible squares. */
 
 .tgw-wallpaper-none {
     --tgw-wallpaper: none;
 }
 
 .tgw-wallpaper-doodles {
-    --tgw-wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='176' height='176' viewBox='0 0 176 176'%3E%3Cg fill='none' stroke='%23888888' stroke-opacity='0.55' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M26 14l4.6 9.3 10.3 1.5-7.4 7.3 1.7 10.2-9.2-4.9-9.2 4.9 1.7-10.2-7.4-7.3 10.3-1.5z'/%3E%3Cpath d='M96 34c-5.5-8.5-18-4.8-18 4.8 0 8 9.7 12.9 18 19.4 8.3-6.5 18-11.4 18-19.4 0-9.6-12.5-13.3-18-4.8z'/%3E%3Ccircle cx='146' cy='30' r='11'/%3E%3Cpath d='M142 26.5v2.5 M150 26.5v2.5 M141.5 33a6.5 6.5 0 0 0 9 0'/%3E%3Cpath d='M46 44q12 5 12 18Q46 57 46 44z'/%3E%3Cpath d='M44 74l-10 17h9l-7 15 15-19h-8z'/%3E%3Ccircle cx='80' cy='90' r='7'/%3E%3Cpath d='M150 66h.01 M158 74h.01 M148 80h.01'/%3E%3Cpath d='M124 102V84l15-4v18'/%3E%3Ccircle cx='121' cy='104' r='4.5'/%3E%3Ccircle cx='136' cy='100' r='4.5'/%3E%3Cpath d='M66 122l8-8 8 8 8-8 8 8'/%3E%3Cpath d='M20 150q10-12 20 0t20 0'/%3E%3Cpath d='M92 140h18 M101 131v18'/%3E%3Cpath d='M140 146l7 8-7 8-7-8z'/%3E%3Cpath d='M152 116h.01 M160 122h.01'/%3E%3C/g%3E%3C/svg%3E");
-    --tgw-wallpaper-size: 176px 176px;
+    /* A 440px canvas of ~28 motifs at odd sizes, odd angles and odd opacities, several of them
+       cropped by the edges — the repeat is far off-screen and reads as free scatter. */
+    --tgw-wallpaper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='440' height='440' viewBox='0 0 440 440'%3E%3Cg fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='16' cy='74' r='25' stroke-opacity='0.4'/%3E%3Cpath transform='rotate(18 96 38)' d='M96 24l4.6 9.3 10.3 1.5-7.4 7.3 1.7 10.2-9.2-4.9-9.2 4.9 1.7-10.2-7.4-7.3 10.3-1.5z' stroke-opacity='0.55'/%3E%3Cpath transform='rotate(28 330 46)' d='M330 24a20 20 0 1 0 8 36 25 25 0 0 1-8-36z' stroke-opacity='0.42'/%3E%3Cpath transform='rotate(-10 440 120)' d='M452 92l-34 56h68z' stroke-opacity='0.45'/%3E%3Cpath d='M188 96q14-14 28 0t28 0' stroke-opacity='0.5'/%3E%3Cpath transform='rotate(6 300 132)' d='M268 122l12 14 12-14 12 14 12-14' stroke-opacity='0.38'/%3E%3Cg transform='rotate(12 384 176)' stroke-opacity='0.5'%3E%3Ccircle cx='384' cy='176' r='16'/%3E%3Cpath d='M377 171v2 M391 171v2 M376 182a9 9 0 0 0 16 0'/%3E%3C/g%3E%3Cpath transform='rotate(38 116 148)' d='M102 158q6-24 30-27 3 24-21 30z' stroke-opacity='0.5'/%3E%3Cg stroke-opacity='0.45'%3E%3Ccircle cx='306' cy='224' r='6'/%3E%3Ccircle cx='318' cy='233' r='6'/%3E%3Ccircle cx='313' cy='247' r='6'/%3E%3Ccircle cx='299' cy='247' r='6'/%3E%3Ccircle cx='294' cy='233' r='6'/%3E%3Ccircle cx='306' cy='237' r='3'/%3E%3C/g%3E%3Cpath transform='rotate(15 400 330)' d='M372 318l56-14-34 40-6-16z' stroke-opacity='0.5'/%3E%3Cpath transform='translate(148 262) rotate(9) scale(1.7)' d='M0 6C-8-4-20 6-8 16L0 24L8 16C20 6 8-4 0 6z' stroke-opacity='0.42'/%3E%3Cg transform='rotate(-9 66 390)' stroke-opacity='0.45'%3E%3Crect x='40' y='372' width='52' height='34' rx='4'/%3E%3Cpath d='M40 376l26 18 26-18'/%3E%3C/g%3E%3Cpath transform='rotate(-6 348 414)' d='M316 420a32 32 0 0 1 64 0' stroke-opacity='0.4'/%3E%3Cpath d='M214 396l10-16 10 12 10-16 10 16 10-12 10 16z' stroke-opacity='0.48'/%3E%3Cpath d='M126 344h.01 M136 352h.01 M130 363h.01' stroke-opacity='0.5'/%3E%3Cpath d='M396 258h20 M406 248v20' stroke-opacity='0.35'/%3E%3Cpath d='M240 176l18 18 M258 176l-18 18' stroke-opacity='0.4'/%3E%3Ccircle cx='426' cy='60' r='14' stroke-opacity='0.5'/%3E%3Crect x='178' y='368' width='26' height='26' rx='4' transform='rotate(24 191 381)' stroke-opacity='0.4'/%3E%3Cpath d='M270 318q16-12 32 0t32 0t32 0' stroke-opacity='0.42'/%3E%3Ccircle cx='60' cy='452' r='20' stroke-opacity='0.4'/%3E%3Cpath d='M150 -6q16 18 0 36t0 36' stroke-opacity='0.35'/%3E%3Cpath d='M440 240q-16 14 0 28t0 28' stroke-opacity='0.38'/%3E%3Cg fill='%23888888' stroke='none'%3E%3Cpath transform='translate(205 30) rotate(-12)' d='M0 6C-8-4-20 6-8 16L0 24L8 16C20 6 8-4 0 6z' fill-opacity='0.3'/%3E%3Cpath transform='rotate(-18 56 238)' d='M60 216L44 244h11l-5 22 18-30H55z' fill-opacity='0.32'/%3E%3Ccircle cx='356' cy='108' r='4' fill-opacity='0.4'/%3E%3Ccircle cx='236' cy='64' r='3' fill-opacity='0.35'/%3E%3Ccircle cx='86' cy='322' r='3.5' fill-opacity='0.38'/%3E%3Ccircle cx='422' cy='336' r='5' fill-opacity='0.32'/%3E%3Ccircle cx='252' cy='438' r='4' fill-opacity='0.35'/%3E%3Ccircle cx='16' cy='206' r='4.5' fill-opacity='0.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    --tgw-wallpaper-size: 440px;
 }
 
 .tgw-wallpaper-dots {
-    --tgw-wallpaper: radial-gradient(var(--tgw-wallpaper-tint) 1.5px, transparent 1.7px);
-    --tgw-wallpaper-size: 26px 26px;
+    /* Four dots of different radii at uneven spots in a 40px tile: a scatter, not a lattice. */
+    --tgw-wallpaper: radial-gradient(circle at 11px 8px, var(--tgw-wallpaper-tint) 1.7px, transparent 1.9px), radial-gradient(circle at 29px 27px, var(--tgw-wallpaper-tint) 1.2px, transparent 1.4px), radial-gradient(circle at 5px 31px, var(--tgw-wallpaper-tint) 2.3px, transparent 2.5px), radial-gradient(circle at 34px 36px, var(--tgw-wallpaper-tint) 1.4px, transparent 1.6px);
+    --tgw-wallpaper-size: 40px;
 }
 
 .tgw-wallpaper-grid {
-    --tgw-wallpaper: linear-gradient(var(--tgw-wallpaper-tint) 1px, transparent 1px), linear-gradient(90deg, var(--tgw-wallpaper-tint) 1px, transparent 1px);
-    --tgw-wallpaper-size: 30px 30px;
+    /* Uneven graph paper: verticals at 0/27 within 64px, horizontals at 0/43 — the cells
+       alternate 27×43, 37×21, … so no square anywhere in the pattern repeats visibly. */
+    --tgw-wallpaper: linear-gradient(90deg, var(--tgw-wallpaper-tint) 1px, transparent 1px), linear-gradient(90deg, var(--tgw-wallpaper-tint) 1px, transparent 1px), linear-gradient(0deg, var(--tgw-wallpaper-tint) 1px, transparent 1px), linear-gradient(0deg, var(--tgw-wallpaper-tint) 1px, transparent 1px);
+    --tgw-wallpaper-size: 64px;
+    --tgw-wallpaper-position: 0 0, 27px 0, 0 0, 0 43px;
 }
 
 .tgw-wallpaper-checker {
+    /* The same two 45° fields at a bigger tile and a deliberately off-centre second layer, so
+       the diagonal steps never settle into an even checkerboard. */
     --tgw-wallpaper: linear-gradient(45deg, var(--tgw-wallpaper-tint) 25%, transparent 25%, transparent 75%, var(--tgw-wallpaper-tint) 75%), linear-gradient(45deg, var(--tgw-wallpaper-tint) 25%, transparent 25%, transparent 75%, var(--tgw-wallpaper-tint) 75%);
-    --tgw-wallpaper-size: 26px 26px;
-    --tgw-wallpaper-position: 0 0, 13px 13px;
+    --tgw-wallpaper-size: 56px;
+    --tgw-wallpaper-position: 0 0, 21px 9px;
 }
 
 .tgw-wallpaper-diagonal {
-    --tgw-wallpaper: repeating-linear-gradient(45deg, var(--tgw-wallpaper-tint) 0 1.5px, transparent 1.5px 15px);
+    /* Three stripe periods that never share a beat (11px + 29px at 45°, crossed by a sparse
+       47px at -45°): the combined field has no single visible rhythm. */
+    --tgw-wallpaper: repeating-linear-gradient(45deg, var(--tgw-wallpaper-tint) 0 1.5px, transparent 1.5px 11px), repeating-linear-gradient(45deg, var(--tgw-wallpaper-tint) 0 1px, transparent 1px 29px), repeating-linear-gradient(-45deg, var(--tgw-wallpaper-tint) 0 1px, transparent 1px 47px);
 }
 
 .tgw-empty-chat {
@@ -771,8 +799,27 @@
     padding: 0 12px;
     background: var(--tgw-bg-secondary);
     border-bottom: 1px solid var(--tgw-border);
+    position: relative;
     z-index: 2;
     flex: 0 0 auto;
+}
+
+/* The chat header FLOATS over the message list instead of sitting in the flow above it: the
+   messages scroll underneath and the live backdrop-filter re-blurs them frame by frame — the
+   header is a plain frosted pane over moving content, with no gloss/bevel highlight on top.
+   --tgw-header-bg hands every theme a translucent paint to blur through; glassy mode leaves
+   this rule alone (its static tints only cover other chrome), and the search results page keeps
+   its header in the flow: nothing scrolls under it there. */
+.tgw-chat:not(.tgw-search-panel) > .tgw-chat-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    overflow: hidden;
+    z-index: 3;
+    background: var(--tgw-header-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
 }
 
 .tgw-chat-header-main {
@@ -835,10 +882,18 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 14px;
+    height: 52px;
+    padding: 0 14px;
     background: var(--tgw-bg-secondary);
     border-bottom: 1px solid var(--tgw-border);
     color: var(--tgw-text-secondary);
+    /* Floats right under the overlaid header (top: 56px), so the list below can scroll under
+       both bars and through the header's blur. */
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 3;
 }
 
 .tgw-inchat-search input {
@@ -854,6 +909,17 @@
 .tgw-inchat-search-count {
     font-size: 12.5px;
     color: var(--tgw-text-tertiary);
+}
+
+/* The scroll region starts below the floating chrome but fills the whole pane: at rest the
+   first message clears the header, while scrolling, messages glide up underneath it and get
+   blurred live. With the in-chat search open the offset is header (56px) + bar (52px). */
+.tgw-chat:not(.tgw-search-panel) .tgw-messages {
+    padding-top: 56px;
+}
+
+.tgw-inchat-search ~ .tgw-chat-body .tgw-messages {
+    padding-top: 108px;
 }
 
 .tgw-chat-body {
@@ -3221,29 +3287,16 @@ body.tgw-root-active {
 }
 
 /* ------------------------------------------------------------------ glassy mode
-   Settings > Appearance, on by default. The overlay stops being a solid wall: the host page
-   glows through a blurred veil and the structural chrome (header, composer, menus, modals)
-   sits on top as tinted glass. Content surfaces — bubbles, chat list rows — stay opaque so
-   messages remain readable.
-   The chat pane itself is fully opaque in every theme: the theme colour plus the wallpaper
-   pattern is the ONLY thing behind messages — the Mattermost page never ghosts through it
-   (and never with a chat "screenshot" look), with or without an image on the host. Blur is
-   applied only to the veil and the chrome floating over it, never to .tgw-chat.
-   The chat list is the exception to the exception: it gets a STATIC frosted wash (soft
-   gradients painted once) instead of a backdrop-filter, so the host chat behind it is never
-   re-blurred frame by frame — the frosted look without the per-frame cost.
-   The -webkit- prefix matters: Mattermost's desktop app ships an older Chromium. */
-
-.tgw-root.tgw-glassy {
-    background: rgba(250, 250, 252, 0.42);
-    -webkit-backdrop-filter: blur(30px) saturate(1.6);
-    backdrop-filter: blur(30px) saturate(1.6);
-}
-
-.tgw-root.tgw-glassy.tgw-theme-dark,
-.tgw-root.tgw-glassy.tgw-theme-midnight {
-    background: rgba(10, 10, 12, 0.5);
-}
+   Settings > Appearance, on by default. Glassy mode is purely STATIC tints now: the overlay is
+   an opaque wall (the theme colour), and its chrome — sidebar wash, composer, info/shared-files
+   panels, menus, modals — paints soft translucent colours on top of that wall. Nothing samples
+   the host page anymore: the blurred capture of the Mattermost chat that used to be stretched
+   screen-wide behind the overlay and reused as the background of the chat list and the shared
+   files panel is gone in both forms — no backdrop-filter, no screenshot look.
+   The one live blur remaining is the chat header's own backdrop-filter (see
+   .tgw-chat:not(.tgw-search-panel) below): it frosts OUR messages scrolling under it, which is
+   content, not a captured image.
+   The -webkit- prefix on that rule matters: Mattermost's desktop app ships an older Chromium. */
 
 /* Chat list: a static frosted wash, not a live backdrop-filter. It reads as softly blurred
    glass but is painted once — no image of the host chat behind it, no per-frame blur while
@@ -3263,29 +3316,26 @@ body.tgw-root-active {
         rgba(22, 22, 25, 0.97);
 }
 
-.tgw-root.tgw-glassy .tgw-chat-header,
+/* The info header is plain chrome: a static translucent tint, nothing sampled behind it. The
+   chat header is deliberately NOT in this rule — it keeps its own live backdrop-filter (of the
+   messages under it) and its own --tgw-header-bg paint. */
 .tgw-root.tgw-glassy .tgw-info-header {
     background: rgba(255, 255, 255, 0.55);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
 }
 
-.tgw-root.tgw-glassy.tgw-theme-dark .tgw-chat-header,
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-info-header,
-.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-chat-header,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-header {
     background: rgba(26, 26, 28, 0.6);
 }
 
+/* Static paint over the opaque wall below it: the composer never blurs a captured image. */
 .tgw-root.tgw-glassy .tgw-composer {
-    background: rgba(250, 250, 252, 0.55);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
+    background: rgba(250, 250, 252, 0.92);
 }
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-composer,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-composer {
-    background: rgba(22, 22, 24, 0.6);
+    background: rgba(22, 22, 24, 0.92);
 }
 
 .tgw-root.tgw-glassy .tgw-composer-input {
@@ -3297,38 +3347,35 @@ body.tgw-root-active {
     background: rgba(36, 36, 39, 0.66);
 }
 
+/* Information / shared files / thread panels: a near-opaque frosted tint, painted once. The
+   backdrop of these panels used to be the blurred host screenshot — that functionality is
+   removed, so there is nothing to sample behind them anymore. */
 .tgw-root.tgw-glassy .tgw-info-panel,
 .tgw-root.tgw-glassy .tgw-thread-panel {
-    background: rgba(255, 255, 255, 0.6);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
+    background: rgba(255, 255, 255, 0.94);
 }
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-info-panel,
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-thread-panel,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-panel,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-thread-panel {
-    background: rgba(24, 24, 26, 0.62);
+    background: rgba(24, 24, 26, 0.94);
 }
 
 .tgw-root.tgw-glassy .tgw-menu,
 .tgw-root.tgw-glassy .tgw-modal {
-    background: rgba(255, 255, 255, 0.78);
-    -webkit-backdrop-filter: blur(20px) saturate(1.5);
-    backdrop-filter: blur(20px) saturate(1.5);
+    background: rgba(255, 255, 255, 0.96);
 }
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-menu,
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-modal,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-menu,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-modal {
-    background: rgba(28, 28, 30, 0.8);
+    background: rgba(28, 28, 30, 0.96);
 }
 
 .tgw-root.tgw-glassy .tgw-modal-backdrop {
-    background: rgba(0, 0, 0, 0.22);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .tgw-root.tgw-glassy .tgw-search {
@@ -3357,6 +3404,6 @@ html, body { margin: 0; height: 100%; background: #0f0f0f; }
 </style>
 </head>
 <body>
-<div id="root"></div><div></div><div class="tgw-root tgw-theme-dark tgw-accent-violet tgw-wallpaper-doodles  tgw-glassy "><div class="tgw-shell  "><aside class="tgw-sidebar"><header class="tgw-sidebar-header"><button type="button" class="tgw-icon-button tgw-menu-button" title="Menu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"></path></svg></button><div class="tgw-search"><svg class="tgw-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"></path></svg><input placeholder="Search" spellcheck="false" value=""></div><button type="button" class="tgw-icon-button" title="New chat"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm-7 9h-2v2H9v-2H7V9h2V7h2v2h2Z"></path></svg></button></header><nav class="tgw-folders"><button type="button" class="tgw-folder tgw-folder-active">All<span class="tgw-folder-badge">13</span></button><button type="button" class="tgw-folder ">Unread<span class="tgw-folder-badge">3</span></button><button type="button" class="tgw-folder ">Groups<span class="tgw-folder-badge">11</span></button><button type="button" class="tgw-folder ">Direct Messages<span class="tgw-folder-badge">2</span></button><button type="button" class="tgw-folder ">Work stuff<span class="tgw-folder-badge">13</span></button><button type="button" class="tgw-folder ">Contacts</button></nav><div class="tgw-sidebar-body"><div class="tgw-chat-list" role="list"><button type="button" draggable="false" class="tgw-chat-row tgw-chat-row-active tgw-chat-row-unread  "><span class="tgw-avatar " style="width: 54px; height: 54px; font-size: 21px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span><span class="tgw-status-dot tgw-status-away"></span></span><span class="tgw-chat-row-body"><span class="tgw-chat-row-top"><span class="tgw-chat-row-title">Alice Anderson (alley)</span><span class="tgw-chat-row-meta"><span class="tgw-chat-row-time">15.11.23</span></span></span><span class="tgw-chat-row-bottom"><span class="tgw-chat-row-preview"><span class=""><span>🎤 Voice message</span></span></span><span class="tgw-badge ">2</span></span></span></button><div class="tgw-list-divider"></div><button type="button" draggable="false" class="tgw-chat-row  tgw-chat-row-unread  "><span class="tgw-avatar " style="width: 54px; height: 54px; font-size: 21px; background: rgb(225, 112, 118);"><span class="tgw-avatar-initials">TS</span></span><span class="tgw-chat-row-body"><span class="tgw-chat-row-top"><span class="tgw-chat-row-title">Town Square</span><span class="tgw-chat-row-meta"><span class="tgw-chat-row-time">15.11.23</span></span></span><span class="tgw-chat-row-bottom"><span class="tgw-chat-row-preview"><span class="">3 members</span></span><span class="tgw-badge tgw-badge-mention ">1</span></span><span class="tgw-chat-row-team">Demo Team</span></span></button></div></div><footer class="tgw-user-panel"><button type="button" class="tgw-user-button"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">MM</span><span class="tgw-status-dot tgw-status-online"></span></span><span class="tgw-user-panel-info"><span class="tgw-user-panel-name">Mia Meyer</span><span class="tgw-user-panel-status">online</span></span><svg class="tgw-user-panel-gear" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9.4 5.5.1-1.5-.1-1.5-2.2-.5a7 7 0 0 0-.7-1.7l1.2-1.9-2.1-2.1-1.9 1.2a7 7 0 0 0-1.7-.7L15.5 3h-2.9l-.5 2.2a7 7 0 0 0-1.7.7L8.5 4.7 6.4 6.8l1.2 1.9a7 7 0 0 0-.7 1.7L4.7 11v3l2.2.5c.2.6.4 1.2.7 1.7l-1.2 1.9 2.1 2.1 1.9-1.2c.5.3 1.1.5 1.7.7l.5 2.3h2.9l.5-2.3c.6-.2 1.2-.4 1.7-.7l1.9 1.2 2.1-2.1-1.2-1.9c.3-.5.5-1.1.7-1.7l2.2-.5Z"></path></svg></button></footer></aside><section class="tgw-chat"><header class="tgw-chat-header"><button type="button" class="tgw-chat-header-main"><span class="tgw-avatar " style="width: 44px; height: 44px; font-size: 17px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span><span class="tgw-status-dot tgw-status-away"></span></span><span class="tgw-chat-header-text"><span class="tgw-chat-header-title">Alice Anderson (alley)</span><span class="tgw-chat-header-sub ">away</span></span></button><div class="tgw-chat-header-actions"><button type="button" class="tgw-icon-button" title="Search in chat"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"></path></svg></button><button type="button" class="tgw-icon-button " title="Shared files"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 2h8l4 4v16H6V2Zm7 1.5V7h4.5L13 3.5Z"></path></svg></button><button type="button" class="tgw-icon-button" title="More"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></header><div class="tgw-chat-body"><div class="tgw-messages-wrap"><div class="tgw-messages"><div class="tgw-date-separator"><span>November 15, 2023</span></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p1"><div class="tgw-msg-avatar"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span></span></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><span>Hey! How are you?</span></span><div class="tgw-attachments"><button type="button" class="tgw-attachment-image"><img src="/api/v4/files/file-1/thumbnail" alt="photo-one.png" loading="lazy" draggable="false"></button><button type="button" class="tgw-attachment-image"><img src="/api/v4/files/file-2/thumbnail" alt="photo-two.jpg" loading="lazy" draggable="false"></button></div><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:45 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-msg-row tgw-msg-out " data-post-id="p2"><div class="tgw-msg-avatar"></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><span>Doing great, thanks <span class="tgw-emoji">😄</span></span></span><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:46 AM</span><span class="tgw-msg-status"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.6 17.2 4.4 12l-1.4 1.4 6.6 6.6L21 8.6 19.6 7.2 9.6 17.2Z"></path></svg></span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-unread-divider"><span>Unread messages</span></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p3"><div class="tgw-msg-avatar"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span></span></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><strong>Deploy</strong><span> is done, see </span><a href="https://example.com/run" target="_blank" rel="noopener noreferrer">https://example.com/run</a></span><div class="tgw-msg-meta"><div class="tgw-reactions"><button type="button" class="tgw-reaction " title="Alice Anderson (alley)"><span class="tgw-reaction-emoji">🎉</span><span>1</span></button></div><span class="tgw-msg-time">Nov 15, 2023 1:51 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p4"><div class="tgw-msg-avatar"></div><div class="tgw-bubble tgw-bubble-grouped"><span class="tgw-message-text" dir="auto"></span><div class="tgw-attachments"><div class="tgw-voice" data-file-id="file-voice"><audio src="/api/v4/files/file-voice" preload="metadata"></audio><button type="button" class="tgw-voice-play " title="Play voice message"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7L8 5Z"></path></svg></button><div class="tgw-voice-body"><div class="tgw-voice-wave" role="presentation"><span class="tgw-voice-bar " style="height: 20%;"></span><span class="tgw-voice-bar " style="height: 55%;"></span><span class="tgw-voice-bar " style="height: 90%;"></span><span class="tgw-voice-bar " style="height: 40%;"></span><span class="tgw-voice-bar " style="height: 75%;"></span><span class="tgw-voice-bar " style="height: 100%;"></span><span class="tgw-voice-bar " style="height: 60%;"></span><span class="tgw-voice-bar " style="height: 30%;"></span><span class="tgw-voice-bar " style="height: 45%;"></span><span class="tgw-voice-bar " style="height: 80%;"></span><span class="tgw-voice-bar " style="height: 35%;"></span><span class="tgw-voice-bar " style="height: 65%;"></span></div><div class="tgw-voice-footer"><span class="tgw-voice-duration">0:07</span><button type="button" class="tgw-voice-speed" title="Playback speed">1x</button></div></div></div></div><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:55 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-bottom-anchor"></div></div></div><div class="tgw-composer "><div class="tgw-composer-toolbar"><button type="button" title="Bold"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h7a4 4 0 0 1 0 8H6V4Zm0 8h8a4 4 0 0 1 0 8H6v-8Z"></path></svg></button><button type="button" title="Italic"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4h8v2h-3l-3 12h3v2H7v-2h3l3-12h-3V4Z"></path></svg></button><button type="button" title="Strikethrough"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11h18v2H3v-2Zm5-4.5C8 5 9.9 4 12.3 4c2.2 0 4 .8 5.2 2.2l-1.6 1.4C15.1 6.7 13.9 6 12.4 6c-1.6 0-2.5.6-2.5 1.5 0 .8.7 1.3 2.3 1.8L3 9.2V11h18V9.1l-2.1-.1C16.5 8 15.4 7.2 14.6 6.6"></path></svg></button><button type="button" title="Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4Z"></path></svg></button><button type="button" title="Code block"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 17H3v-6a6 6 0 0 1 6-6v3a3 3 0 0 0-3 3h1v6Zm14 0h-4v-6a6 6 0 0 1 6-6v3a3 3 0 0 0-3 3h1v6Z"></path></svg></button><button type="button" title="Link"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.9 12a3 3 0 0 1 3-3h3V7h-3a5 5 0 0 0 0 10h3v-2h-3a3 3 0 0 1-3-3Zm4.1 1h8v-2H8v2Zm6-6h-3v2h3a3 3 0 0 1 0 6h-3v2h3a5 5 0 0 0 0-10Z"></path></svg></button></div><div class="tgw-composer-input"><button type="button" class="tgw-composer-icon" title="Attach a file"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 6.5 8.6 14.4a2.5 2.5 0 1 0 3.5 3.5l8.6-8.6a4.5 4.5 0 1 0-6.4-6.4L5.5 11.7a6.5 6.5 0 1 0 9.2 9.2l7.3-7.3-1.4-1.4-7.3 7.3a4.5 4.5 0 0 1-6.4-6.4l8.9-8.9a2.5 2.5 0 0 1 3.5 3.5Z"></path></svg></button><input type="file" multiple="" style="display: none;"><button type="button" class="tgw-composer-icon" title="Record a voice message"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11h2a5 5 0 0 0 10 0h2Z"></path></svg></button><textarea dir="ltr" placeholder="Message" rows="1" spellcheck="false" style="height: 24px;"></textarea><button type="button" class="tgw-composer-icon" title="Emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" class="tgw-send-button " title="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 21 23 12 2.5 3v7l13 2-13 2v7Z"></path></svg></button></div></div></div></section></div><div class="tgw-toasts"></div></div>
+<div id="root"></div><div></div><div class="tgw-root tgw-theme-dark tgw-accent-violet tgw-wallpaper-doodles  tgw-glassy "><div class="tgw-shell  "><aside class="tgw-sidebar"><header class="tgw-sidebar-header"><button type="button" class="tgw-icon-button tgw-menu-button" title="Menu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"></path></svg></button><div class="tgw-search"><svg class="tgw-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"></path></svg><input placeholder="Search" spellcheck="false" value=""></div><button type="button" class="tgw-icon-button" title="New chat"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm-7 9h-2v2H9v-2H7V9h2V7h2v2h2Z"></path></svg></button></header><nav class="tgw-folders"><button type="button" draggable="false" class="tgw-folder tgw-folder-active">All<span class="tgw-folder-badge">13</span></button><button type="button" draggable="false" class="tgw-folder">Unread<span class="tgw-folder-badge">3</span></button><button type="button" draggable="true" class="tgw-folder">Groups<span class="tgw-folder-badge">11</span></button><button type="button" draggable="true" class="tgw-folder">Direct Messages<span class="tgw-folder-badge">2</span></button><button type="button" draggable="true" class="tgw-folder">Work stuff<span class="tgw-folder-badge">13</span></button><button type="button" draggable="false" class="tgw-folder">Contacts</button></nav><div class="tgw-sidebar-body"><div class="tgw-chat-list" role="list"><button type="button" draggable="false" class="tgw-chat-row tgw-chat-row-active tgw-chat-row-unread  "><span class="tgw-avatar " style="width: 54px; height: 54px; font-size: 21px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span><span class="tgw-status-dot tgw-status-away"></span></span><span class="tgw-chat-row-body"><span class="tgw-chat-row-top"><span class="tgw-chat-row-title">Alice Anderson (alley)</span><span class="tgw-chat-row-meta"><span class="tgw-chat-row-time">15.11.23</span></span></span><span class="tgw-chat-row-bottom"><span class="tgw-chat-row-preview"><span class=""><span>🎤 Voice message</span></span></span><span class="tgw-badge ">2</span></span></span></button><div class="tgw-list-divider"></div><button type="button" draggable="false" class="tgw-chat-row  tgw-chat-row-unread  "><span class="tgw-avatar " style="width: 54px; height: 54px; font-size: 21px; background: rgb(225, 112, 118);"><span class="tgw-avatar-initials">TS</span></span><span class="tgw-chat-row-body"><span class="tgw-chat-row-top"><span class="tgw-chat-row-title">Town Square</span><span class="tgw-chat-row-meta"><span class="tgw-chat-row-time">15.11.23</span></span></span><span class="tgw-chat-row-bottom"><span class="tgw-chat-row-preview"><span class="">3 members</span></span><span class="tgw-badge tgw-badge-mention ">1</span></span><span class="tgw-chat-row-team">Demo Team</span></span></button></div></div><footer class="tgw-user-panel"><button type="button" class="tgw-user-button"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">MM</span><span class="tgw-status-dot tgw-status-online"></span></span><span class="tgw-user-panel-info"><span class="tgw-user-panel-name">Mia Meyer</span><span class="tgw-user-panel-status">online</span></span><svg class="tgw-user-panel-gear" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9.4 5.5.1-1.5-.1-1.5-2.2-.5a7 7 0 0 0-.7-1.7l1.2-1.9-2.1-2.1-1.9 1.2a7 7 0 0 0-1.7-.7L15.5 3h-2.9l-.5 2.2a7 7 0 0 0-1.7.7L8.5 4.7 6.4 6.8l1.2 1.9a7 7 0 0 0-.7 1.7L4.7 11v3l2.2.5c.2.6.4 1.2.7 1.7l-1.2 1.9 2.1 2.1 1.9-1.2c.5.3 1.1.5 1.7.7l.5 2.3h2.9l.5-2.3c.6-.2 1.2-.4 1.7-.7l1.9 1.2 2.1-2.1-1.2-1.9c.3-.5.5-1.1.7-1.7l2.2-.5Z"></path></svg></button></footer></aside><section class="tgw-chat"><header class="tgw-chat-header"><button type="button" class="tgw-chat-header-main"><span class="tgw-avatar " style="width: 44px; height: 44px; font-size: 17px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span><span class="tgw-status-dot tgw-status-away"></span></span><span class="tgw-chat-header-text"><span class="tgw-chat-header-title">Alice Anderson (alley)</span><span class="tgw-chat-header-sub ">away</span></span></button><div class="tgw-chat-header-actions"><button type="button" class="tgw-icon-button" title="Search in chat"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"></path></svg></button><button type="button" class="tgw-icon-button " title="Shared files"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 2h8l4 4v16H6V2Zm7 1.5V7h4.5L13 3.5Z"></path></svg></button><button type="button" class="tgw-icon-button" title="More"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></header><div class="tgw-chat-body"><div class="tgw-messages-wrap"><div class="tgw-messages"><div class="tgw-date-separator"><span>November 15, 2023</span></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p1"><div class="tgw-msg-avatar"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span></span></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><span>Hey! How are you?</span></span><div class="tgw-attachments"><button type="button" class="tgw-attachment-image"><img src="/api/v4/files/file-1/thumbnail" alt="photo-one.png" loading="lazy" draggable="false"></button><button type="button" class="tgw-attachment-image"><img src="/api/v4/files/file-2/thumbnail" alt="photo-two.jpg" loading="lazy" draggable="false"></button></div><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:45 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-msg-row tgw-msg-out " data-post-id="p2"><div class="tgw-msg-avatar"></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><span>Doing great, thanks <span class="tgw-emoji">😄</span></span></span><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:46 AM</span><span class="tgw-msg-status"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.6 17.2 4.4 12l-1.4 1.4 6.6 6.6L21 8.6 19.6 7.2 9.6 17.2Z"></path></svg></span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-unread-divider"><span>Unread messages</span></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p3"><div class="tgw-msg-avatar"><span class="tgw-avatar " style="width: 40px; height: 40px; font-size: 15px; background: rgb(238, 122, 174);"><span class="tgw-avatar-initials">AA</span></span></div><div class="tgw-bubble "><span class="tgw-message-text" dir="auto"><strong>Deploy</strong><span> is done, see </span><a href="https://example.com/run" target="_blank" rel="noopener noreferrer">https://example.com/run</a></span><div class="tgw-msg-meta"><div class="tgw-reactions"><button type="button" class="tgw-reaction " title="Alice Anderson (alley)"><span class="tgw-reaction-emoji">🎉</span><span>1</span></button></div><span class="tgw-msg-time">Nov 15, 2023 1:51 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-msg-row tgw-msg-in " data-post-id="p4"><div class="tgw-msg-avatar"></div><div class="tgw-bubble tgw-bubble-grouped"><span class="tgw-message-text" dir="auto"></span><div class="tgw-attachments"><div class="tgw-voice" data-file-id="file-voice"><audio src="/api/v4/files/file-voice" preload="metadata"></audio><button type="button" class="tgw-voice-play " title="Play voice message"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7L8 5Z"></path></svg></button><div class="tgw-voice-body"><div class="tgw-voice-wave" role="presentation"><span class="tgw-voice-bar " style="height: 20%;"></span><span class="tgw-voice-bar " style="height: 55%;"></span><span class="tgw-voice-bar " style="height: 90%;"></span><span class="tgw-voice-bar " style="height: 40%;"></span><span class="tgw-voice-bar " style="height: 75%;"></span><span class="tgw-voice-bar " style="height: 100%;"></span><span class="tgw-voice-bar " style="height: 60%;"></span><span class="tgw-voice-bar " style="height: 30%;"></span><span class="tgw-voice-bar " style="height: 45%;"></span><span class="tgw-voice-bar " style="height: 80%;"></span><span class="tgw-voice-bar " style="height: 35%;"></span><span class="tgw-voice-bar " style="height: 65%;"></span></div><div class="tgw-voice-footer"><span class="tgw-voice-duration">0:07</span><button type="button" class="tgw-voice-speed" title="Playback speed">1x</button></div></div></div></div><div class="tgw-msg-meta"><span class="tgw-msg-time">Nov 15, 2023 1:55 AM</span></div></div><div class="tgw-msg-toolbar"><button type="button" title="Add reaction"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" title="Reply"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z"></path></svg></button><button type="button" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg></button></div></div><div class="tgw-bottom-anchor"></div></div></div><div class="tgw-composer "><div class="tgw-composer-toolbar"><button type="button" title="Bold"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h7a4 4 0 0 1 0 8H6V4Zm0 8h8a4 4 0 0 1 0 8H6v-8Z"></path></svg></button><button type="button" title="Italic"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4h8v2h-3l-3 12h3v2H7v-2h3l3-12h-3V4Z"></path></svg></button><button type="button" title="Strikethrough"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11h18v2H3v-2Zm5-4.5C8 5 9.9 4 12.3 4c2.2 0 4 .8 5.2 2.2l-1.6 1.4C15.1 6.7 13.9 6 12.4 6c-1.6 0-2.5.6-2.5 1.5 0 .8.7 1.3 2.3 1.8L3 9.2V11h18V9.1l-2.1-.1C16.5 8 15.4 7.2 14.6 6.6"></path></svg></button><button type="button" title="Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4Z"></path></svg></button><button type="button" title="Code block"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 17H3v-6a6 6 0 0 1 6-6v3a3 3 0 0 0-3 3h1v6Zm14 0h-4v-6a6 6 0 0 1 6-6v3a3 3 0 0 0-3 3h1v6Z"></path></svg></button><button type="button" title="Link"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.9 12a3 3 0 0 1 3-3h3V7h-3a5 5 0 0 0 0 10h3v-2h-3a3 3 0 0 1-3-3Zm4.1 1h8v-2H8v2Zm6-6h-3v2h3a3 3 0 0 1 0 6h-3v2h3a5 5 0 0 0 0-10Z"></path></svg></button></div><div class="tgw-composer-input"><button type="button" class="tgw-composer-icon" title="Attach a file"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 6.5 8.6 14.4a2.5 2.5 0 1 0 3.5 3.5l8.6-8.6a4.5 4.5 0 1 0-6.4-6.4L5.5 11.7a6.5 6.5 0 1 0 9.2 9.2l7.3-7.3-1.4-1.4-7.3 7.3a4.5 4.5 0 0 1-6.4-6.4l8.9-8.9a2.5 2.5 0 0 1 3.5 3.5Z"></path></svg></button><input type="file" multiple="" style="display: none;"><button type="button" class="tgw-composer-icon" title="Record a voice message"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-6 6.93V21h3v2H8v-2h3v-3.07A7 7 0 0 1 5 11h2a5 5 0 0 0 10 0h2Z"></path></svg></button><textarea dir="ltr" placeholder="Message" rows="1" spellcheck="false" style="height: 24px;"></textarea><button type="button" class="tgw-composer-icon" title="Emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-3.5 6a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 18c-2.3 0-4.3-1.3-5.3-3.2h10.6C16.3 16.7 14.3 18 12 18Z"></path></svg></button><button type="button" class="tgw-send-button " title="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="0" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 21 23 12 2.5 3v7l13 2-13 2v7Z"></path></svg></button></div></div></div></section></div><div class="tgw-toasts"></div></div>
 </body>
 </html>

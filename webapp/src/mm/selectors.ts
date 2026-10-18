@@ -2,6 +2,7 @@
 // unread counters, presence, typing indicators and custom emoji.
 
 import {getCachedPreview} from './posts';
+import {getSettings} from './settings';
 import {getState} from './store';
 import type {MMChannel, MMChannelCategory, MMChannelMember, MMCustomEmoji, MMState, MMTeam, MMUser} from './types';
 import {channelMemberIds, colorForKey, displayName, initialsFor, isSameDay} from './utils';
@@ -366,7 +367,9 @@ export function getTabs(state: MMState): ChatTab[] {
     const teamId = getCurrentTeamId(state);
     const categories = state.entities?.channelCategories?.byId;
     const order = state.entities?.channelCategories?.orderByTeam;
-    return tabsMemo.get([categories, order, teamId], () => {
+    // getSettings() is part of the memo key: saving a tab order changes the settings object, so
+    // the next render recomputes the tabs while plain store notifications keep their old array.
+    return tabsMemo.get([categories, order, teamId, getSettings()], () => {
         const tabs: ChatTab[] = [
             {id: '__all', label: 'All', kind: 'all', sortOrder: 0},
             {id: '__unread', label: 'Unread', kind: 'unread', sortOrder: 1},
@@ -389,6 +392,25 @@ export function getTabs(state: MMState): ChatTab[] {
             });
         });
         tabs.push({id: '__contacts', label: 'Contacts', kind: 'contacts', sortOrder: 10_000});
+
+        // The saved drag order shuffles ONLY the category tabs: All/Unread stay pinned at the
+        // front, Contacts stays last, ids of deleted categories are ignored and new categories
+        // land after the stored ones.
+        const stored: string[] = Array.isArray(getSettings().tabOrder) ? getSettings().tabOrder : [];
+        if (stored.length) {
+            const categoryTabs = tabs.filter((tab) => tab.kind === 'category');
+            const placed = stored.map((id) => categoryTabs.find((tab) => tab.id === id)).filter(Boolean) as ChatTab[];
+            const storedIds = new Set(stored);
+            const rest = categoryTabs.filter((tab) => !storedIds.has(tab.id));
+            const first = tabs.findIndex((tab) => tab.kind === 'category');
+            if (first >= 0) {
+                let after = first;
+                while (after < tabs.length && tabs[after].kind === 'category') {
+                    after += 1;
+                }
+                tabs.splice(first, after - first, ...placed, ...rest);
+            }
+        }
         return tabs;
     });
 }
