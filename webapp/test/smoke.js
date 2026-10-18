@@ -13,6 +13,7 @@
 const {
     dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
     store, state, posts, ids, tick, ok, fail, report, notifyStoreChange, holdPosts, viewTracking,
+    pushStockPost,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
@@ -1125,13 +1126,26 @@ root.render(React.createElement(TelegramUI));
     console.log('\n== stock UI view tracking ==');
     // A user on the stock Mattermost UI never scrolls our message list: opening a channel there
     // must still report its recent posts as seen through the plugin API. Turn the overlay off
-    // and poke the host store the way a channel switch in the stock sidebar would.
+    // and poke the host store the way the stock webapp would.
     updateSettings({mode: 'off'});
     const stockCallsBefore = calls.length;
     startStockUIViewTracking();
     notifyStoreChange();
-    await waitFor(() => calls.slice(stockCallsBefore).some((call) => call === `GET /channels/${ids.DM}/posts`), 3000);
+    await waitFor(() => calls.slice(stockCallsBefore).some((call) => call === `GET /channels/${ids.DM}/posts`), 4000);
     ok(calls.slice(stockCallsBefore).some((call) => call === `GET /channels/${ids.DM}/posts`), 'opening a channel in the stock UI fetches its recent posts');
+
+    // The regression behind "seen not reported when the other user is on Mattermost's own UI":
+    // a message arriving in the channel the reader ALREADY has open never changes
+    // currentChannelId, and that read is what the sender's double checkmark waits for.
+    // Without a channel switch the bridge used to go silent until the next switch.
+    pushStockPost({
+        id: 'p-stock-new', create_at: Date.now(), update_at: Date.now(), edit_at: 0, delete_at: 0,
+        user_id: ids.OTHER, channel_id: ids.DM, message: 'sent while the channel stayed open',
+        type: '', props: {}, root_id: '', is_pinned: false,
+    });
+    notifyStoreChange();
+    const lateSeen = await waitFor(() => viewTracking.get('p-stock-new') && viewTracking.get('p-stock-new').has(ids.ME), 4000);
+    ok(!!lateSeen, 'a new post in the already-open stock channel is reported as seen without any channel switch');
 
     console.log('\n== api calls observed ==');
     calls.slice(0, 12).forEach((call) => console.log(`  ${call}`));

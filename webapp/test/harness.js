@@ -183,6 +183,15 @@ const posts = {
     },
 };
 
+// Posts that "arrived" while the stock UI already has the channel open: the stock-UI view
+// bridge re-reads /channels/{id}/posts on store activity, so tests can prove a message landing
+// in an unchanged channel is still reported as seen (no channel switch involved).
+const stockExtraIds = [];
+function pushStockPost(post) {
+    posts[post.id] = post;
+    stockExtraIds.unshift(post.id);
+}
+
 const calls = [];
 // Request bodies, so tests can assert what was actually sent (e.g. root_id on a reply).
 const payloads = [];
@@ -324,7 +333,11 @@ global.fetch = async (url, options = {}) => {
             }
             return json({order: [], posts: {}});
         }
-        return json({order: ['p4', 'p3', 'p2', 'p1'], posts: {p1: posts.p1, p2: posts.p2, p3: posts.p3, p4: posts.p4}});
+        const extras = {};
+        stockExtraIds.forEach((id) => {
+            extras[id] = posts[id];
+        });
+        return json({order: [...stockExtraIds, 'p4', 'p3', 'p2', 'p1'], posts: {p1: posts.p1, p2: posts.p2, p3: posts.p3, p4: posts.p4, ...extras}});
     }
     if (p === `/channels/${TOWN}/posts`) {
         return json({order: [], posts: {}});
@@ -507,6 +520,7 @@ module.exports = {
     store,
     ids: {ME, OTHER, TEAM, DM, TOWN},
     holdPosts,
+    pushStockPost,
     viewTracking,
     notifyStoreChange: () => listeners.forEach((listener) => listener()),
     tick,
