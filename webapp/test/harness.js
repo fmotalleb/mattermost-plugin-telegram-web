@@ -137,7 +137,7 @@ const TOWN = 'channel-town';
 
 const users = {
     [ME]: {id: ME, username: 'me', first_name: 'Mia', last_name: 'Meyer', delete_at: 0},
-    [OTHER]: {id: OTHER, username: 'alice', first_name: 'Alice', last_name: 'Anderson', delete_at: 0, last_picture_update: 42},
+    [OTHER]: {id: OTHER, username: 'alice', first_name: 'Alice', last_name: 'Anderson', nickname: 'alley', delete_at: 0, last_picture_update: 42},
     // Present in the REST member list of Town Square but not in the (sparse) Redux copy.
     [THIRD]: {id: THIRD, username: 'nina', first_name: 'Nina', last_name: 'Novak', delete_at: 0},
 };

@@ -5,17 +5,23 @@ import {replaceShortcodes} from './emoji';
 
 export const DAY = 24 * 60 * 60 * 1000;
 
+/**
+ * How a person is labelled everywhere in the UI (chat rows, message headers, member lists,
+ * search results): "First Last (nickname)" — the real name leads, the nickname stays visible
+ * instead of hiding the name behind it. Falls back to whichever part of the profile exists.
+ */
 export function displayName(user?: MMUser | null): string {
     if (!user) {
         return '';
     }
+    const full = `${user.first_name || ''} ${user.last_name || ''}`.trim();
     const nickname = (user.nickname || '').trim();
+    if (full) {
+        // Never render "John Doe (John Doe)" when the nickname only repeats the name.
+        return nickname && nickname.toLowerCase() !== full.toLowerCase() ? `${full} (${nickname})` : full;
+    }
     if (nickname) {
         return nickname;
-    }
-    const full = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-    if (full) {
-        return full;
     }
     return user.username || '';
 }

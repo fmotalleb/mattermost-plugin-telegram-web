@@ -193,6 +193,20 @@ root.render(React.createElement(TelegramUI));
         ok(!!document.querySelector('.tgw-message-text[dir="auto"]'), 'message bodies carry dir=auto for per-line direction');
     }
 
+    console.log('\n== display names ==');
+    {
+        // Everywhere a person is labelled (chat rows, message headers, member lists, search
+        // results) the real name leads and the nickname is kept visible in parentheses.
+        const {displayName} = require('../src/mm/utils');
+        ok(displayName({first_name: 'Ada', last_name: 'Lovelace', nickname: 'ada'}) === 'Ada Lovelace (ada)', 'full name shown with the nickname in parentheses');
+        ok(displayName({first_name: 'Ada', last_name: 'Lovelace'}) === 'Ada Lovelace', 'a profile without a nickname keeps the plain full name');
+        ok(displayName({first_name: 'Ada', last_name: 'Lovelace', nickname: 'Ada Lovelace'}) === 'Ada Lovelace', 'a nickname repeating the name alone is not duplicated');
+        ok(displayName({first_name: '', last_name: '', nickname: 'ada'}) === 'ada', 'no real name falls back to the nickname');
+        ok(displayName({username: 'ghost'}) === 'ghost', 'a profile with nothing else falls back to the username');
+        // The rendered chat header carries Alice's nickname from the fixture.
+        ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)', 'the DM header shows First Last (nickname)');
+    }
+
     console.log('\n== emoji previews ==');
     {
         // p2 contains ":smile:" — the chat-list preview and reply previews must show the
@@ -200,6 +214,15 @@ root.render(React.createElement(TelegramUI));
         const {toPlainPreview} = require('../src/mm/utils');
         ok(toPlainPreview('hi :smile: there').includes('😄'), 'toPlainPreview renders shortcodes as unicode emoji');
         ok(toPlainPreview('hi :unknown-emoji: there').includes(':unknown-emoji:'), 'unknown shortcodes pass through unchanged');
+        // The full Mattermost system set resolves, not just the curated picker rows.
+        const {EMOJI_CATEGORIES, emojiChar, replaceShortcodes, searchEmoji} = require('../src/mm/emoji');
+        ok(replaceShortcodes('go :space_invader: go').includes('👾'), ':space_invader: expands to its emoji');
+        ok(replaceShortcodes('go :technologist: go').includes('\u{1F9D1}\u200D\u{1F4BB}'), ':technologist: expands to its ZWJ sequence');
+        ok(replaceShortcodes('go :hankey: go').includes('💩'), ':hankey: expands as well');
+        const unnamed = EMOJI_CATEGORIES.flatMap((category) => category.emojis).filter((entry) => !entry.char || !emojiChar(entry.name));
+        ok(unnamed.length === 0, `every picker row has a character and a matching shortcode (${unnamed.length} broken)`);
+        ok(searchEmoji('space_invader').some((entry) => entry.name === 'space_invader'), 'picker search reaches emoji outside the curated categories');
+        ok(searchEmoji('technologist').some((entry) => entry.name === 'technologist'), 'picker search finds :technologist:');
         const p2row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
         const p2Reply = p2row?.querySelector('.tgw-msg-toolbar button[title="Reply"]');
         if (p2Reply) {
@@ -541,6 +564,7 @@ root.render(React.createElement(TelegramUI));
         searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
         await tick(60);
         ok(document.body.innerHTML.includes('Contacts'), 'global search renders contact results');
+        ok(document.body.innerHTML.includes('Alice Anderson (alley)'), 'search results label people as First Last (nickname)');
 
         // Wide all-messages search: Enter in the search box opens the full results panel.
         valueSetter.call(searchInput, 'Deploy');
@@ -565,7 +589,7 @@ root.render(React.createElement(TelegramUI));
         ok(!!hit && hit.textContent.includes('Alice Anderson'), 'hit shows the owning channel title');
         if (hit) {
             hit.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-            await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson', 3000);
+            await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)', 3000);
             ok(!document.querySelector('.tgw-search-panel'), 'clicking a hit closes the wide panel');
             await waitFor(() => !!document.querySelector('.tgw-post-highlight'), 3000);
             ok(!!document.querySelector('.tgw-post-highlight'), 'clicking a hit opens the chat at the matched message');
@@ -629,7 +653,7 @@ root.render(React.createElement(TelegramUI));
     ok(!!dmRow, 'dm row found for the url sync check');
     if (dmRow) {
         dmRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson');
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)');
         ok(dom.window.__historyPushes.includes('/demo/messages/@alice'), 'switching chats pushes the new URL');
     }
 
