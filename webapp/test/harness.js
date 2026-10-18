@@ -172,7 +172,14 @@ const posts = {
     // exists solely through search: clicking the hit must fetch it to land the chat on it.
     'p-old': {
         id: 'p-old', create_at: 1_699_999_000_000, update_at: 1_699_999_000_000, edit_at: 0, delete_at: 0, user_id: OTHER, channel_id: DM,
-        message: 'Earlier notes: the deploy pipeline was re-run overnight', type: '', props: {}, root_id: '', is_pinned: false, metadata: {},
+        message: 'Earlier notes: the deploy pipeline was re-run overnight', type: '', props: {}, root_id: '', is_pinned: false,
+        // The only file whose name appears in no message text: finding it proves the file panel
+        // searches older messages by file name, not just via the text-matching search API.
+        metadata: {
+            files: [
+                {id: 'file-annual', name: 'annual-report.pdf', mime_type: 'application/pdf', extension: 'pdf', size: 24576, user_id: OTHER, create_at: 1_699_999_000_000, update_at: 1_699_999_000_000, delete_at: 0},
+            ],
+        },
     },
 };
 
@@ -308,6 +315,15 @@ global.fetch = async (url, options = {}) => {
         return json([]);
     }
     if (p === `/channels/${DM}/posts`) {
+        // ?before= pages into history: older than the first page lives only behind it (the file
+        // panel walks back this way while a search term is held).
+        const before = parsed.searchParams.get('before');
+        if (before) {
+            if (['p1', 'p2', 'p3', 'p4'].includes(before)) {
+                return json({order: ['p-old'], posts: {'p-old': posts['p-old']}});
+            }
+            return json({order: [], posts: {}});
+        }
         return json({order: ['p4', 'p3', 'p2', 'p1'], posts: {p1: posts.p1, p2: posts.p2, p3: posts.p3, p4: posts.p4}});
     }
     if (p === `/channels/${TOWN}/posts`) {

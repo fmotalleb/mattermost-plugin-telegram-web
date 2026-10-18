@@ -21,6 +21,9 @@ import {IconClose, IconFile, IconSearch} from './primitives';
 /** idle: no term · pending: request on its way · done/failed: terminal states for the hints. */
 type SearchState = 'idle' | 'pending' | 'done' | 'failed';
 
+/** Upper bound on history pages a single search walks back (20 × 60 = 1200 older messages). */
+const WALK_MAX_PAGES = 20;
+
 export function SharedFilesPanel() {
     const {actions, channel, timeFormat, isMobile} = useTg();
     const {posts} = useChannelPosts(channel?.id);
@@ -28,6 +31,7 @@ export function SharedFilesPanel() {
     const teamId = useSelector(getCurrentTeamId);
     const [term, setTerm] = useState('');
     const [remotePosts, setRemotePosts] = useState<MMPost[]>([]);
+    const [walkedPosts, setWalkedPosts] = useState<MMPost[]>([]);
     const [searchState, setSearchState] = useState<SearchState>('idle');
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchSeq = useRef(0);
@@ -43,11 +47,22 @@ export function SharedFilesPanel() {
         }
         if (!needle) {
             setRemotePosts([]);
+            setWalkedPosts([]);
             setSearchState('idle');
             return undefined;
         }
         setSearchState('pending');
         searchTimer.current = setTimeout(() => {
+            // Two independent legs, both cancellable by the seq check:
+            // 1) message-text hits through the search API …
+            let settled = 0;
+            let anyOk = false;
+            const legDone = () => {
+                settled += 1;
+                if (settled >= 2 && seq === searchSeq.current) {
+                    setSearchState(anyOk ? 'done' : 'failed');
+                }
+            };
             api.searchPosts(teamId, needle, {perPage: 40})
                 .then((data) => {
                     if (seq !== searchSeq.current) {
@@ -55,13 +70,22 @@ export function SharedFilesPanel() {
                     }
                     const found = data ? (data.order || []).map((id) => data.posts[id]).filter(Boolean) : [];
                     setRemotePosts(found.filter((post) => !channel || post.channel_id === channel.id));
-                    setSearchState('done');
+                    anyOk = true;
                 })
-                .catch(() => {
+                .catch(() => undefined)
+                .finally(legDone);
+            // 2) … plus a walk back through older messages: search matches message *text*, and
+            //    what people search for here is a file *name* — which lives in messages too old
+            //    for the fetched window (or in messages the term never appears in).
+            walkOlder(seq)
+                .then((found) => {
                     if (seq === searchSeq.current) {
-                        setSearchState('failed');
+                        setWalkedPosts(found);
+                        anyOk = true;
                     }
-                });
+                })
+                .catch(() => undefined)
+                .finally(legDone);
         }, 300);
         return () => {
             if (searchTimer.current) {
@@ -70,6 +94,36 @@ export function SharedFilesPanel() {
             }
         };
     }, [term, teamId, channel]);
+
+    // Pages back from the oldest fetched message, collecting history posts for the row source.
+    // Stops on: term change (seq), exhausted history, a page that makes no progress, or the cap.
+    const walkOlder = async (seq: number): Promise<MMPost[]> => {
+        if (!channel || !posts.length) {
+            return [];
+        }
+        const collected: MMPost[] = [];
+        let boundary = posts.reduce((min, post) => (!min || post.create_at < min.create_at ? post : min), posts[0]);
+        for (let page = 0; page < WALK_MAX_PAGES; page++) {
+            if (seq !== searchSeq.current) {
+                break;
+            }
+            const data = await api.getPostsBefore(channel.id, boundary.id, 60);
+            const batch = (data.order || []).map((id) => data.posts[id]).filter(Boolean);
+            if (!batch.length) {
+                break;
+            }
+            collected.push(...batch);
+            const next = batch.reduce((min, post) => (!min || post.create_at < min.create_at ? post : min), batch[0]);
+            if (!next || next.create_at >= boundary.create_at) {
+                break; // the server gave nothing older than we already have
+            }
+            boundary = next;
+            if (batch.length < 60) {
+                break; // short page: no more history
+            }
+        }
+        return collected;
+    };
 
     // The scope line: the date of the oldest message fetched into this chat so far.
     const scopeAt = posts.reduce((min, post) => (!min || post.create_at < min ? post.create_at : min), 0);
@@ -91,6 +145,7 @@ export function SharedFilesPanel() {
     };
     posts.forEach(pushPost);
     remotePosts.forEach(pushPost);
+    walkedPosts.forEach(pushPost);
     rows.sort((a, b) => (b.file.create_at || b.post.create_at) - (a.file.create_at || a.post.create_at));
 
     const needle = term.trim().toLowerCase();

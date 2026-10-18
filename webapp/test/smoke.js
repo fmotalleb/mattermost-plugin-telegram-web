@@ -576,10 +576,20 @@ root.render(React.createElement(TelegramUI));
     ok(!!scopeNote && /since .+Search/.test(scopeNote.textContent || ''), `the panel states the fetched-message scope (${scopeNote && scopeNote.textContent})`);
     if (fileSearch) {
         const remoteSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
-        remoteSetter.call(fileSearch, 'hello');
+        // `calls` records pathnames only (no ?before=), so paging shows up as a second DM page
+        // fetch inside this window — none happens between the initial load and here otherwise.
+        const pageGetsBefore = calls.filter((call) => call === 'GET /channels/channel-dm/posts').length;
+        // "annual" appears nowhere in any message text — only in the file name of p-old, an
+        // older message outside the fetched window — so its row can only come from the history
+        // walk that runs behind the search box.
+        remoteSetter.call(fileSearch, 'annual');
         fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
-        await tick(450); // > the 300ms debounce before the search API is hit
+        await tick(450); // > the 300ms debounce before the fetches fire
         ok(calls.some((call) => call.includes('/posts/search')), 'holding a term searches full message history through the search API');
+        ok(calls.filter((call) => call === 'GET /channels/channel-dm/posts').length > pageGetsBefore, 'the file search pages back through older messages');
+        await waitFor(() => Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-row')).some((row) => (row.textContent || '').includes('annual-report.pdf')), 3000);
+        const olderFileRow = Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-row')).find((row) => (row.textContent || '').includes('annual-report.pdf'));
+        ok(!!olderFileRow, 'a file from an older, unfetched message appears when its name matches');
         ok(!document.querySelector('.tgw-files-scope'), 'the scope note hides while a search is active');
         remoteSetter.call(fileSearch, '');
         fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
