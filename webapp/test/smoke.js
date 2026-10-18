@@ -57,7 +57,9 @@ root.render(React.createElement(TelegramUI));
     ok(body.includes('Work stuff'), 'custom Mattermost category exposed as a folder');
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
 
-    // Each folder tab carries its unread message total: DM (4-2=2) and Town Square (12-1=11).
+    // Each folder tab carries its unread message total. All sums everything (DM 4-2=2 + Town
+    // Square 12-1=11 = 13); the Unread folder is personal — DM messages (2) plus Town Square's
+    // single @mention, not its 11 unread group messages.
     const folderBtn = (label) => Array.from(document.querySelectorAll('.tgw-folder'))
         .find((btn) => (btn.textContent || '').startsWith(label));
     const folderCount = (label) => {
@@ -67,11 +69,35 @@ root.render(React.createElement(TelegramUI));
     console.log('== folder unread counters ==');
     ok(!!folderBtn('All'), 'folder tabs rendered with counters');
     ok(folderCount('All') === '13', `the All tab carries the total unread message count (${folderCount('All') || 'none'})`);
-    ok(folderCount('Unread') === '13', `the Unread tab counts the same messages (${folderCount('Unread') || 'none'})`);
+    ok(folderCount('Unread') === '3', `the Unread tab counts DM messages plus group mentions, not every group message (${folderCount('Unread') || 'none'})`);
     ok(folderCount('Groups') === '11', `the Groups tab counts only its channel (${folderCount('Groups') || 'none'})`);
     ok(folderCount('Direct Messages') === '2', `the Direct Messages tab counts the DM (${folderCount('Direct Messages') || 'none'})`);
     ok(folderCount('Work stuff') === '13', `a custom folder sums its chats (${folderCount('Work stuff') || 'none'})`);
     ok(!folderBtn('Contacts')?.querySelector('.tgw-folder-badge'), 'tabs without unread chats carry no badge');
+
+    // The Unread folder's list follows that scope as well: direct messages and channels that
+    // mention me, so a group chat with ordinary unread traffic is never listed there.
+    console.log('== unread folder scope ==');
+    const clickFolder = (label) => folderBtn(label)?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    clickFolder('Unread');
+    await waitFor(() => (folderBtn('Unread')?.className || '').includes('tgw-folder-active'));
+    const unreadRowTexts = () => Array.from(document.querySelectorAll('.tgw-chat-row')).map((row) => row.textContent || '');
+    ok(unreadRowTexts().some((text) => text.includes('Alice Anderson')), 'a direct message is displayed in the Unread folder');
+    ok(unreadRowTexts().some((text) => text.includes('Town Square')), 'a channel that mentions you is displayed in the Unread folder');
+    // Take Town Square's mention away: its 11 unread messages remain, but without a mention of me
+    // the channel must leave the folder and its tally — only the DM's 2 messages are left.
+    const originalMembers = state.entities.channels.myMembers;
+    state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: {...originalMembers[ids.TOWN], mention_count: 0}};
+    notifyStoreChange();
+    await waitFor(() => folderCount('Unread') === '2');
+    ok(folderCount('Unread') === '2', `a group chat without a mention is not counted (${folderCount('Unread') || 'none'})`);
+    ok(!unreadRowTexts().some((text) => text.includes('Town Square')), 'a group chat without a mention is not displayed in the Unread folder');
+    state.entities.channels.myMembers = originalMembers;
+    notifyStoreChange();
+    await waitFor(() => folderCount('Unread') === '3');
+    ok(folderCount('All') === '13', `the All tab still totals every unread message (${folderCount('All') || 'none'})`);
+    clickFolder('All');
+    await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
 
     // One status dot per avatar, overlaying the circle; an online peer must not gain a second,
     // row-level dot next to the avatar's own badge.

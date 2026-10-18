@@ -448,7 +448,12 @@ export function getTabUnreadCounts(state: MMState, tabs: ChatTab[]): Record<stri
         () => {
             const counts: Record<string, number> = {};
             tabs.forEach((tab) => {
-                counts[tab.id] = getTabChats(state, tab.id).reduce((sum, chat) => sum + (chat.unread || 0), 0);
+                // The Unread tab counts DM messages and group mentions (its own scope); every
+                // other tab keeps the plain unread-message sum of the chats it lists.
+                counts[tab.id] = getTabChats(state, tab.id).reduce(
+                    (sum, chat) => sum + (tab.kind === 'unread' ? unreadFolderTally(chat) : (chat.unread || 0)),
+                    0,
+                );
             });
             return counts;
         },
@@ -466,8 +471,31 @@ export function searchChats(state: MMState, term: string): ChatSummary[] {
     });
 }
 
+// The Unread folder stays personal. Direct messages (and multi-person group messages, which
+// Mattermost lists under "Direct Messages" as well) qualify on any unread message; public/private
+// channels only qualify when they carry a mention of me — ordinary group traffic never buries the
+// chats that actually need an answer.
+function isPersonalUnread(chat: ChatSummary): boolean {
+    return chat.type === 'D' || chat.type === 'G';
+}
+
+function belongsInUnreadFolder(chat: ChatSummary): boolean {
+    if (isPersonalUnread(chat)) {
+        return chat.unread > 0 || chat.manuallyUnread;
+    }
+    return chat.mentions > 0;
+}
+
+/** What a chat contributes to the Unread folder's tally: its DM messages, or its mentions. */
+function unreadFolderTally(chat: ChatSummary): number {
+    if (isPersonalUnread(chat)) {
+        return chat.unread || (chat.manuallyUnread ? 1 : 0);
+    }
+    return chat.mentions;
+}
+
 export function getUnreadChats(state: MMState): ChatSummary[] {
-    return getAllChats(state).filter((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
+    return getAllChats(state).filter(belongsInUnreadFolder);
 }
 
 /** All channels of one team, used by the "add members"/"browse channels" pickers. */

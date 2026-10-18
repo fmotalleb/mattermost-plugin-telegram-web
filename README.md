@@ -78,6 +78,9 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   (`All`, `Unread`, one tab per category — *including custom categories* — and `Contacts`).
   Direct messages appear as Telegram contacts with avatar, status dot and online/away/do-not-disturb
   label; public and private channels and group messages appear as groups with a member count.
+  The `Unread` folder stays personal: it lists direct messages (and group messages) with unread
+  messages plus any channel that mentions you — its badge counts those DM messages and group
+  mentions, so ordinary group traffic never fills it.
 * **Search** — people and message results in one list, like Telegram's global search.
 * **Chat screen** — Telegram message bubbles with tails, grouped messages, date separators, "Unread
   messages" divider, reactions (add/remove from the picker), replies and threads, attachments shown

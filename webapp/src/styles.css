@@ -3214,13 +3214,16 @@ body.tgw-root-active {
 
 /* ------------------------------------------------------------------ glassy mode
    Settings > Appearance, on by default. The overlay stops being a solid wall: the host page
-   glows through a blurred veil and the structural chrome (sidebar, header, composer, menus,
-   modals) sits on top as tinted glass. Content surfaces — bubbles, chat list rows — stay
-   opaque so messages remain readable.
+   glows through a blurred veil and the structural chrome (header, composer, menus, modals)
+   sits on top as tinted glass. Content surfaces — bubbles, chat list rows — stay opaque so
+   messages remain readable.
    The chat pane itself is fully opaque in every theme: the theme colour plus the wallpaper
    pattern is the ONLY thing behind messages — the Mattermost page never ghosts through it
    (and never with a chat "screenshot" look), with or without an image on the host. Blur is
    applied only to the veil and the chrome floating over it, never to .tgw-chat.
+   The chat list is the exception to the exception: it gets a STATIC frosted wash (soft
+   gradients painted once) instead of a backdrop-filter, so the host chat behind it is never
+   re-blurred frame by frame — the frosted look without the per-frame cost.
    The -webkit- prefix matters: Mattermost's desktop app ships an older Chromium. */
 
 .tgw-root.tgw-glassy {
@@ -3234,15 +3237,22 @@ body.tgw-root-active {
     background: rgba(10, 10, 12, 0.5);
 }
 
+/* Chat list: a static frosted wash, not a live backdrop-filter. It reads as softly blurred
+   glass but is painted once — no image of the host chat behind it, no per-frame blur while
+   the list scrolls or the room updates. */
 .tgw-root.tgw-glassy .tgw-sidebar {
-    background: rgba(255, 255, 255, 0.5);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
+    background:
+        radial-gradient(140% 90% at 0% 0%, rgba(51, 144, 236, 0.07), transparent 62%),
+        radial-gradient(120% 80% at 100% 100%, rgba(0, 0, 0, 0.04), transparent 60%),
+        rgba(250, 250, 252, 0.96);
 }
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-sidebar,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-sidebar {
-    background: rgba(24, 24, 26, 0.55);
+    background:
+        radial-gradient(140% 90% at 0% 0%, rgba(106, 178, 242, 0.07), transparent 62%),
+        radial-gradient(120% 80% at 100% 100%, rgba(255, 255, 255, 0.03), transparent 60%),
+        rgba(22, 22, 25, 0.97);
 }
 
 .tgw-root.tgw-glassy .tgw-chat-header,
