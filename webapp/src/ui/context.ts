@@ -34,6 +34,8 @@ export interface TgUIState {
     /** Wide (all-messages) search results panel open in the main pane, like Mattermost's search. */
     searchOpen: boolean;
     infoOpen: boolean;
+    /** Right-hand "shared files" menu — collapsible, starts minimized. */
+    filesOpen: boolean;
     menuOpen: boolean;
     settingsAnchor: {x: number; y: number} | null;
     modal: ModalKind;

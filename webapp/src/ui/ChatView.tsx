@@ -13,7 +13,7 @@ import {useTg} from './context';
 import {MessageList} from './MessageList';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconBack, IconClose, IconLink, IconMore, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
+import {Avatar, IconBack, IconClose, IconFile, IconLink, IconMore, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
 
 function minimalSummary(channel: MMChannel) {
     const title = channel.display_name || channel.name || 'Conversation';
@@ -168,6 +168,7 @@ export function ChatView() {
         const items: MenuEntry[] = [
             {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Group info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true})},
             {key: 'search', label: 'Search in chat', icon: <IconSearch size={18}/>, onClick: () => setSearchOpen(true)},
+            {key: 'files', label: ui.filesOpen ? 'Hide shared files' : 'Shared files', icon: <IconFile size={18}/>, onClick: () => actions.setUI({filesOpen: !ui.filesOpen})},
             {
                 key: 'favorite',
                 label: summary.isFavorite ? 'Remove from favorites' : 'Add to favorites',
@@ -267,6 +268,14 @@ export function ChatView() {
                 <div className="tgw-chat-header-actions">
                     <button type="button" className="tgw-icon-button" title="Search in chat" onClick={() => setSearchOpen((value) => !value)}>
                         <IconSearch size={22}/>
+                    </button>
+                    <button
+                        type="button"
+                        className={`tgw-icon-button ${ui.filesOpen ? 'tgw-icon-button-active' : ''}`}
+                        title="Shared files"
+                        onClick={() => actions.setUI({filesOpen: !ui.filesOpen})}
+                    >
+                        <IconFile size={20}/>
                     </button>
                     <button type="button" className="tgw-icon-button" ref={headerMoreRef} title="More" onClick={openHeaderMenu}>
                         <IconMore size={22}/>

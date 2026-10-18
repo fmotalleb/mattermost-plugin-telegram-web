@@ -323,6 +323,7 @@
 .tgw-sidebar-body,
 .tgw-messages,
 .tgw-info-panel,
+.tgw-files-panel,
 .tgw-thread-body,
 .tgw-picker-list,
 .tgw-emoji-body,
@@ -1849,9 +1850,82 @@ img.tgw-reaction-emoji {
     background: rgba(229, 84, 75, 0.15);
 }
 
+/* ------------------------------------------------------------------ shared files panel
+   The right-hand "Shared files" menu: one row per file of the open chat, newest first, with a
+   file-name filter. Shares the info-panel chrome so it sits flush against the chat column. */
+
+.tgw-files-search {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--tgw-border);
+    position: sticky;
+    top: 56px;
+    background: var(--tgw-bg-secondary);
+    z-index: 1;
+}
+
+.tgw-files-search-field {
+    flex: none;
+}
+
+.tgw-files-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.tgw-file-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.12s ease;
+}
+
+.tgw-file-row:hover {
+    background: var(--tgw-hover);
+}
+
+.tgw-file-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--tgw-accent-soft);
+    color: var(--tgw-accent);
+    flex: 0 0 auto;
+}
+
+.tgw-file-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tgw-files-body .tgw-file-name {
+    font-size: 14px;
+    color: var(--tgw-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tgw-files-body .tgw-file-meta {
+    font-size: 12.5px;
+    color: var(--tgw-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ------------------------------------------------------------------ info panel */
 
 .tgw-info-panel,
+.tgw-files-panel,
 .tgw-thread-panel {
     width: 380px;
     min-width: 320px;

@@ -15,6 +15,7 @@ import {ChatView} from './ChatView';
 import {ConfirmModal, ImageViewer, Modals} from './Modals';
 import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
+import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
 import type {MenuEntry} from './menu';
 import {ReactionEmoji} from './MessageList';
@@ -37,6 +38,7 @@ const INITIAL_UI: TgUIState = {
     search: '',
     searchOpen: false,
     infoOpen: false,
+    filesOpen: false,
     menuOpen: false,
     settingsAnchor: null,
     modal: null,
@@ -338,6 +340,7 @@ export function TelegramUI() {
                             />
                         )}
                         {ui.infoOpen && !ui.threadRootId && <InfoPanel/>}
+                        {ui.filesOpen && !ui.threadRootId && <SharedFilesPanel/>}
                     </div>
                     <Modals/>
                     <ConfirmModal/>

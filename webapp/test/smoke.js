@@ -434,6 +434,43 @@ root.render(React.createElement(TelegramUI));
         }
     }
 
+    console.log('\n== shared files panel ==');
+    // The right-hand "Shared files" menu is minimized by default and is not rendered until the
+    // chat header (or the header menu) asks for it.
+    ok(!document.querySelector('.tgw-files-panel'), 'shared files panel starts collapsed');
+    document.querySelector('button[title="Shared files"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-files-panel'));
+    ok(!!document.querySelector('.tgw-files-panel'), 'header button opens the shared files panel');
+    const fileRows = document.querySelectorAll('.tgw-files-panel .tgw-file-row');
+    ok(fileRows.length >= 3, `panel lists every file of the chat (${fileRows.length})`);
+    ok(!!Array.from(fileRows).find((row) => (row.textContent || '').includes('photo-one.png')), 'image attachments are listed by name');
+    ok(!!Array.from(fileRows).find((row) => (row.textContent || '').includes('voice-message-2023-11-15.webm')), 'voice message files are listed too');
+    ok(!!document.querySelector('.tgw-files-panel .tgw-files-search input[placeholder="Search file names"]'), 'panel has a file-name search bar');
+
+    // Typing a name filters the rows; names that match nothing fall back to a hint.
+    const fileSearch = document.querySelector('.tgw-files-panel .tgw-files-search input');
+    if (fileSearch) {
+        const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+        valueSetter.call(fileSearch, 'photo-one');
+        fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(60);
+        const afterFilter = document.querySelectorAll('.tgw-files-panel .tgw-file-row');
+        ok(afterFilter.length === 1 && (afterFilter[0].textContent || '').includes('photo-one.png'), `search narrows the list to matching names (${afterFilter.length} row)`);
+        valueSetter.call(fileSearch, 'zzz-no-match');
+        fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(60);
+        ok(document.querySelectorAll('.tgw-files-panel .tgw-file-row').length === 0, 'a non-matching name hides every row');
+        ok(document.querySelector('.tgw-files-panel .tgw-empty-list') !== null, 'a no-results hint is shown');
+        valueSetter.call(fileSearch, '');
+        fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(60);
+    }
+
+    // The panel's own header button collapses it again (it is collapsible, not modal).
+    document.querySelector('.tgw-files-panel .tgw-info-header .tgw-icon-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => !document.querySelector('.tgw-files-panel'));
+    ok(!document.querySelector('.tgw-files-panel'), 'collapse button minimizes the panel again');
+
     console.log('\n== interactions ==');
     const townRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!townRow, 'town square row found');

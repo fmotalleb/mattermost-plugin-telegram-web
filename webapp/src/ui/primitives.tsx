@@ -67,6 +67,8 @@ export const IconPin = make('M16 3 8 11H6l-2 2 3 3-5 5 5-5 3 3 2-2v-2l8-8-4-4Z',
 export const IconSettings = make('M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9.4 5.5.1-1.5-.1-1.5-2.2-.5a7 7 0 0 0-.7-1.7l1.2-1.9-2.1-2.1-1.9 1.2a7 7 0 0 0-1.7-.7L15.5 3h-2.9l-.5 2.2a7 7 0 0 0-1.7.7L8.5 4.7 6.4 6.8l1.2 1.9a7 7 0 0 0-.7 1.7L4.7 11v3l2.2.5c.2.6.4 1.2.7 1.7l-1.2 1.9 2.1 2.1 1.9-1.2c.5.3 1.1.5 1.7.7l.5 2.3h2.9l.5-2.3c.6-.2 1.2-.4 1.7-.7l1.9 1.2 2.1-2.1-1.2-1.9c.3-.5.5-1.1.7-1.7l2.2-.5Z', {filled: true});
 export const IconLink = make('M3.9 12a3 3 0 0 1 3-3h3V7h-3a5 5 0 0 0 0 10h3v-2h-3a3 3 0 0 1-3-3Zm4.1 1h8v-2H8v2Zm6-6h-3v2h3a3 3 0 0 1 0 6h-3v2h3a5 5 0 0 0 0-10Z', {filled: true});
 export const IconDownload = make('M12 16 7 11l1.4-1.4L11 12.2V3h2v9.2l2.6-2.6L17 11l-5 5Zm-8 3v2h16v-2H4Z', {filled: true});
+// Document with a folded corner — the shared-files menu toggle and its file rows.
+export const IconFile = make('M6 2h8l4 4v16H6V2Zm7 1.5V7h4.5L13 3.5Z', {filled: true, fillRule: 'evenodd'});
 export const IconPlay = make('M8 5v14l11-7L8 5Z', {filled: true});
 export const IconPause = make('M7 5h4v14H7zM13 5h4v14h-4z', {filled: true});
 export const IconStop = make('M8 5h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z', {filled: true});
