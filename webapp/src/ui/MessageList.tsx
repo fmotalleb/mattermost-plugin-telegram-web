@@ -4,12 +4,13 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {api} from '../mm/api';
 import {emojiChar} from '../mm/emoji';
 import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
-import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
+import {getCustomEmoji, getMemberCount, getMyId, getStatus, getTimeFormat, getTypingUserIds} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
-import {ensureViewStats, markPostVisible, usePostViews} from '../mm/views';
+import {ensureViewStats, markPostVisible, refreshViewStats, usePostViews} from '../mm/views';
 import {
     attachmentSummary,
+    channelMemberIds,
     colorForKey,
     displayName,
     fileKindOf,
@@ -65,6 +66,32 @@ export function MessageList(props: MessageListProps) {
 
     const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
+
+    // A receipt only moves when the other side opens the message, so while the DM peer is
+    // online the list re-polls the view stats about every second: their first look flips the
+    // single check to a double one immediately instead of waiting for a reload. No online peer
+    // (or no outgoing posts) ⇒ no timer at all.
+    const peerOnline = useSelector((state) => {
+        if (channel.type !== 'D') {
+            return false;
+        }
+        const peer = channelMemberIds(channel).find((id) => id !== myId);
+        return !!peer && getStatus(state, peer) === 'online';
+    });
+    const myPostIds = useMemo(
+        () => posts.filter((post) => post.user_id === myId).map((post) => post.id).join(','),
+        [posts, myId],
+    );
+
+    useEffect(() => {
+        if (!peerOnline || !myPostIds) {
+            return undefined;
+        }
+        const ids = myPostIds.split(',');
+        refreshViewStats(ids);
+        const timer = setInterval(() => refreshViewStats(ids), 1000);
+        return () => clearInterval(timer);
+    }, [peerOnline, myPostIds]);
 
     const rows = useMemo(() => groupPosts(posts, myId), [posts, myId]);
 

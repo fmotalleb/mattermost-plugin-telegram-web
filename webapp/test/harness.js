@@ -491,6 +491,7 @@ module.exports = {
     store,
     ids: {ME, OTHER, TEAM, DM, TOWN},
     holdPosts,
+    viewTracking,
     notifyStoreChange: () => listeners.forEach((listener) => listener()),
     tick,
     ok,

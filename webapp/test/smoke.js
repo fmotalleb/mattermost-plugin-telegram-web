@@ -12,7 +12,7 @@
 
 const {
     dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
-    store, state, posts, ids, tick, ok, fail, report, notifyStoreChange, holdPosts,
+    store, state, posts, ids, tick, ok, fail, report, notifyStoreChange, holdPosts, viewTracking,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
@@ -72,6 +72,21 @@ root.render(React.createElement(TelegramUI));
     ok(folderCount('Direct Messages') === '2', `the Direct Messages tab counts the DM (${folderCount('Direct Messages') || 'none'})`);
     ok(folderCount('Work stuff') === '13', `a custom folder sums its chats (${folderCount('Work stuff') || 'none'})`);
     ok(!folderBtn('Contacts')?.querySelector('.tgw-folder-badge'), 'tabs without unread chats carry no badge');
+
+    // One status dot per avatar, overlaying the circle; an online peer must not gain a second,
+    // row-level dot next to the avatar's own badge.
+    console.log('== status dots ==');
+    const dotRow = () => Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice'));
+    ok(!!dotRow() && dotRow().querySelectorAll('.tgw-status-dot').length === 1, 'the chat row shows exactly one avatar status dot');
+    ok(!document.querySelector('.tgw-chat-row-online-dot'), 'the duplicate row-level online dot is gone');
+    state.entities.users.statuses[ids.OTHER] = 'online';
+    notifyStoreChange();
+    await waitFor(() => !!document.querySelector('.tgw-chat-row .tgw-status-online'));
+    const onlineDots = dotRow() ? dotRow().querySelectorAll('.tgw-status-dot, .tgw-chat-row-online-dot').length : 0;
+    ok(onlineDots === 1, `an online peer renders a single green dot (${onlineDots})`);
+    state.entities.users.statuses[ids.OTHER] = 'away';
+    notifyStoreChange();
+    await tick(40);
 
     // Wait for the channel posts request of the initial chat (fetch + render time varies).
     await waitFor(() => document.body.innerHTML.includes('How are you'));
@@ -156,6 +171,33 @@ root.render(React.createElement(TelegramUI));
             fail('composer textarea missing while replying');
         }
     }
+
+    // Read receipts must follow a live peer: while the other side is online the view stats are
+    // re-polled about once a second, so their first look flips the single check to two checks.
+    console.log('\n== live seen updates ==');
+    const freshOut = Array.from(document.querySelectorAll('.tgw-msg-out')).pop();
+    const freshId = freshOut?.getAttribute('data-post-id') || '';
+    ok(!!freshId && !!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M9.6"]`), 'the fresh outgoing post starts with a single checkmark');
+    const viewsGets = () => calls.filter((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')).length;
+
+    state.entities.users.statuses[ids.OTHER] = 'online';
+    notifyStoreChange();
+    await tick(400);
+    const onlineGets = viewsGets();
+    await tick(1400);
+    ok(viewsGets() > onlineGets, `seen status re-polls about every second while the peer is online (${onlineGets} → ${viewsGets()} fetches)`);
+
+    // The peer opens the message between two polls: the next fetch must flip the receipt.
+    viewTracking.set(freshId, new Set([ids.ME, ids.OTHER]));
+    await waitFor(() => document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 4000);
+    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 'the receipt flips to two checkmarks once the online peer sees the message');
+
+    state.entities.users.statuses[ids.OTHER] = 'away';
+    notifyStoreChange();
+    await tick(400); // let any in-flight poll land before counting
+    const offlineGets = viewsGets();
+    await tick(1500);
+    ok(viewsGets() === offlineGets, 'polling stops once the peer is no longer online');
 
     console.log('\n== composer frees the input on send ==');
     // Regression: the composer used to reset() only after the network round trip, so chars

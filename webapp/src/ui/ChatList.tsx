@@ -63,7 +63,6 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
     const lastPost = preview || undefined;
     const author = useSelector((state) => (lastPost && lastPost.user_id !== myId ? state.entities?.users?.profiles?.[lastPost.user_id] : undefined));
     const status = useSelector((state) => (summary.type === 'D' ? getStatus(state, summary.peerIds[0]) : undefined));
-    const online = status === 'online';
 
     const text = previewText(lastPost, lastPost?.user_id === myId, summary.type === 'G' || summary.type === 'P' || summary.type === 'O', author ? displayName(author) : '');
     const time = formatChatTime(lastPost?.create_at || summary.lastPostAt, timeFormat);
@@ -120,7 +119,6 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                     <span className="tgw-chat-row-team">{summary.teamName}</span>
                 )}
             </span>
-            {online && <span className="tgw-chat-row-online-dot"/>}
         </button>
     );
 }

@@ -515,17 +515,6 @@
     font-weight: 600;
 }
 
-.tgw-chat-row-online-dot {
-    position: absolute;
-    left: 52px;
-    bottom: 14px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #4dcd5e;
-    border: 2px solid var(--tgw-sidebar);
-}
-
 .tgw-badge {
     display: inline-flex;
     align-items: center;
@@ -587,12 +576,15 @@
 
 /* ------------------------------------------------------------------ avatar */
 
+/* The wrapper must NOT clip: a circular overflow would cut the absolutely-positioned status
+   dot below into a crescent behind the circle. The photo is rounded directly instead so the
+   dot can overlay the avatar edge. */
 .tgw-avatar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    overflow: hidden;
+    overflow: visible;
     color: #ffffff;
     font-weight: 600;
     flex: 0 0 auto;
@@ -605,14 +597,17 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    border-radius: 50%;
 }
 
 .tgw-avatar-initials {
     line-height: 1;
 }
 
+/* Raised above the avatar content: the badge must read as overlaying the circle. */
 .tgw-status-dot {
     position: absolute;
+    z-index: 1;
     right: 2px;
     bottom: 2px;
     width: 26%;

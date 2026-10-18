@@ -56,9 +56,33 @@ export function ensureViewStats(postIds: string[]): void {
             queued = true;
         }
     });
-    if (!queued) {
+    if (queued) {
+        scheduleFetch();
+    }
+}
+
+/**
+ * Re-fetch stats even for posts that already have some (batched + debounced). A receipt only
+ * moves when the *other* side opens the message, so the chat polls through this while the peer
+ * is online — without it the double check would wait for a reload or a remounted row.
+ */
+export function refreshViewStats(postIds: string[]): void {
+    if (viewsDisabled) {
         return;
     }
+    let queued = false;
+    postIds.forEach((id) => {
+        if (id && !pendingFetch.has(id)) {
+            pendingFetch.add(id);
+            queued = true;
+        }
+    });
+    if (queued) {
+        scheduleFetch();
+    }
+}
+
+function scheduleFetch(): void {
     if (fetchTimer) {
         clearTimeout(fetchTimer);
     }
@@ -66,6 +90,9 @@ export function ensureViewStats(postIds: string[]): void {
         fetchTimer = null;
         const ids = Array.from(pendingFetch);
         pendingFetch.clear();
+        if (ids.length === 0) {
+            return;
+        }
         api.getPostViewStats(ids).
             then((result) => mergeStats(result.counts || {}, result.seen || {})).
             catch((error) => {
