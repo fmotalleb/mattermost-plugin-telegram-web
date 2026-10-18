@@ -407,6 +407,21 @@ export function copyToClipboard(text: string): Promise<void> {
 }
 
 /**
+ * The user's current text selection as a string — '' when nothing (or only whitespace) is
+ * selected. Context menus read this the moment they open: touching the menu itself (focus,
+ * the upcoming click) collapses the DOM selection in some browsers, so the captured string is
+ * what "Copy selected text" ends up copying. Works for selections crossing several messages too,
+ * because it reads the selection as a whole, not a single node.
+ */
+export function getSelectedText(): string {
+    const selection = typeof document !== 'undefined' && document.getSelection
+        ? document.getSelection()
+        : null;
+    const text = selection && !selection.isCollapsed ? selection.toString() : '';
+    return text && text.trim() ? text : '';
+}
+
+/**
  * First-strong text direction, the way Telegram flips the composer and message bubbles for
  * Persian/Hebrew/Arabic input. Digits (ASCII and Arabic-Indic) are neutral: typing a phone
  * number must not flip the box. Anything else falls through to the first Unicode letter.

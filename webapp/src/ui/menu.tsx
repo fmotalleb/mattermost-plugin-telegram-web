@@ -2,6 +2,8 @@
 
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {copyToClipboard, getSelectedText} from '../mm/utils';
+import {useTg} from './context';
 import {overlayRoot} from './portal';
 
 export interface MenuItem {
@@ -52,6 +54,11 @@ export interface MenuProps {
 export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuProps) {
     const ref = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState({left: x, top: y});
+    const {actions} = useTg();
+    // Read the live text selection ONCE, when the menu opens: interacting with the menu (focus,
+    // the click that is coming) can collapse the DOM selection in some browsers, so the row
+    // copies this captured string. With nothing selected — the normal case — no row appears.
+    const [selectedText] = useState(() => getSelectedText());
 
     useLayoutEffect(() => {
         const element = ref.current;
@@ -95,6 +102,20 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
         };
     }, [onClose]);
 
+    // "Copy selected text" joins the end of whatever menus were handed in — post menu, header
+    // menu, chat-list menu — but only while the user actually has a selection to copy.
+    const entries: MenuEntry[] = selectedText
+        ? [...items, {
+            key: 'copy-selection',
+            label: 'Copy selected text',
+            onClick: () => {
+                copyToClipboard(selectedText)
+                    .then(() => actions.toast('Selected text copied', 'success'))
+                    .catch(() => actions.toast('Could not copy the selected text', 'error'));
+            },
+        }]
+        : items;
+
     // Portal into the overlay root so the menu inherits the --tgw-* theme variables
     // (background, border, shadow) - see portal.ts.
     const container = overlayRoot();
@@ -106,7 +127,7 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
             style={{left: position.left, top: position.top, width}}
             role="menu"
         >
-            {items.map((item, index) => {
+            {entries.map((item, index) => {
                 if (item === 'separator') {
                     return <div key={`sep-${index}`} className="tgw-menu-separator"/>;
                 }

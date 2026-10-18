@@ -507,6 +507,75 @@ root.render(React.createElement(TelegramUI));
         ok(calls.slice(beforeRemove).some((call) => call.startsWith('DELETE') && call.includes('/reactions/')), 'clicking it again removes my reaction');
     }
 
+    console.log('\n== copy selected text from the context menu ==');
+    {
+        const p1row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p1');
+        ok(!!p1row, 'p1 rendered for the selection check');
+
+        // With nothing selected the row must not pad the menu.
+        p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 140, clientY: 210}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const withoutSelection = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Copy selected text'));
+        ok(!withoutSelection, 'with no selection the context menu has no "Copy selected text" row');
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
+
+        // Highlight part of the message text…
+        const textEl = p1row ? p1row.querySelector('.tgw-message-text') : null;
+        const walker = dom.window.document.createTreeWalker(textEl || p1row, dom.window.NodeFilter.SHOW_TEXT, null);
+        let node = walker.nextNode();
+        while (node && !(node.data || '').includes('How are you')) {
+            node = walker.nextNode();
+        }
+        ok(!!node, 'found the message text node to select');
+
+        // …and capture what the row will copy: jsdom ships no navigator.clipboard, so install
+        // one when the object accepts it and fall back to asserting only the visible toast
+        // when it does not (the production clipboard path still resolves either way).
+        const copied = [];
+        let stubbed = false;
+        try {
+            Object.defineProperty(dom.window.navigator, 'clipboard', {
+                configurable: true,
+                value: {
+                    __tgwStub: true,
+                    writeText: (text) => {
+                        copied.push(text);
+                        return Promise.resolve();
+                    },
+                },
+            });
+            stubbed = !!(navigator.clipboard && navigator.clipboard.__tgwStub);
+        } catch (err) {
+            stubbed = false;
+        }
+
+        if (node) {
+            const phrase = 'How are you';
+            const start = node.data.indexOf(phrase);
+            const range = dom.window.document.createRange();
+            range.setStart(node, start);
+            range.setEnd(node, start + phrase.length);
+            const selection = dom.window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            ok(!selection.isCollapsed, 'the test selection is active');
+
+            p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 140, clientY: 210}));
+            await waitFor(() => document.querySelector('.tgw-menu'));
+            const row = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Copy selected text'));
+            ok(!!row, 'with text selected the context menu offers "Copy selected text"');
+
+            row?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            const toastShown = await waitFor(() => Array.from(document.querySelectorAll('.tgw-toast')).some((entry) => entry.textContent.includes('Selected text copied')));
+            ok(!!toastShown, 'clicking it copies and confirms with a success toast');
+            if (stubbed) {
+                ok(copied[0] === phrase, `exactly the selected text is copied (got: ${JSON.stringify(copied[0])})`);
+            }
+            selection.removeAllRanges();
+        }
+    }
+
     console.log('\n== attachments, thread, image viewer ==');
     const thumbs = document.querySelectorAll('.tgw-attachment-image');
     ok(thumbs.length >= 2, `image attachments render in the chat (${thumbs.length})`);
