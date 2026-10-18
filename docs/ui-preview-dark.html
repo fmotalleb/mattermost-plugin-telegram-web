@@ -1884,9 +1884,15 @@ img.tgw-reaction-emoji {
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 100%;
     padding: 9px 14px;
-    text-decoration: none;
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
     color: inherit;
+    cursor: pointer;
+    text-decoration: none;
     transition: background 0.12s ease;
 }
 
@@ -2857,6 +2863,7 @@ img.tgw-reaction-emoji {
         width: 340px;
     }
     .tgw-info-panel,
+    .tgw-files-panel,
     .tgw-thread-panel {
         width: 320px;
     }
@@ -2890,6 +2897,7 @@ img.tgw-reaction-emoji {
     }
 
     .tgw-shell-mobile .tgw-info-panel,
+    .tgw-shell-mobile .tgw-files-panel,
     .tgw-shell-mobile .tgw-thread-panel {
         position: absolute;
         right: 0;

@@ -471,6 +471,21 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => !document.querySelector('.tgw-files-panel'));
     ok(!document.querySelector('.tgw-files-panel'), 'collapse button minimizes the panel again');
 
+    // Clicking a file lands on the message that shared it instead of opening a new tab.
+    document.querySelector('button[title="Shared files"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-files-panel'));
+    const photoRow = Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-row'))
+        .find((row) => (row.textContent || '').includes('photo-one.png'));
+    ok(!!photoRow && photoRow.tagName === 'BUTTON', 'file rows are buttons, not links to a new tab');
+    ok(!document.querySelector('.tgw-files-panel .tgw-file-row[href]'), 'no file row points at a raw file URL');
+    if (photoRow) {
+        photoRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-post-highlight'));
+        const landed = document.querySelector('.tgw-post-highlight');
+        ok(!!landed && landed.getAttribute('data-post-id') === 'p1',
+            `clicking a file scrolls to its message with the flash highlight (${landed && landed.getAttribute('data-post-id')})`);
+    }
+
     console.log('\n== interactions ==');
     const townRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!townRow, 'town square row found');

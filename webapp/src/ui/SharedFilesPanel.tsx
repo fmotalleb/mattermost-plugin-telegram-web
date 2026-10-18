@@ -1,9 +1,9 @@
 // Right-hand "Shared files" menu: every file exchanged in the open chat, newest first,
 // behind a fuzzy-free file-name search bar. Toggled from the chat header and collapsible
 // from its own header, so it starts minimized like Mattermost's channel-info gutters.
+// Clicking a file lands back on the message that shared it instead of opening the raw file.
 
 import React, {useState} from 'react';
-import {api} from '../mm/api';
 import {useChannelPosts} from '../mm/posts';
 import {useSelector} from '../mm/store';
 import type {MMFileInfo, MMPost} from '../mm/types';
@@ -13,7 +13,7 @@ import {filesOfPost} from './MessageList';
 import {IconClose, IconFile, IconSearch} from './primitives';
 
 export function SharedFilesPanel() {
-    const {actions, channel, timeFormat} = useTg();
+    const {actions, channel, timeFormat, isMobile} = useTg();
     const {posts} = useChannelPosts(channel?.id);
     const profiles = useSelector((state) => state.entities?.users?.profiles);
     const [term, setTerm] = useState('');
@@ -35,6 +35,17 @@ export function SharedFilesPanel() {
 
     const needle = term.trim().toLowerCase();
     const visible = needle ? rows.filter((row) => row.file.name.toLowerCase().includes(needle)) : rows;
+
+    // Land on the message instead of opening the file in a new tab: the message list scrolls
+    // to the post and flashes it. Phones overlay this panel on top of the chat, so drop it
+    // there first to actually reveal the message; on desktop it stays open for browsing.
+    const goToMessage = (post: MMPost) => {
+        actions.setUI({
+            highlightedPostId: post.id,
+            searchOpen: false,
+            ...(isMobile ? {filesOpen: false} : {}),
+        });
+    };
 
     return (
         <aside className="tgw-info-panel tgw-files-panel">
@@ -82,13 +93,12 @@ export function SharedFilesPanel() {
                 {visible.map(({file, post}) => {
                     const author = profiles?.[post.user_id];
                     return (
-                        <a
+                        <button
+                            type="button"
                             className="tgw-file-row"
                             key={file.id}
-                            href={api.fileURL(file.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={`Download ${file.name}`}
+                            onClick={() => goToMessage(post)}
+                            title={`Go to message with ${file.name}`}
                         >
                             <span className="tgw-file-icon">
                                 <IconFile size={20}/>
@@ -99,7 +109,7 @@ export function SharedFilesPanel() {
                                     {`${formatBytes(file.size || 0)} · ${formatMessageStamp(post.create_at, timeFormat)}${author ? ` · ${displayName(author).split(' ')[0]}` : ''}`}
                                 </span>
                             </span>
-                        </a>
+                        </button>
                     );
                 })}
             </div>
