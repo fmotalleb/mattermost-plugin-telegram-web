@@ -176,6 +176,7 @@ const tabsMemo = new Memo<ChatTab[]>();
 const tabChatsMemo = new Memo<ChatSummary[]>();
 const categoryChatsMemo = new Memo<ChatSummary[]>();
 const searchChatsMemo = new Memo<ChatSummary[]>();
+const tabUnreadMemo = new Memo<Record<string, number>>();
 
 export function getMemberCount(state: MMState, channelId: string): number {
     const stats = state.entities?.channels?.stats?.[channelId];
@@ -424,6 +425,34 @@ export function getTabChats(state: MMState, tabId: string): ChatSummary[] {
         return getAllChats(state);
     }
     return tabChatsMemo.get([category, state.entities?.channels?.myMembers, state.entities?.users], () => getChatsForCategory(state, category));
+}
+
+// Unread message total of every folder tab, so the whole tab row can be badged at once.
+// Keyed on exactly the entities the chat lists themselves watch: a count must move whenever a
+// row badge moves (opening a chat, mark-as-unread, websocket updates, category changes).
+export function getTabUnreadCounts(state: MMState, tabs: ChatTab[]): Record<string, number> {
+    return tabUnreadMemo.get(
+        [
+            tabs,
+            state.entities?.channelCategories?.byId,
+            getChannels(state),
+            state.entities?.channels?.myMembers,
+            state.entities?.users,
+            state.entities?.teams,
+            state.entities?.channels?.membersInChannel,
+            state.entities?.preferences?.myPreferences,
+            state.entities?.channels?.stats,
+            state.entities?.channels?.manuallyUnread,
+            state.entities?.channels?.messageCounts,
+        ],
+        () => {
+            const counts: Record<string, number> = {};
+            tabs.forEach((tab) => {
+                counts[tab.id] = getTabChats(state, tab.id).reduce((sum, chat) => sum + (chat.unread || 0), 0);
+            });
+            return counts;
+        },
+    );
 }
 
 export function searchChats(state: MMState, term: string): ChatSummary[] {

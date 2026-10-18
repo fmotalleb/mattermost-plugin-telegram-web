@@ -57,6 +57,22 @@ root.render(React.createElement(TelegramUI));
     ok(body.includes('Work stuff'), 'custom Mattermost category exposed as a folder');
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
 
+    // Each folder tab carries its unread message total: DM (4-2=2) and Town Square (12-1=11).
+    const folderBtn = (label) => Array.from(document.querySelectorAll('.tgw-folder'))
+        .find((btn) => (btn.textContent || '').startsWith(label));
+    const folderCount = (label) => {
+        const badge = folderBtn(label)?.querySelector('.tgw-folder-badge');
+        return badge ? badge.textContent : '';
+    };
+    console.log('== folder unread counters ==');
+    ok(!!folderBtn('All'), 'folder tabs rendered with counters');
+    ok(folderCount('All') === '13', `the All tab carries the total unread message count (${folderCount('All') || 'none'})`);
+    ok(folderCount('Unread') === '13', `the Unread tab counts the same messages (${folderCount('Unread') || 'none'})`);
+    ok(folderCount('Groups') === '11', `the Groups tab counts only its channel (${folderCount('Groups') || 'none'})`);
+    ok(folderCount('Direct Messages') === '2', `the Direct Messages tab counts the DM (${folderCount('Direct Messages') || 'none'})`);
+    ok(folderCount('Work stuff') === '13', `a custom folder sums its chats (${folderCount('Work stuff') || 'none'})`);
+    ok(!folderBtn('Contacts')?.querySelector('.tgw-folder-badge'), 'tabs without unread chats carry no badge');
+
     // Wait for the channel posts request of the initial chat (fetch + render time varies).
     await waitFor(() => document.body.innerHTML.includes('How are you'));
     console.log('\n== messages ==');

@@ -9,6 +9,7 @@ import {
     getCurrentTeamId,
     getMyId,
     getTabChats,
+    getTabUnreadCounts,
     getTeams,
     searchChats,
     searchContactCandidates,
@@ -171,6 +172,7 @@ function getStatusOf(userId: string): string {
 export function Sidebar() {
     const {ui, actions, tabs, timeFormat, settings, me} = useTg();
     const chats = useSelector((state) => getTabChats(state, ui.activeTabId));
+    const tabUnread = useSelector((state) => getTabUnreadCounts(state, tabs));
     const contacts = useSelector(getContacts);
     const myId = useSelector(getMyId);
     const myStatus = useSelector((state) => getStatus(state, myId));
@@ -377,16 +379,20 @@ export function Sidebar() {
 
             {!isSearching && settings.folderTabs && tabs.length > 1 && (
                 <nav className="tgw-folders">
-                    {tabs.map((entry) => (
-                        <button
-                            type="button"
-                            key={entry.id}
-                            className={`tgw-folder ${entry.id === ui.activeTabId ? 'tgw-folder-active' : ''}`}
-                            onClick={() => actions.setTab(entry.id)}
-                        >
-                            {entry.label}
-                        </button>
-                    ))}
+                    {tabs.map((entry) => {
+                        const unread = tabUnread[entry.id] || 0;
+                        return (
+                            <button
+                                type="button"
+                                key={entry.id}
+                                className={`tgw-folder ${entry.id === ui.activeTabId ? 'tgw-folder-active' : ''}`}
+                                onClick={() => actions.setTab(entry.id)}
+                            >
+                                {entry.label}
+                                {unread > 0 && <span className="tgw-folder-badge">{unread > 99 ? '99+' : unread}</span>}
+                            </button>
+                        );
+                    })}
                 </nav>
             )}
 
