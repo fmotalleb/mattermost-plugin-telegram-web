@@ -6,7 +6,7 @@
 // surface ever changes.
 
 import React from 'react';
-import {replaceShortcodes} from '../mm/emoji';
+import {replaceShortcodes, splitEmoji} from '../mm/emoji';
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
 
@@ -129,6 +129,11 @@ export function MessageBody({message, postId, editedAt, mentionKeys, className}:
             postId,
             editedAt,
         });
+        // The host formatter hands back bare unicode emoji inside its text nodes: their own
+        // fallback-font metrics stretch the row (or split a sequence over two lines). Same box
+        // the fallback renderer uses, applied to the whole rendered tree; linkify first so the
+        // bare-domain links it creates pass through the emoji walk untouched.
+        rendered = wrapEmojiNodes(linkifyNodes(rendered));
     } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[telegram-web-ui] post formatting failed, using the fallback renderer', error);
@@ -169,7 +174,7 @@ export function renderFallback(message: string, mentionKeys?: Array<{key: string
 function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key: string; caseSensitive?: boolean}>): React.ReactNode[] {
     const nodes: React.ReactNode[] = [];
     // Order matters: inline code first so its content is not formatted any further.
-    const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9._-]+)/g;
+    const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9._-]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let index = 0;
@@ -182,7 +187,7 @@ function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key:
         if (match.index > lastIndex) {
             nodes.push(...renderTextWithLinks(text.slice(lastIndex, match.index), `${keyPrefix}-t${index++}`));
         }
-        const [full, code, bold, underline, strike, italic, link, url, mention] = match;
+        const [full, code, bold, underline, strike, italic, link, url, mention, bare] = match;
         const key = `${keyPrefix}-${index++}`;
         if (code) {
             nodes.push(<code key={key} className="tgw-inline-code">{code.slice(1, -1)}</code>);
@@ -207,6 +212,14 @@ function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key:
             const name = mention.slice(1).toLowerCase();
             const isSelf = mentionNames.includes(name);
             nodes.push(<span key={key} className={`tgw-mention ${isSelf ? 'tgw-mention-self' : ''}`}>{mention}</span>);
+        } else if (bare) {
+            // Typed without a scheme (google.com, openai.com): link it — unless it is the tail
+            // of an address (bob@openai.com) or part of a larger word.
+            if (match.index > 0 && /[\w@]/.test(text[match.index - 1])) {
+                nodes.push(<React.Fragment key={key}>{full}</React.Fragment>);
+            } else {
+                nodes.push(<a key={key} href={`https://${full}`} target="_blank" rel="noopener noreferrer">{full}</a>);
+            }
         }
         lastIndex = match.index + full.length;
     }
@@ -230,11 +243,137 @@ function renderTextWithLinks(text: string, keyPrefix: string): React.ReactNode[]
         const content = line.replace(/^(&gt;|>)\s?/, '');
         nodes.push(
             <span key={`${keyPrefix}-line-${lineIndex}`} className={quote ? 'tgw-quote' : undefined}>
-                {content}
+                {renderEmojiRuns(content, `${keyPrefix}-line-${lineIndex}`)}
             </span>,
         );
     });
     return nodes;
+}
+
+/** Plain and emoji pieces → text fragments plus one atomic `.tgw-emoji` box per emoji. */
+function renderEmojiRuns(text: string, key: string): React.ReactNode[] {
+    return splitEmoji(text).map((piece, index) => (
+        piece.emoji
+            ? <span key={`${key}-e${index}`} className="tgw-emoji">{piece.text}</span>
+            : <React.Fragment key={`${key}-t${index}`}>{piece.text}</React.Fragment>
+    ));
+}
+
+/**
+ * Walks the host formatter's rendered tree and wraps every emoji run in the same atomic box the
+ * fallback renderer uses — formatText hands back bare unicode whose fallback-font metrics
+ * stretch the row or split a sequence over two lines. Code/pre stay untouched so literal
+ * characters keep their monospace flow, as do elements the host already marked as emoji.
+ */
+export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
+    if (node === null || node === undefined || typeof node === 'boolean') {
+        return node;
+    }
+    if (typeof node === 'string' || typeof node === 'number') {
+        const pieces = splitEmoji(String(node));
+        if (!pieces.some((piece) => piece.emoji)) {
+            return node;
+        }
+        return pieces.map((piece, index) => (
+            piece.emoji
+                ? <span key={`e${index}`} className="tgw-emoji">{piece.text}</span>
+                : <React.Fragment key={`t${index}`}>{piece.text}</React.Fragment>
+        ));
+    }
+    if (Array.isArray(node)) {
+        return node.map((child, index) => {
+            const mapped = wrapEmojiNodes(child);
+            if (React.isValidElement(mapped) && mapped.key === null) {
+                return React.cloneElement(mapped, {key: `k${index}`});
+            }
+            return mapped;
+        });
+    }
+    if (React.isValidElement(node)) {
+        const element = node as React.ReactElement<any>;
+        if (element.type === 'code' || element.type === 'pre') {
+            return element;
+        }
+        const props = element.props || {};
+        const className = typeof props.className === 'string' ? props.className : '';
+        if (/(^|\s)(emoticon|emoji)(\s|$)/.test(className) || props.children === undefined) {
+            return element;
+        }
+        return React.cloneElement(element, undefined, wrapEmojiNodes(props.children));
+    }
+    return node;
+}
+
+/**
+ * Autolinks bare domains (google.com, openai.com, www.x.io/path) in the host formatter's text
+ * nodes: both renderers only linked explicit http(s) URLs, so typed domains stayed plain. The
+ * curated TLD list keeps words like version.js or file.name from turning into links.
+ */
+const AUTOLINK_PATTERN = /(?:https?:\/\/[^\s<>()]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
+
+function linkifyText(text: string): React.ReactNode[] {
+    const re = new RegExp(AUTOLINK_PATTERN.source, 'gi');
+    const nodes: React.ReactNode[] = [];
+    let last = 0;
+    let index = 0;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        const url = match[0];
+        const isHttp = /^https?:\/\//i.test(url);
+        if (!isHttp && match.index > 0 && /[\w@]/.test(text[match.index - 1])) {
+            continue; // tail of an address (bob@openai.com) or part of a larger word
+        }
+        if (match.index > last) {
+            nodes.push(text.slice(last, match.index));
+        }
+        nodes.push(
+            <a key={`u${index++}`} href={isHttp ? url : `https://${url}`} target="_blank" rel="noopener noreferrer">{url}</a>,
+        );
+        last = match.index + url.length;
+        if (url.length === 0) {
+            re.lastIndex++;
+        }
+    }
+    if (last < text.length) {
+        nodes.push(text.slice(last));
+    }
+    return nodes;
+}
+
+/** Same recursive shape as wrapEmojiNodes, one concern earlier: text nodes become linked nodes. */
+function linkifyNodes(node: React.ReactNode): React.ReactNode {
+    if (node === null || node === undefined || typeof node === 'boolean') {
+        return node;
+    }
+    if (typeof node === 'string' || typeof node === 'number') {
+        const text = String(node);
+        const re = new RegExp(AUTOLINK_PATTERN.source, 'gi');
+        if (!re.test(text)) {
+            return node;
+        }
+        return linkifyText(text);
+    }
+    if (Array.isArray(node)) {
+        return node.map((child, index) => {
+            const mapped = linkifyNodes(child);
+            if (React.isValidElement(mapped) && mapped.key === null) {
+                return React.cloneElement(mapped, {key: `k${index}`});
+            }
+            return mapped;
+        });
+    }
+    if (React.isValidElement(node)) {
+        const element = node as React.ReactElement<any>;
+        if (element.type === 'code' || element.type === 'pre' || element.type === 'a') {
+            return element;
+        }
+        const props = element.props || {};
+        if (props.children === undefined) {
+            return element;
+        }
+        return React.cloneElement(element, undefined, linkifyNodes(props.children));
+    }
+    return node;
 }
 
 /** Used by the "message hit" list: strips markdown but keeps the search term visible. */

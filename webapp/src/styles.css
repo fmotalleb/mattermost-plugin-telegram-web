@@ -1134,11 +1134,17 @@
     color: #ffffff;
 }
 
+/* Every emoji in a message — host-formatted or fallback — sits in one atomic box: emoji fonts
+   run far taller than these rows' 1.35 line box, which stretched the line around them, and a
+   sequence (⚙️, 👨‍👩‍👧‍👦, 🇷🇪) could break across lines. Fixed size keeps them all equal. */
 .tgw-emoji,
-.tgw-message-text .emoticon {
+.tgw-message-text .emoticon,
+.tgw-message-text .emoji {
+    display: inline-block;
+    white-space: nowrap;
     font-size: 1.15em;
     line-height: 1;
-    vertical-align: -2px;
+    vertical-align: -0.15em;
 }
 
 .tgw-msg-meta {
@@ -1878,6 +1884,16 @@ img.tgw-reaction-emoji {
 
 .tgw-files-search-field {
     flex: none;
+}
+
+/* Scope line: the list only covers the messages fetched so far; the search box reaches further. */
+.tgw-files-scope {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--tgw-border);
+    background: var(--tgw-bg-secondary);
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--tgw-text-tertiary);
 }
 
 .tgw-files-body {

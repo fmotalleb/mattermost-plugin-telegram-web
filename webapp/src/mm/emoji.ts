@@ -254,6 +254,37 @@ export function replaceShortcodes(text: string): string {
     return text.replace(SHORTCODE_PATTERN, (match, name: string) => SHORTCODE_MAP[name] || match);
 }
 
+// One whole emoji as a line-breaking unit: base + optional variation selector/skin tone, ZWJ
+// chains (👨‍👩‍👧‍👦) and flag pairs (🇷🇪). \p{RI} is not a Unicode property, hence the surrogate-pair
+// range for regional indicators. Keycaps (1️⃣) are rare in chat and stay plain text.
+const EMOJI_RUN = new RegExp(
+    '(\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E|\\p{Emoji_Modifier})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E|\\p{Emoji_Modifier})?)*|[\\u{1F1E6}-\\u{1F1FF}]{2})',
+    'u',
+);
+
+export interface EmojiPiece {
+    emoji: boolean;
+    text: string;
+}
+
+/**
+ * Splits text into plain/emoji pieces (the capturing split makes odd indexes the emoji runs),
+ * so message bodies can wrap every emoji — shortcodes already turned into unicode, or typed —
+ * into one atomic, uniformly sized box that can never stretch a row or break across lines.
+ */
+export function splitEmoji(text: string): EmojiPiece[] {
+    if (!text) {
+        return [];
+    }
+    const pieces: EmojiPiece[] = [];
+    text.split(EMOJI_RUN).forEach((chunk, index) => {
+        if (chunk !== '') {
+            pieces.push({emoji: index % 2 === 1, text: chunk});
+        }
+    });
+    return pieces;
+}
+
 export function searchEmoji(term: string, limit = 60): EmojiEntry[] {
     const lower = term.trim().toLowerCase();
     if (!lower) {

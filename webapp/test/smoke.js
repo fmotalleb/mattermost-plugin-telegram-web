@@ -265,6 +265,52 @@ root.render(React.createElement(TelegramUI));
         ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)', 'the DM header shows First Last (nickname)');
     }
 
+    // Emoji must sit in one atomic, uniformly sized box inside messages: emoji fonts run taller
+    // than the row (stretching it into "two lines") and sequences could break between lines.
+    console.log('\n== emoji boxes in messages ==');
+    const emojiBoxes = document.querySelectorAll('.tgw-message-text .tgw-emoji');
+    ok(emojiBoxes.length > 0, `shortcode emoji wrapped in an atomic box (${emojiBoxes.length})`);
+    ok(!!Array.from(emojiBoxes).find((box) => (box.textContent || '').includes('😄')), 'the smiley shortcode renders as a boxed emoji');
+    {
+        // The host formatter path has no PostUtils in jsdom: feed a synthetic element tree — the
+        // same shape messageHtmlToComponent returns — through the wrapper instead.
+        const {wrapEmojiNodes} = require('../src/ui/render');
+        const hostTree = React.createElement('span', null,
+            'turn ', '⚙️ now ', '👨‍👩‍👧‍👦 ', React.createElement('code', null, ':gear: kept'));
+        const probe = document.createElement('div');
+        document.body.appendChild(probe);
+        const probeRoot = ReactDOMClient.createRoot(probe);
+        probeRoot.render(wrapEmojiNodes(hostTree));
+        await tick(40);
+        const wrappedBoxes = probe.querySelectorAll('.tgw-emoji');
+        ok(wrappedBoxes.length === 2, `host-path emoji wrapped into boxes (${wrappedBoxes.length})`);
+        ok((wrappedBoxes[0]?.textContent || '') === '⚙️', `variation-selector emoji kept whole (${wrappedBoxes[0]?.textContent || ''})`);
+        ok((wrappedBoxes[1]?.textContent || '') === '👨‍👩‍👧‍👦', 'ZWJ sequence stays inside one box');
+        ok(probe.querySelector('code')?.textContent === ':gear: kept', 'code spans keep their raw text');
+        probeRoot.unmount();
+        probe.remove();
+    }
+
+    // Typed without a scheme: google.com / openai.com must become links, emails must not.
+    console.log('\n== bare domain links ==');
+    {
+        const {renderFallback} = require('../src/ui/render');
+        const probe = document.createElement('div');
+        document.body.appendChild(probe);
+        const probeRoot = ReactDOMClient.createRoot(probe);
+        probeRoot.render(React.createElement('span', null,
+            renderFallback('go to google.com or openai.com now (see https://x.io/y) mail bob@WAY.com')));
+        await tick(40);
+        const links = Array.from(probe.querySelectorAll('a')).map((a) => `${a.textContent}→${a.getAttribute('href')}`);
+        ok(links.includes('google.com→https://google.com'), `bare google.com linked without a scheme (${links.join(', ')})`);
+        ok(links.includes('openai.com→https://openai.com'), 'bare openai.com linked');
+        ok(links.includes('https://x.io/y→https://x.io/y'), 'an explicit https URL keeps working');
+        ok(!links.includes('bob@WAY.com→https://WAY.com'), 'an email address is not linkified as a bare domain');
+        ok(!probe.querySelectorAll('a').length || probe.textContent.includes('bob@WAY.com'), 'the address stays visible as text');
+        probeRoot.unmount();
+        probe.remove();
+    }
+
     console.log('\n== emoji previews ==');
     {
         // p2 contains ":smile:" — the chat-list preview and reply previews must show the
@@ -520,6 +566,22 @@ root.render(React.createElement(TelegramUI));
         ok(document.querySelectorAll('.tgw-files-panel .tgw-file-row').length === 0, 'a non-matching name hides every row');
         ok(document.querySelector('.tgw-files-panel .tgw-empty-list') !== null, 'a no-results hint is shown');
         valueSetter.call(fileSearch, '');
+        fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(60);
+    }
+
+    // Scope + full-history search: the note says the list covers the fetched messages, and
+    // holding a term queries the search API so files older than the loaded window can appear.
+    const scopeNote = document.querySelector('.tgw-files-scope');
+    ok(!!scopeNote && /since .+Search/.test(scopeNote.textContent || ''), `the panel states the fetched-message scope (${scopeNote && scopeNote.textContent})`);
+    if (fileSearch) {
+        const remoteSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+        remoteSetter.call(fileSearch, 'hello');
+        fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(450); // > the 300ms debounce before the search API is hit
+        ok(calls.some((call) => call.includes('/posts/search')), 'holding a term searches full message history through the search API');
+        ok(!document.querySelector('.tgw-files-scope'), 'the scope note hides while a search is active');
+        remoteSetter.call(fileSearch, '');
         fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
         await tick(60);
     }
