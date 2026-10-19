@@ -3,7 +3,7 @@
 // The Mattermost web app exposes React, ReactDOM, Redux, ReactRedux, ... on the global window
 // object (see webapp/channels/src/plugins/export.ts upstream) so plugin bundles must externalize
 // them instead of shipping their own copy. This guarantees the plugin always runs against the
-// same React instance the host app uses (React 19 on Mattermost v11).
+// same React instance the host app uses (React 19 on Mattermost v12, React 18 on v11).
 
 const path = require('path');
 

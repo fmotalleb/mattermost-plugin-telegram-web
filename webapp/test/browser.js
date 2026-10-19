@@ -45,6 +45,37 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // are tagged on the way out and rebuilt in the page.
 const sub = (value) => JSON.stringify(value, (key, item) => (item instanceof Set ? {__set: [...item]} : item));
 
+// React 19 removed the UMD builds, so the page gets the production cjs files through a tiny
+// CommonJS shim. window.React / window.ReactDOM mirror the globals the Mattermost plugin loader
+// exposes to bundles; window.ReactDOMClient provides createRoot (which the main react-dom entry
+// no longer re-exports in React 19) for mounting the registered root component.
+const reactCJS = (() => {
+    const base = path.join(__dirname, '..', 'node_modules');
+    const sources = {
+        'scheduler': fs.readFileSync(path.join(base, 'scheduler', 'cjs', 'scheduler.production.js'), 'utf8'),
+        'react': fs.readFileSync(path.join(base, 'react', 'cjs', 'react.production.js'), 'utf8'),
+        'react-dom': fs.readFileSync(path.join(base, 'react-dom', 'cjs', 'react-dom.production.js'), 'utf8'),
+        'react-dom/client': fs.readFileSync(path.join(base, 'react-dom', 'cjs', 'react-dom-client.production.js'), 'utf8'),
+    };
+    return `<script>
+(function () {
+    const sources = ${JSON.stringify(sources)};
+    const cache = {};
+    function req(name) {
+        if (!cache[name]) {
+            const module = {exports: {}};
+            cache[name] = module;
+            new Function('module', 'exports', 'require', sources[name])(module, module.exports, req);
+        }
+        return cache[name].exports;
+    }
+    window.React = req('react');
+    window.ReactDOM = req('react-dom');
+    window.ReactDOMClient = req('react-dom/client');
+})();
+</script>`;
+})();
+
 const page = `<!doctype html>
 <html lang="en">
 <head>
@@ -52,8 +83,7 @@ const page = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>plugin bundle in a real browser</title>
 <style>html, body { margin: 0; height: 100%; }</style>
-<script>${fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'react', 'umd', 'react.production.min.js'), 'utf8')}</script>
-<script>${fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'react-dom', 'umd', 'react-dom.production.min.js'), 'utf8')}</script>
+${reactCJS}
 </head>
 <body>
 <!-- The host's own message box, focusable and behind the overlay, like in the real web app. -->
@@ -147,7 +177,7 @@ try {
     if (!registered) {
         throw new Error('the bundle never called window.registerPlugin');
     }
-    const root = ReactDOM.createRoot(document.getElementById('root'));
+    const root = window.ReactDOMClient.createRoot(document.getElementById('root'));
     const registry = {
         registerRootComponent: (component) => {
             root.render(React.createElement(component));

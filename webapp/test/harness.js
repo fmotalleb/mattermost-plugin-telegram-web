@@ -38,7 +38,10 @@ global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
 global.cancelAnimationFrame = (id) => clearTimeout(id);
 dom.window.requestAnimationFrame = global.requestAnimationFrame;
 dom.window.cancelAnimationFrame = global.cancelAnimationFrame;
-global.IS_REACT_ACT_ENVIRONMENT = true;
+// The tests drive renders through tick()/waitFor() instead of act(), so the environment is
+// explicitly *not* an act() environment: with React 19 that keeps every update from warning
+// "not wrapped in act(...)".
+global.IS_REACT_ACT_ENVIRONMENT = false;
 window.basename = '';
 // WebappUtils with a recording history so the plugin's route syncing is observable in tests.
 window.__historyPushes = [];

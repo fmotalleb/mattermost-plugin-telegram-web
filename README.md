@@ -33,11 +33,11 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 
 | Item | Value |
 | --- | --- |
-| Target Mattermost | **v11.11.x** (built and verified against the `mattermost/mattermost` v11 source tree); the webapp plugin API it uses is stable back to 9.5 |
-| `min_server_version` | `9.5.0` |
+| Target Mattermost | **v12.0+** (built and verified against the React 19 web app that ships with v12.0); also runs on v11.x hosts (React 18), which the classic JSX output stays compatible with |
+| `min_server_version` | `12.0.0` |
 | Server component | small Go binary (`server/`) — records who saw which post so the web app can show Telegram-style view counts; only linux-amd64/arm64 builds ship |
 | Bundle | `webapp/dist/main.js` (a single ~190 KB minified file, CSS inlined) |
-| React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance |
+| React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance (React 19 on Mattermost v12); the test harness runs on React 19 to match |
 
 ## Install
 
