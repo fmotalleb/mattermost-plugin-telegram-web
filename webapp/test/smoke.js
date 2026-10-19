@@ -208,15 +208,12 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== view counts ==');
-    // The plugin server component seeds two viewers on the deploy post; the UI must render the
-    // tally and report the visible posts back through POST /plugins/.../api/v1/views.
-    await waitFor(() => document.querySelector('.tgw-msg-views'));
-    const viewsLabel = (document.querySelector('.tgw-msg-views')?.textContent || '').trim();
-    ok(/[1-9]/.test(viewsLabel), `view count rendered next to the message (${viewsLabel})`);
-    ok(document.querySelector('.tgw-msg-views svg'), 'view count shows the eye icon');
-    const p3row = Array.from(document.querySelectorAll('.tgw-msg-in')).find((row) => row.getAttribute('data-post-id') === 'p3');
-    const p3views = (p3row?.querySelector('.tgw-msg-views')?.textContent || '').trim();
-    ok(p3views === '2', `own view is excluded from the count (p3 shows ${p3views || 'nothing'})`);
+    // Direct chats hide the tally — the receipt below carries the same information — even when
+    // the data is there: p3 has two seeded viewers, which would render an eye without the DM
+    // gate (group chats assert the positive case in the interactions section).
+    ok(!document.querySelector('.tgw-msg-views'), 'direct message bubbles do not show the view tally');
+    // The tracking itself keeps running: visible posts are reported through POST
+    // /plugins/.../api/v1/views and their counts fetched back with GET.
     // Checkmark receipts: p2 (mine) was seen by another user, so it must show two checks;
     // a fresh outgoing post nobody else saw keeps a single check (asserted in the reply section).
     await waitFor(() => {
@@ -264,24 +261,23 @@ root.render(React.createElement(TelegramUI));
     ok(!!freshId && !!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M9.6"]`), 'the fresh outgoing post starts with a single checkmark');
     const viewsGets = () => calls.filter((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')).length;
 
-    state.entities.users.statuses[ids.OTHER] = 'online';
-    notifyStoreChange();
-    await tick(400);
-    const onlineGets = viewsGets();
+    // One of my messages is still unseen by the peer — that is the condition for refreshing:
+    // about every second, so the receipt flips without a reload once they open it.
+    const unseenGets = viewsGets();
     await tick(1400);
-    ok(viewsGets() > onlineGets, `seen status re-polls about every second while the peer is online (${onlineGets} → ${viewsGets()} fetches)`);
+    ok(viewsGets() > unseenGets, `view stats re-poll about every second while a message is still unseen (${unseenGets} → ${viewsGets()} fetches)`);
 
     // The peer opens the message between two polls: the next fetch must flip the receipt.
     viewTracking.set(freshId, new Set([ids.ME, ids.OTHER]));
     await waitFor(() => document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 4000);
-    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 'the receipt flips to two checkmarks once the online peer sees the message');
+    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 'the receipt flips to two checkmarks once the peer sees the message');
 
-    state.entities.users.statuses[ids.OTHER] = 'away';
-    notifyStoreChange();
+    // Every message of mine has now been seen: with nothing left pending the polling stops
+    // and waits for the next message to be sent.
     await tick(400); // let any in-flight poll land before counting
-    const offlineGets = viewsGets();
+    const settledGets = viewsGets();
     await tick(1500);
-    ok(viewsGets() === offlineGets, 'polling stops once the peer is no longer online');
+    ok(viewsGets() === settledGets, 'polling stops once every message has been seen — it waits for the next message to be sent');
 
     console.log('\n== composer frees the input on send ==');
     // Regression: the composer used to reset() only after the network round trip, so chars
@@ -723,30 +719,57 @@ root.render(React.createElement(TelegramUI));
         await tick(60);
     }
 
-    // Scope + full-history search: the note says the list covers the fetched messages, and
-    // holding a term queries the search API so files older than the loaded window can appear.
+    // Scope + listing source: the note states that the whole history is covered, and the list
+    // itself comes from the team file search — no message-text search, no history walk.
     const scopeNote = document.querySelector('.tgw-files-scope');
-    ok(!!scopeNote && /since .+Search/.test(scopeNote.textContent || ''), `the panel states the fetched-message scope (${scopeNote && scopeNote.textContent})`);
+    ok(!!scopeNote && /Every file/.test(scopeNote.textContent || ''), `the panel states the listing scope (${scopeNote && scopeNote.textContent})`);
+    ok(calls.some((call) => call === 'POST /teams/team-1/files/search'), 'the list is loaded through the team file search');
     if (fileSearch) {
         const remoteSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
-        // `calls` records pathnames only (no ?before=), so paging shows up as a second DM page
-        // fetch inside this window — none happens between the initial load and here otherwise.
-        const pageGetsBefore = calls.filter((call) => call === 'GET /channels/channel-dm/posts').length;
-        // "annual" appears nowhere in any message text — only in the file name of p-old, an
-        // older message outside the fetched window — so its row can only come from the history
-        // walk that runs behind the search box.
+        // "annual" appears in no message text — only in the file name on p-old, a message older
+        // than the window the chat loads — so its row can only come from the files/search call.
+        const searchesBefore = calls.filter((call) => call.includes('/posts/search')).length;
+        const fileSearchesBefore = calls.filter((call) => call === 'POST /teams/team-1/files/search').length;
         remoteSetter.call(fileSearch, 'annual');
         fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
-        await tick(450); // > the 300ms debounce before the fetches fire
-        ok(calls.some((call) => call.includes('/posts/search')), 'holding a term searches full message history through the search API');
-        ok(calls.filter((call) => call === 'GET /channels/channel-dm/posts').length > pageGetsBefore, 'the file search pages back through older messages');
-        await waitFor(() => Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-row')).some((row) => (row.textContent || '').includes('annual-report.pdf')), 3000);
+        await tick(60);
         const olderFileRow = Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-row')).find((row) => (row.textContent || '').includes('annual-report.pdf'));
-        ok(!!olderFileRow, 'a file from an older, unfetched message appears when its name matches');
-        ok(!document.querySelector('.tgw-files-scope'), 'the scope note hides while a search is active');
+        ok(!!olderFileRow, 'a file from an older, unfetched message is listed under its name');
+        ok(calls.filter((call) => call.includes('/posts/search')).length === searchesBefore, 'the file list never goes through the message search');
+        // The typed needle joins the channel modifier on the debounced files/search request,
+        // exactly the way the stock app's file browser searches.
+        await tick(450); // > the 350ms debounce
+        const fileSearchesAfter = calls.filter((call) => call === 'POST /teams/team-1/files/search').length;
+        ok(fileSearchesAfter > fileSearchesBefore, `typing re-queries the team file search (${fileSearchesBefore} → ${fileSearchesAfter})`);
+        const lastTerms = payloads.filter((entry) => entry.path === '/teams/team-1/files/search').pop();
+        ok(!!lastTerms && lastTerms.body && String(lastTerms.body.terms) === 'channel:channel-dm annual',
+            `the search terms carry the channel modifier plus the needle (${lastTerms && lastTerms.body && lastTerms.body.terms})`);
+        ok(!document.querySelector('.tgw-files-scope'), 'the scope note hides while a filter is active');
+        // The jump fetches the message the file hangs off (older than the loaded window) and
+        // lands the chat on it with the flash highlight.
+        if (olderFileRow) {
+            olderFileRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            await waitFor(() => document.querySelector('.tgw-post-highlight')?.getAttribute('data-post-id') === 'p-old', 3000);
+            ok(calls.some((call) => call === 'GET /posts/p-old'), 'clicking it fetches the older message on demand');
+            ok(document.querySelector('.tgw-post-highlight')?.getAttribute('data-post-id') === 'p-old',
+                'clicking a file older than the loaded window lands the chat on its message');
+        }
         remoteSetter.call(fileSearch, '');
         fileSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
         await tick(60);
+    }
+
+    // Ctrl/Cmd+A inside a text field stays inside it: nothing downstream — the host app's
+    // document handlers, this overlay's own — may see the key and widen the selection.
+    if (fileSearch) {
+        let outsideSaw = false;
+        const spy = () => {
+            outsideSaw = true;
+        };
+        document.addEventListener('keydown', spy);
+        fileSearch.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'a', ctrlKey: true, bubbles: true, cancelable: true}));
+        document.removeEventListener('keydown', spy);
+        ok(!outsideSaw, 'Ctrl+A in a text field never reaches outer keydown handlers');
     }
 
     // The panel's own header button collapses it again (it is collapsible, not modal).
@@ -769,6 +792,27 @@ root.render(React.createElement(TelegramUI));
             `clicking a file scrolls to its message with the flash highlight (${landed && landed.getAttribute('data-post-id')})`);
     }
 
+    // The phone layout's back button drops the chat *and* the files panel: the panel overlays
+    // the chat on mobile, so leaving it open would cover the chat list we just came back to —
+    // and reopening the chat must not resurrect it.
+    const wideWidth = dom.window.innerWidth;
+    Object.defineProperty(dom.window, 'innerWidth', {value: 500, configurable: true, writable: true});
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    await waitFor(() => document.querySelector('.tgw-back-button'));
+    ok(!!document.querySelector('.tgw-back-button'), 'the chat header shows the back button in the phone layout');
+    document.querySelector('.tgw-back-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => !document.querySelector('.tgw-files-panel'));
+    ok(!document.querySelector('.tgw-files-panel'), 'the back button closes the open files panel too');
+    Object.defineProperty(dom.window, 'innerWidth', {value: wideWidth, configurable: true, writable: true});
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    await waitFor(() => !document.querySelector('.tgw-back-button'));
+    // Back on the wide layout: reopening the same chat must not bring the panel back.
+    const dmRowAgain = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
+    dmRowAgain?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await tick(60);
+    ok(!!document.querySelector('.tgw-chat-header-title') && !document.querySelector('.tgw-files-panel'),
+        'reopening the chat after going back keeps the files panel closed');
+
     console.log('\n== interactions ==');
     const townRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!townRow, 'town square row found');
@@ -779,6 +823,28 @@ root.render(React.createElement(TelegramUI));
         ok(calls.some((call) => call.includes('/channels/channel-town/posts')), 'posts of the opened chat requested');
         ok(dom.window.__historyPushes.includes('/demo/channels/town-square'), 'opening a chat pushes its Mattermost URL');
         ok(document.activeElement === document.querySelector('.tgw-composer textarea'), 'composer input focused after switching chats');
+
+        // The group eye tally: two seeded viewers on a fresh group message, own view excluded
+        // (both in the set, my own look subtracted → the bubble shows 1).
+        viewTracking.set('p-town-views', new Set([ids.ME, ids.OTHER]));
+        handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({
+            id: 'p-town-views', create_at: Date.now(), update_at: Date.now(), edit_at: 0, delete_at: 0,
+            user_id: ids.OTHER, channel_id: ids.TOWN, message: 'Group notes for the retro', type: '', props: {}, root_id: '', metadata: {}})}});
+        await waitFor(() => document.querySelector('.tgw-msg-views'), 3000);
+        const townViews = (document.querySelector('.tgw-msg-views')?.textContent || '').trim();
+        ok(townViews === '1', `group messages show the view tally, own view excluded (${townViews || 'nothing'})`);
+        ok(!!document.querySelector('.tgw-msg-views svg'), 'the tally carries the eye icon');
+
+        // Channels/groups refresh that tally every five seconds — never at the direct-chat
+        // one-second cadence. The mount fetch has landed (the eye is on screen), so what
+        // follows is purely the interval's doing; the DM list is unmounted, no other view
+        // GETs can arrive in this window.
+        const groupGets = () => calls.filter((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')).length;
+        const mountedGets = groupGets();
+        await tick(1500);
+        ok(groupGets() === mountedGets, `no group refresh within 1.5s of the last one (${groupGets()} fetches)`);
+        await waitFor(() => groupGets() > mountedGets, 4500);
+        ok(groupGets() > mountedGets, `group view tally re-polls every five seconds (${mountedGets} → ${groupGets()})`);
 
         // Info panel members must come from the REST list, not the sparse host Redux copy.
         document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
@@ -1017,14 +1083,18 @@ root.render(React.createElement(TelegramUI));
         // must fetch it on demand so the chat lands on the message instead of just opening.
         valueSetter.call(searchInput, 'deploy');
         searchInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
-        await waitFor(() => document.body.innerHTML.includes('pipeline'), 3000);
+        // The predicate must look for the hit row itself: the word "pipeline" also appears in
+        // the chat body once p-old is fetched into the open conversation.
+        await waitFor(() => Array.from(document.querySelectorAll('.tgw-message-hit')).some((row) => row.textContent.includes('pipeline')), 3000);
         const oldHit = Array.from(document.querySelectorAll('.tgw-message-hit')).find((row) => row.textContent.includes('pipeline'));
         ok(!!oldHit, 'the off-screen message shows up as a sidebar search hit');
-        const callsBeforeHit = calls.length;
         if (oldHit) {
             oldHit.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-            await waitFor(() => calls.slice(callsBeforeHit).some((call) => call === 'GET /posts/p-old'), 3000);
-            ok(calls.slice(callsBeforeHit).some((call) => call === 'GET /posts/p-old'), 'the off-screen hit is fetched on demand');
+            // The on-demand fetch itself is covered by the files-panel jump above and, with a
+            // cold cache, by the browser test. Here p-old already sits in the post cache (the
+            // files panel fetched it), so only the landing is left to check — and its flash
+            // window is 2.4s, so go straight for the highlight instead of waiting for a fetch
+            // that must not happen.
             await waitFor(() => {
                 const row = document.querySelector('[data-post-id="p-old"]');
                 return !!row && row.classList.contains('tgw-post-highlight');

@@ -394,6 +394,47 @@ export class MattermostAPI {
         return this.request('/users/me/preferences/delete', {method: 'POST', body: preferences});
     }
 
+    // ---------------------------------------------------------------- files of a channel
+
+    /**
+     * The team file search (POST /teams/{team_id}/files/search) — the exact call the stock
+     * app's file browser makes for a channel. The term carries the mandatory "channel:<id>"
+     * modifier, optionally followed by what to look for; the server matches it against the
+     * files themselves, so a channel's whole history is reachable without paging messages.
+     * POSTs carry the CSRF header like every other write (see fetchJSON).
+     *
+     * The server answers in Mattermost's file-list envelope: an `order` id array plus
+     * `file_infos` as a map keyed by id (model.FileList), with a `next_file_info_id` cursor.
+     * Both known encodings are normalized here — callers always get a plain array in the
+     * server's own order.
+     */
+    async searchChannelFiles(teamId: string, channelId: string, opts: {terms?: string; page?: number; perPage?: number} = {}): Promise<{file_infos: MMFileInfo[]; next_file_info_id?: string}> {
+        const terms = [`channel:${channelId}`, opts.terms || ''].filter(Boolean).join(' ');
+        const data = await this.request<any>(`/teams/${teamId}/files/search`, {
+            method: 'POST',
+            body: {
+                terms,
+                is_or_search: false,
+                include_deleted_channels: true,
+                // Seconds, the way the stock app sends it; the server only applies it to the
+                // date modifiers (before:/after:), never to a plain name term.
+                time_zone_offset: -new Date().getTimezoneOffset() * 60,
+                page: opts.page ?? 0,
+                per_page: opts.perPage ?? 100,
+            },
+        });
+        const infos = data && data.file_infos;
+        let list: MMFileInfo[];
+        if (Array.isArray(infos)) {
+            list = infos;
+        } else if (infos && Array.isArray(data.order)) {
+            list = data.order.map((id: string) => infos[id]).filter(Boolean);
+        } else {
+            list = infos ? Object.values(infos) : [];
+        }
+        return {file_infos: list, next_file_info_id: data ? data.next_file_info_id : undefined};
+    }
+
     // ---------------------------------------------------------------- emoji
 
     getCustomEmojis(page = 0, perPage = 200): Promise<MMCustomEmoji[]> {

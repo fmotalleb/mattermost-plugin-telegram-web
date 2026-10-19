@@ -4,13 +4,12 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {api} from '../mm/api';
 import {emojiChar} from '../mm/emoji';
 import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
-import {getCustomEmoji, getMemberCount, getMyId, getStatus, getTimeFormat, getTypingUserIds} from '../mm/selectors';
+import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
-import {ensureViewStats, markPostVisible, refreshViewStats, usePostViews} from '../mm/views';
+import {ensureViewStats, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
 import {
     attachmentSummary,
-    channelMemberIds,
     colorForKey,
     displayName,
     fileKindOf,
@@ -31,6 +30,9 @@ import {MessageBody} from './render';
 import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconEye, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+/** How often an open channel/group chat re-polls the view tallies (direct chats gate their own). */
+const GROUP_REFRESH_MS = 5000;
 
 export interface MessageListProps {
     channel: MMChannel;
@@ -67,31 +69,47 @@ export function MessageList(props: MessageListProps) {
     const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
 
-    // A receipt only moves when the other side opens the message, so while the DM peer is
-    // online the list re-polls the view stats about every second: their first look flips the
-    // single check to a double one immediately instead of waiting for a reload. No online peer
-    // (or no outgoing posts) ⇒ no timer at all.
-    const peerOnline = useSelector((state) => {
-        if (channel.type !== 'D') {
-            return false;
-        }
-        const peer = channelMemberIds(channel).find((id) => id !== myId);
-        return !!peer && getStatus(state, peer) === 'online';
-    });
-    const myPostIds = useMemo(
-        () => posts.filter((post) => post.user_id === myId).map((post) => post.id).join(','),
-        [posts, myId],
+    // The view-stat refresh policy (receipts and tallies both come from the plugin's view API):
+    //   direct chats — a receipt only moves when the other side opens the message, so the list
+    //     re-polls about every second *while one of my messages is still unseen by them*. Once
+    //     everything has been seen there is nothing left to wait for: the timer stops, and only
+    //     a newly sent message (posts changing) starts the wait again.
+    //   channels/groups — the eye tally is visible on every bubble, so the list keeps re-polling
+    //     at a calmer 5-second cadence while the chat is open.
+    const viewsRevision = useViewsRevision();
+    const unseenOwnIds = useMemo(
+        () => posts
+            .filter((post) => post.user_id === myId)
+            .filter((post) => {
+                const view = getViewStats(post.id);
+                // Unknown stats count as unseen — the refresh is what makes them arrive.
+                return !view || view.count - (view.seen ? 1 : 0) === 0;
+            })
+            .map((post) => post.id)
+            .join(','),
+        [posts, myId, viewsRevision],
     );
+    // Newest 100 only: the plugin's view API caps one request at 100 post ids.
+    const recentPostIds = useMemo(() => posts.slice(-100).map((post) => post.id).join(','), [posts]);
 
     useEffect(() => {
-        if (!peerOnline || !myPostIds) {
+        if (channel.type === 'D') {
+            if (!unseenOwnIds) {
+                return undefined; // every message settled — wait for the next one to be sent
+            }
+            const ids = unseenOwnIds.split(',');
+            refreshViewStats(ids);
+            const timer = setInterval(() => refreshViewStats(ids), 1000);
+            return () => clearInterval(timer);
+        }
+        if (!recentPostIds) {
             return undefined;
         }
-        const ids = myPostIds.split(',');
+        const ids = recentPostIds.split(',');
         refreshViewStats(ids);
-        const timer = setInterval(() => refreshViewStats(ids), 1000);
+        const timer = setInterval(() => refreshViewStats(ids), GROUP_REFRESH_MS);
         return () => clearInterval(timer);
-    }, [peerOnline, myPostIds]);
+    }, [channel.type, unseenOwnIds, recentPostIds]);
 
     const rows = useMemo(() => groupPosts(posts, myId), [posts, myId]);
 
@@ -415,7 +433,11 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
                     <span className="tgw-msg-time">{formatMessageStamp(post.create_at, timeFormat)}</span>
-                    {otherViewCount > 0 && (
+                    {/* Telegram shows view tallies on group/channel-style chats only — in a
+                        direct message the read receipt (the double check below) already says
+                        "they saw it", and a number next to every bubble is noise. The view
+                        tracking itself keeps running everywhere: receipts depend on it. */}
+                    {otherViewCount > 0 && channel.type !== 'D' && (
                         <span className="tgw-msg-views" title="Views by others">
                             <IconEye size={14}/>
                             {otherViewCount}

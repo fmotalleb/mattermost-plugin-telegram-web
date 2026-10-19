@@ -122,6 +122,8 @@ const registry = {
         'the chat header floats over the message list with a live backdrop blur');
     ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
         'the Vazirmatn webfont is inlined as a data URI');
+    ok(cssText.includes('.tgw-root textarea') && cssText.includes('user-select: text'),
+        'text fields force user-select back on so Ctrl+A cannot select the page around them');
     ok(!cssText.includes('.tgw-root.tgw-glassy .tgw-chat {') && !cssText.includes('.tgw-theme-dark .tgw-chat,') && !cssText.includes('.tgw-theme-midnight .tgw-chat,'),
         'the chat pane stays opaque - only the theme colour and pattern sit behind messages');
     ok(cssText.includes('.tgw-spinner') && cssText.includes('tgw-spin'), 'the loading spinner is styled');

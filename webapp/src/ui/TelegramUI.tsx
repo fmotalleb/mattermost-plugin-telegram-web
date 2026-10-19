@@ -78,6 +78,25 @@ export function TelegramUI() {
     const [reactionPicker, setReactionPicker] = useState<{post: MMPost; x: number; y: number} | null>(null);
     const toastId = useRef(0);
 
+    // Ctrl/Cmd+A inside a text field belongs to that field alone. Captured on the document so
+    // nothing further down the chain (the host app's handlers, this overlay's own) can widen
+    // the selection to the whole page — when the focused field cannot hold a selection,
+    // Chromium falls through and selects everything around it, usernames included.
+    useEffect(() => {
+        const onSelectAllKey = (event: KeyboardEvent) => {
+            if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'a') {
+                return;
+            }
+            const target = event.target as HTMLElement | null;
+            const editable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+            if (editable) {
+                event.stopPropagation();
+            }
+        };
+        document.addEventListener('keydown', onSelectAllKey, true);
+        return () => document.removeEventListener('keydown', onSelectAllKey, true);
+    }, []);
+
     const me = useSelector((state) => state.entities?.users?.profiles?.[state.entities?.users?.currentUserId]);
     const tabs = useSelector(getTabs);
     const timeFormat = useSelector(getTimeFormat);
@@ -193,7 +212,9 @@ export function TelegramUI() {
     const actions: TgActions = useMemo(() => ({
         setUI,
         openChat,
-        backToList: () => setUI({mobilePane: 'list'}),
+        // Going back to the list also drops the right-hand panels: on a phone the files panel
+        // sits on top of the chat, so leaving it open would cover the list we just revealed.
+        backToList: () => setUI({mobilePane: 'list', filesOpen: false}),
         openModal: (modal, payload) => setUI({modal, modalPayload: payload}),
         closeModal: () => setUI({modal: null, modalPayload: undefined}),
         askConfirm: (dialog) => setUI({confirm: dialog}),

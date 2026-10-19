@@ -247,6 +247,19 @@
     font-family: inherit;
 }
 
+/* Text entry must always be able to hold its own selection. An editable control whose
+   computed user-select is "none" (inherited from some chrome around it, ours or the host
+   app's) cannot: Chromium then falls through on Ctrl+A and selects the whole page — the
+   usernames around the search box included. Force text selection back on, for every field
+   the overlay renders, and Ctrl+A stays inside the field it was pressed in. */
+.tgw-root input,
+.tgw-root textarea,
+.tgw-root [contenteditable='true'],
+.tgw-root [contenteditable=''] {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 .tgw-search-icon {
     color: var(--tgw-text-tertiary);
     flex: 0 0 auto;

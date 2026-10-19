@@ -576,6 +576,26 @@ class CDP {
         const landed = await cdp.waitFor(`!!document.querySelector('[data-post-id="p-old"]') && document.querySelector('[data-post-id="p-old"]').classList.contains('tgw-post-highlight')`, 8000, 'the chat to land on the hit message');
         ok(!!landed, 'the chat lands on the hit message with the flash highlight');
 
+        // ------------------------------------------- 4. Ctrl+A in the search box stays in the box
+        console.log('\\n== Ctrl+A in a text field ==');
+        await cdp.eval('document.querySelector(".tgw-search input").focus()');
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65});
+        const selectAll = await cdp.eval(`(() => {
+            const input = document.querySelector('.tgw-search input');
+            const selection = window.getSelection();
+            return {
+                inside: input.selectionStart === 0 && input.selectionEnd === input.value.length,
+                outsideText: String(selection),
+                outsideCollapsed: selection.isCollapsed,
+                userSelect: getComputedStyle(input).userSelect,
+            };
+        })()`);
+        ok(selectAll.userSelect === 'text', `the field's computed user-select is text, whatever the chrome around it says (${selectAll.userSelect})`);
+        ok(selectAll.inside, 'Ctrl+A selects all the text inside the focused input');
+        ok(selectAll.outsideCollapsed || selectAll.outsideText === '',
+            `no page text (usernames) is selected outside the input (selection: ${JSON.stringify(selectAll.outsideText)})`);
+
         const pageErrors = [...bootErrors, ...await cdp.eval('window.__pageErrors'), ...cdp.pageErrors];
         ok(pageErrors.length === 0, `no page errors during the run${pageErrors.length ? ` (${pageErrors[0]})` : ''}`);
     } catch (error) {

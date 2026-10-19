@@ -345,6 +345,58 @@ global.fetch = async (url, options = {}) => {
     if (p === `/channels/${TOWN}/posts`) {
         return json({order: [], posts: {}});
     }
+    // The team file search (POST /teams/{team_id}/files/search): what Mattermost's own file
+    // browser calls, with the "channel:<id>" term modifier plus an optional name needle —
+    // built from the message fixtures, sorted and paged like the server does, so a short page
+    // tells the client the listing is complete.
+    if (/^\/teams\/[^/]+\/files\/search$/.test(p) && options.method === 'POST') {
+        const terms = String((post && post.terms) || '');
+        const channelMatch = terms.match(/channel:(\S+)/);
+        const channelId = channelMatch ? channelMatch[1] : '';
+        const needle = terms.replace(/channel:\S+/g, '').trim().toLowerCase();
+        const infos = [];
+        Object.values(posts).forEach((entry) => {
+            if (entry.channel_id !== channelId) {
+                return;
+            }
+            ((entry.metadata && entry.metadata.files) || []).forEach((file) => {
+                if (needle && !(file.name || '').toLowerCase().includes(needle)) {
+                    return;
+                }
+                infos.push({
+                    id: file.id,
+                    user_id: file.user_id || entry.user_id,
+                    channel_id: channelId,
+                    post_id: entry.id,
+                    create_at: file.create_at || entry.create_at,
+                    update_at: file.update_at || entry.update_at,
+                    delete_at: file.delete_at || 0,
+                    name: file.name,
+                    extension: file.extension || '',
+                    size: file.size || 0,
+                    mime_type: file.mime_type || 'application/octet-stream',
+                });
+            });
+        });
+        infos.sort((a, b) => a.create_at - b.create_at);
+        const page = Number((post && post.page) || 0);
+        const perPage = Number((post && post.per_page) || 100);
+        const slice = infos.slice(page * perPage, (page + 1) * perPage);
+        // The real server's envelope (model.FileList): an `order` id array plus `file_infos`
+        // as a map keyed by id — not a plain array. Returning it in this exact shape keeps the
+        // panel's normalizer under test.
+        const byId = {};
+        slice.forEach((file) => {
+            byId[file.id] = file;
+        });
+        return json({
+            order: slice.map((file) => file.id),
+            file_infos: byId,
+            next_file_info_id: (page + 1) * perPage < infos.length ? String(page + 1) : '',
+            prev_file_info_id: '',
+            first_inaccessible_file_time: 0,
+        });
+    }
     if (p.startsWith('/channels/') && p.endsWith('/view')) {
         return json({status: 'OK'});
     }

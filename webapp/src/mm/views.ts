@@ -15,6 +15,8 @@ export interface ViewStats {
 
 const stats = new Map<string, ViewStats>();
 const listeners = new Set<() => void>();
+/** Bumped on every change so dependents (the refresh gate) can react without per-post hooks. */
+let revision = 0;
 
 /** Posts already reported as seen in this session (never reported twice). */
 const reported = new Set<string>();
@@ -27,6 +29,7 @@ let fetchTimer: ReturnType<typeof setTimeout> | null = null;
 let viewsDisabled = false;
 
 function notify() {
+    revision += 1;
     listeners.forEach((listener) => listener());
 }
 
@@ -42,6 +45,14 @@ export function getViewStats(postId: string): ViewStats | undefined {
 /** React hook: the view stats of one post, updating live. */
 export function usePostViews(postId: string): ViewStats | undefined {
     return useSyncExternalStore(subscribeViews, () => stats.get(postId));
+}
+
+/**
+ * React hook: a counter that changes whenever any view stats change. Lets a component derive
+ * an aggregate ("is any of my messages still unseen?") without subscribing post by post.
+ */
+export function useViewsRevision(): number {
+    return useSyncExternalStore(subscribeViews, () => revision);
 }
 
 /** Fetch counts for posts that do not have stats yet (batched + debounced). */

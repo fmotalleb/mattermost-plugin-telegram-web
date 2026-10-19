@@ -1,28 +1,36 @@
 // Right-hand "Shared files" menu: every file exchanged in the open chat, newest first,
-// behind a fuzzy-free file-name search bar. Toggled from the chat header and collapsible
-// from its own header, so it starts minimized like Mattermost's channel-info gutters.
+// behind a file-name filter bar. Toggled from the chat header and collapsible from its own
+// header, so it starts minimized like Mattermost's channel-info gutters.
 // Clicking a file lands back on the message that shared it instead of opening the raw file.
 //
-// The list is scoped to the messages loaded so far — a note under the search box says as
-// much — and holding a term also queries Mattermost's full-history search API, so files in
-// older, not-yet-fetched messages surface without paging the whole channel.
+// The list comes from Mattermost's own team file search (POST /teams/{team_id}/files/search
+// with the "channel:<id>" term modifier) — the endpoint the stock app browses a channel's
+// files with — so it covers the chat's entire history without walking messages or leaning on
+// the message search. Typing in the filter box joins the needle into the same server-side
+// term, and files hung off messages the web app has already loaded are merged in on top, so a
+// file that was just sent shows up while the panel is open.
 
 import React, {useEffect, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {getBlock, receivePost, useChannelPosts} from '../mm/posts';
 import {getCurrentTeamId} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMFileInfo, MMPost} from '../mm/types';
-import {displayName, formatDateSeparator, formatBytes, formatMessageStamp} from '../mm/utils';
+import type {MMFileInfo} from '../mm/types';
+import {displayName, formatBytes, formatMessageStamp} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
 import {IconClose, IconFile, IconSearch} from './primitives';
 
-/** idle: no term · pending: request on its way · done/failed: terminal states for the hints. */
+/** loading: request on its way · done: the listing is complete · failed: nothing could load. */
+type LoadState = 'loading' | 'done' | 'failed';
+
+/** Debounced term-search states; the listing stays usable while a search is on its way. */
 type SearchState = 'idle' | 'pending' | 'done' | 'failed';
 
-/** Upper bound on history pages a single search walks back (20 × 60 = 1200 older messages). */
-const WALK_MAX_PAGES = 20;
+/** Upper bound on listing pages (20 × 100 = 2000 files) so a file-heavy chat cannot stall the panel. */
+const LIST_MAX_PAGES = 20;
+const LIST_PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 350;
 
 export function SharedFilesPanel() {
     const {actions, channel, timeFormat, isMobile} = useTg();
@@ -30,14 +38,65 @@ export function SharedFilesPanel() {
     const profiles = useSelector((state) => state.entities?.users?.profiles);
     const teamId = useSelector(getCurrentTeamId);
     const [term, setTerm] = useState('');
-    const [remotePosts, setRemotePosts] = useState<MMPost[]>([]);
-    const [walkedPosts, setWalkedPosts] = useState<MMPost[]>([]);
+    const [listedFiles, setListedFiles] = useState<MMFileInfo[]>([]);
+    const [loadState, setLoadState] = useState<LoadState>('loading');
+    const [searchFiles, setSearchFiles] = useState<MMFileInfo[]>([]);
     const [searchState, setSearchState] = useState<SearchState>('idle');
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const loadSeq = useRef(0);
     const searchSeq = useRef(0);
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Debounced full-history search: only while a term is held, only messages of this chat,
-    // and a stale response never outranks a newer one.
+    // The channel's file listing — the same team file search the stock app makes, just without
+    // a name term — paged to the end (or the cap). A stale response never outranks a newer one:
+    // switching chats mid-load leaves nothing behind.
+    useEffect(() => {
+        const seq = ++loadSeq.current;
+        if (!channel || !teamId) {
+            setListedFiles([]);
+            setLoadState('done');
+            return undefined;
+        }
+        setListedFiles([]);
+        setLoadState('loading');
+        const collected: MMFileInfo[] = [];
+        const loadAll = async () => {
+            for (let page = 0; page < LIST_MAX_PAGES; page++) {
+                if (seq !== loadSeq.current) {
+                    return;
+                }
+                const data = await api.searchChannelFiles(teamId, channel.id, {page, perPage: LIST_PAGE_SIZE});
+                if (seq !== loadSeq.current) {
+                    return;
+                }
+                const batch = (data && data.file_infos) || [];
+                const known = new Set(collected.map((file) => file.id));
+                const fresh = batch.filter((file) => !known.has(file.id)).length;
+                collected.push(...batch);
+                if (batch.length < LIST_PAGE_SIZE || !fresh) {
+                    break; // short page — or a server that ignored the page and repeated itself
+                }
+            }
+            if (seq === loadSeq.current) {
+                setListedFiles(collected);
+                setLoadState('done');
+            }
+        };
+        loadAll().catch(() => {
+            if (seq === loadSeq.current) {
+                // Keep whatever landed before the failure: a partial list beats an empty one.
+                setListedFiles(collected.slice());
+                setLoadState(collected.length ? 'done' : 'failed');
+            }
+        });
+        return () => {
+            // Cancellation is the seq check inside loadAll; bump it so an in-flight page stops.
+            loadSeq.current += 1;
+        };
+    }, [channel, teamId]);
+
+    // Debounced server-side name search: the term joins the "channel:<id>" modifier and goes
+    // to the same files/search endpoint the stock app hits while typing, so files beyond the
+    // listing cap surface by name without paging messages. A stale response never lands.
     useEffect(() => {
         const needle = term.trim();
         const seq = ++searchSeq.current;
@@ -45,48 +104,44 @@ export function SharedFilesPanel() {
             clearTimeout(searchTimer.current);
             searchTimer.current = null;
         }
-        if (!needle) {
-            setRemotePosts([]);
-            setWalkedPosts([]);
+        if (!needle || !channel || !teamId) {
+            setSearchFiles([]);
             setSearchState('idle');
             return undefined;
         }
         setSearchState('pending');
         searchTimer.current = setTimeout(() => {
-            // Two independent legs, both cancellable by the seq check:
-            // 1) message-text hits through the search API …
-            let settled = 0;
-            let anyOk = false;
-            const legDone = () => {
-                settled += 1;
-                if (settled >= 2 && seq === searchSeq.current) {
-                    setSearchState(anyOk ? 'done' : 'failed');
-                }
-            };
-            api.searchPosts(teamId, needle, {perPage: 40})
-                .then((data) => {
+            const collected: MMFileInfo[] = [];
+            const run = async () => {
+                for (let page = 0; page < LIST_MAX_PAGES; page++) {
                     if (seq !== searchSeq.current) {
                         return;
                     }
-                    const found = data ? (data.order || []).map((id) => data.posts[id]).filter(Boolean) : [];
-                    setRemotePosts(found.filter((post) => !channel || post.channel_id === channel.id));
-                    anyOk = true;
-                })
-                .catch(() => undefined)
-                .finally(legDone);
-            // 2) … plus a walk back through older messages: search matches message *text*, and
-            //    what people search for here is a file *name* — which lives in messages too old
-            //    for the fetched window (or in messages the term never appears in).
-            walkOlder(seq)
-                .then((found) => {
-                    if (seq === searchSeq.current) {
-                        setWalkedPosts(found);
-                        anyOk = true;
+                    const data = await api.searchChannelFiles(teamId, channel.id, {terms: needle, page, perPage: LIST_PAGE_SIZE});
+                    if (seq !== searchSeq.current) {
+                        return;
                     }
-                })
-                .catch(() => undefined)
-                .finally(legDone);
-        }, 300);
+                    const batch = (data && data.file_infos) || [];
+                    const known = new Set(collected.map((file) => file.id));
+                    const fresh = batch.filter((file) => !known.has(file.id)).length;
+                    collected.push(...batch);
+                    if (batch.length < LIST_PAGE_SIZE || !fresh) {
+                        break;
+                    }
+                }
+                if (seq === searchSeq.current) {
+                    setSearchFiles(collected);
+                    setSearchState('done');
+                }
+            };
+            run().catch(() => {
+                if (seq === searchSeq.current) {
+                    // A failed search leaves the client-side name filter over what is loaded.
+                    setSearchFiles(collected.slice());
+                    setSearchState(collected.length ? 'done' : 'failed');
+                }
+            });
+        }, SEARCH_DEBOUNCE_MS);
         return () => {
             if (searchTimer.current) {
                 clearTimeout(searchTimer.current);
@@ -95,78 +150,53 @@ export function SharedFilesPanel() {
         };
     }, [term, teamId, channel]);
 
-    // Pages back from the oldest fetched message, collecting history posts for the row source.
-    // Stops on: term change (seq), exhausted history, a page that makes no progress, or the cap.
-    const walkOlder = async (seq: number): Promise<MMPost[]> => {
-        if (!channel || !posts.length) {
-            return [];
-        }
-        const collected: MMPost[] = [];
-        let boundary = posts.reduce((min, post) => (!min || post.create_at < min.create_at ? post : min), posts[0]);
-        for (let page = 0; page < WALK_MAX_PAGES; page++) {
-            if (seq !== searchSeq.current) {
-                break;
-            }
-            const data = await api.getPostsBefore(channel.id, boundary.id, 60);
-            const batch = (data.order || []).map((id) => data.posts[id]).filter(Boolean);
-            if (!batch.length) {
-                break;
-            }
-            collected.push(...batch);
-            const next = batch.reduce((min, post) => (!min || post.create_at < min.create_at ? post : min), batch[0]);
-            if (!next || next.create_at >= boundary.create_at) {
-                break; // the server gave nothing older than we already have
-            }
-            boundary = next;
-            if (batch.length < 60) {
-                break; // short page: no more history
-            }
-        }
-        return collected;
-    };
-
-    // The scope line: the date of the oldest message fetched into this chat so far.
-    const scopeAt = posts.reduce((min, post) => (!min || post.create_at < min ? post.create_at : min), 0);
-
-    // One row per file id, newest first: fetched messages first (they carry the full context),
-    // then whatever the full-history search turned up. Files hang off their posting message's
-    // metadata, so the list straightens itself when older pages arrive.
-    const rows: Array<{file: MMFileInfo; post: MMPost; remote: boolean}> = [];
+    // One row per file id, newest first: the listing, whatever the term search turned up, then
+    // files of the messages the web app has already loaded that neither knew about (an
+    // optimistic upload in flight, for example). Metadata copies can be thinner than the
+    // server's — fill the gaps from the posting message so the row still sorts and reads right.
+    const rows: MMFileInfo[] = [];
     const seen = new Set<string>();
-    const remoteIds = new Set(remotePosts.map((post) => post.id));
-    const pushPost = (post: MMPost) => {
-        filesOfPost(post).forEach((file) => {
-            if (!file || seen.has(file.id)) {
-                return;
-            }
-            seen.add(file.id);
-            rows.push({file, post, remote: remoteIds.has(post.id)});
-        });
+    const push = (file: MMFileInfo) => {
+        if (!file || !file.id || seen.has(file.id)) {
+            return;
+        }
+        seen.add(file.id);
+        rows.push(file);
     };
-    posts.forEach(pushPost);
-    remotePosts.forEach(pushPost);
-    walkedPosts.forEach(pushPost);
-    rows.sort((a, b) => (b.file.create_at || b.post.create_at) - (a.file.create_at || a.post.create_at));
+    listedFiles.forEach(push);
+    searchFiles.forEach(push);
+    posts.forEach((post) => {
+        filesOfPost(post).forEach((file) => {
+            push(file && {
+                ...file,
+                create_at: file.create_at || post.create_at,
+                user_id: file.user_id || post.user_id,
+                post_id: file.post_id || post.id,
+                channel_id: file.channel_id || post.channel_id,
+            });
+        });
+    });
+    rows.sort((a, b) => (b.create_at || 0) - (a.create_at || 0));
 
     const needle = term.trim().toLowerCase();
-    // Search hits came from matching message *text*, so their files qualify even when the file
-    // name itself does not contain the term.
-    const visible = needle
-        ? rows.filter((row) => row.remote || row.file.name.toLowerCase().includes(needle))
-        : rows;
+    const visible = needle ? rows.filter((file) => (file.name || '').toLowerCase().includes(needle)) : rows;
+    const capped = listedFiles.length >= LIST_MAX_PAGES * LIST_PAGE_SIZE;
 
     // Land on the message instead of opening the file in a new tab: the message list scrolls
     // to the post and flashes it. A message older than the loaded window is fetched first.
     // Phones overlay this panel on top of the chat, so drop it there first to actually reveal
     // the message; on desktop it stays open for browsing.
-    const goToMessage = (post: MMPost) => {
+    const goToMessage = (file: MMFileInfo) => {
+        if (!file.post_id) {
+            return; // a file that never reached a post has no message to jump to
+        }
         actions.setUI({
-            highlightedPostId: post.id,
+            highlightedPostId: file.post_id,
             searchOpen: false,
             ...(isMobile ? {filesOpen: false} : {}),
         });
-        if (post.channel_id && !getBlock(post.channel_id)?.posts?.[post.id]) {
-            api.getPost(post.id)
+        if (channel && !getBlock(channel.id)?.posts?.[file.post_id]) {
+            api.getPost(file.post_id)
                 .then((loaded) => {
                     if (loaded && loaded.id) {
                         receivePost(loaded);
@@ -207,44 +237,46 @@ export function SharedFilesPanel() {
                 </div>
             </div>
 
-            {!needle && (
+            {loadState === 'done' && !needle && (
                 <div className="tgw-files-scope">
-                    {scopeAt
-                        ? `Files shared since ${formatDateSeparator(scopeAt, timeFormat)}. Search to include older messages.`
-                        : 'Showing fetched messages only. Search to include older messages.'}
+                    {capped
+                        ? `Showing the newest ${rows.length} files of this chat.`
+                        : 'Every file ever shared in this chat is listed. Search filters by name.'}
                 </div>
             )}
 
             <div className="tgw-files-body">
-                {!rows.length && searchState === 'pending' && (
+                {loadState === 'loading' && (
                     <div className="tgw-empty-list">
-                        <div className="tgw-empty-body">Searching all messages…</div>
+                        <div className="tgw-empty-body">Loading files…</div>
                     </div>
                 )}
-                {!rows.length && searchState === 'failed' && (
+                {loadState === 'failed' && (
                     <div className="tgw-empty-list">
-                        <div className="tgw-empty-body">Could not search older messages.</div>
+                        <div className="tgw-empty-body">Could not load the files of this chat.</div>
                     </div>
                 )}
-                {!rows.length && searchState !== 'pending' && searchState !== 'failed' && (
+                {loadState === 'done' && !rows.length && (
                     <div className="tgw-empty-list">
                         <div className="tgw-empty-title">No files yet</div>
                         <div className="tgw-empty-body">Files shared in this chat will be listed here.</div>
                     </div>
                 )}
-                {!!rows.length && !visible.length && (
+                {loadState === 'done' && !!rows.length && !visible.length && (
                     <div className="tgw-empty-list">
-                        <div className="tgw-empty-body">No files match “{term.trim()}”.</div>
+                        <div className="tgw-empty-body">
+                            {searchState === 'pending' ? 'Searching files…' : `No files match “${term.trim()}”.`}
+                        </div>
                     </div>
                 )}
-                {visible.map(({file, post}) => {
-                    const author = profiles?.[post.user_id];
+                {visible.map((file) => {
+                    const author = profiles?.[file.user_id];
                     return (
                         <button
                             type="button"
                             className="tgw-file-row"
                             key={file.id}
-                            onClick={() => goToMessage(post)}
+                            onClick={() => goToMessage(file)}
                             title={`Go to message with ${file.name}`}
                         >
                             <span className="tgw-file-icon">
@@ -253,7 +285,7 @@ export function SharedFilesPanel() {
                             <span className="tgw-file-body">
                                 <span className="tgw-file-name">{file.name}</span>
                                 <span className="tgw-file-meta">
-                                    {`${formatBytes(file.size || 0)} · ${formatMessageStamp(post.create_at, timeFormat)}${author ? ` · ${displayName(author).split(' ')[0]}` : ''}`}
+                                    {`${formatBytes(file.size || 0)} · ${formatMessageStamp(file.create_at, timeFormat)}${author ? ` · ${displayName(author).split(' ')[0]}` : ''}`}
                                 </span>
                             </span>
                         </button>
