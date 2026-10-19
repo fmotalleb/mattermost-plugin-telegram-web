@@ -475,7 +475,7 @@ const state = {
             config: {
                 SiteURL: 'https://mattermost.example.com',
                 DefaultLocale: 'en',
-                PluginSettings: {Plugins: {'com.telegramweb.ui': {DefaultMode: true, DefaultTheme: 'light', DefaultAccent: 'blue'}}},
+                PluginSettings: {Plugins: {'com.telegramweb.ui': {DefaultMode: true, DefaultTheme: 'light', DefaultAccent: 'blue', DefaultJalali: true}}},
             },
         },
         users: {

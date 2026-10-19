@@ -140,9 +140,11 @@ small and tolerant of Mattermost internals moving between releases.
 ## Settings
 
 Server side defaults live in `plugin.json → settings_schema` (`DefaultMode`, `DefaultTheme`,
-`DefaultAccent`) and are read from the client config, so an admin can enable the Telegram UI for
-everyone by default. Per-user choices (theme, accent color, compact message list, animations, chat
-previews, folder tabs, URL sync) are stored as a Mattermost user preference under
+`DefaultAccent`, `DefaultWallpaper`, `DefaultGlassyMode`, `DefaultCompactMode`,
+`DefaultAnimations`, `DefaultJalali`) and are read from the client config, so an admin can enable
+the Telegram UI for everyone by default — and choose whether dates render in the Jalali (Solar
+Hijri) calendar. Per-user choices (theme, accent color, compact message list, animations, chat
+previews, folder tabs, Jalali dates, URL sync) are stored as a Mattermost user preference under
 `com.telegramweb.ui--settings`, so they follow the user across browsers.
 
 ## Development

@@ -180,6 +180,10 @@ export function SettingsModal() {
                         <input type="checkbox" checked={settings.folderTabs} onChange={(event) => updateSettings({folderTabs: event.target.checked})}/>
                         <span>Show folders (Mattermost categories)</span>
                     </label>
+                    <label className="tgw-field tgw-field-check">
+                        <input type="checkbox" checked={settings.jalali} onChange={(event) => updateSettings({jalali: event.target.checked})}/>
+                        <span>Jalali (Solar Hijri) dates</span>
+                    </label>
                 </div>
 
                 <div className="tgw-settings-section">

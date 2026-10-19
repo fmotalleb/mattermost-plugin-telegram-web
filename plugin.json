@@ -139,6 +139,13 @@
                 "type": "bool",
                 "help_text": "Default for interface animations (spinners, transitions, the header gloss).",
                 "default": true
+            },
+            {
+                "key": "DefaultJalali",
+                "display_name": "Use Jalali (Solar Hijri) dates by default",
+                "type": "bool",
+                "help_text": "When true, dates across the UI (date separators, message stamps, chat list times) are shown in the Jalali calendar by default. Every user can switch it on or off for themselves in the plugin's own settings.",
+                "default": true
             }
         ]
     }

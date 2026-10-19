@@ -184,7 +184,9 @@ root.render(React.createElement(TelegramUI));
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
     ok(!!document.querySelector('.tgw-msg-meta .tgw-reactions'), 'reaction chips share the row with the send time');
     const firstStamp = document.querySelector('.tgw-msg-time')?.textContent || '';
-    ok(/202\d/.test(firstStamp), `messages from another day show their date beside the time (${firstStamp})`);
+    // The shipped admin default (plugin.json → DefaultJalali: true) turns the Jalali calendar on,
+    // so the fixture date (mid-November 2023) renders as its Jalali day in Aban 1402.
+    ok(/\bAba\b/.test(firstStamp) && /1402/.test(firstStamp), `messages from another day show their date beside the time (${firstStamp})`);
     // The voice fixture is the newest DM post, so it must drive the sidebar preview as well.
     ok(Array.from(document.querySelectorAll('.tgw-chat-row')).some((row) => row.textContent.includes('Voice message')), 'sidebar preview shows the voice message');
 
@@ -1131,11 +1133,13 @@ root.render(React.createElement(TelegramUI));
         DefaultWallpaper: 'dots',
         DefaultCompactMode: true,
         DefaultGlassyMode: false,
+        DefaultJalali: false,
     };
     initSettings();
     await tick(60);
     ok(getSettings().wallpaper === 'dots', `the admin default background from the plugin config wins for fresh users (${getSettings().wallpaper})`);
     ok(getSettings().compactMode === true && getSettings().glassyMode === false, 'the admin default style flags are applied');
+    ok(getSettings().jalali === false, 'the admin DefaultJalali=false switches the calendar off for fresh users');
     state.entities.general.config.PluginSettings.Plugins[pluginConfigKey] = originalPluginConfig;
     if (savedLocalSettings !== null) {
         dom.window.localStorage.setItem(settingsLocalKey, savedLocalSettings);
@@ -1144,6 +1148,7 @@ root.render(React.createElement(TelegramUI));
     await tick(60);
     ok(getSettings().wallpaper === 'doodles' && getSettings().compactMode === false && getSettings().glassyMode === true,
         `the user's own settings win again after the server-defaults check (${getSettings().wallpaper}, compact=${getSettings().compactMode}, glassy=${getSettings().glassyMode})`);
+    ok(getSettings().jalali === true, `the user's own Jalali choice wins over the admin default again (${getSettings().jalali})`);
 
     ok(getSettings().glassyMode === true, 'glassy panels default to on');
     updateSettings({accent: 'violet', compactMode: true, theme: 'dark'});
@@ -1167,6 +1172,123 @@ root.render(React.createElement(TelegramUI));
     ok(!!rootEl && rootEl.classList.contains('tgw-theme-midnight'), 'the extra midnight theme applies its own palette class');
     updateSettings({theme: 'dark'});
     await tick(60);
+
+    console.log('\n== jalali dates ==');
+    {
+        // Pure conversion math on timezone-free Gregorian tuples.
+        const {toJalali} = require('../src/mm/jalali');
+        const {formatChatTime} = require('../src/mm/utils');
+        const fmt = {military: true, locale: 'en'};
+        // Mid-November 2023: in every timezone its local date falls on Aban 23/24, 1402 — that
+        // month/year stability is exactly what the patterns below pin down.
+        const fixture = 1_700_000_100_000;
+
+        const farvardin1402 = toJalali(2023, 3, 21);
+        ok(farvardin1402.jy === 1402 && farvardin1402.jm === 1 && farvardin1402.jd === 1,
+            `Nowruz 1402 falls on 2023-03-21 (got ${farvardin1402.jy}-${farvardin1402.jm}-${farvardin1402.jd})`);
+        const farvardin1403 = toJalali(2024, 3, 20);
+        ok(farvardin1403.jy === 1403 && farvardin1403.jm === 1 && farvardin1403.jd === 1,
+            `Nowruz 1403 falls on 2024-03-20 (got ${farvardin1403.jy}-${farvardin1403.jm}-${farvardin1403.jd})`);
+        // Literal day pins, cross-checked against ICU's Persian calendar: Dey 11 and the
+        // fixture's own day (mid-November 2023 = Aban 23, 1402).
+        const dey11 = toJalali(2023, 1, 1);
+        ok(dey11.jy === 1401 && dey11.jm === 10 && dey11.jd === 11,
+            `2023-01-01 is Dey 11, 1401 (got ${dey11.jy}-${dey11.jm}-${dey11.jd})`);
+        const aban23 = toJalali(2023, 11, 14);
+        ok(aban23.jy === 1402 && aban23.jm === 8 && aban23.jd === 23,
+            `2023-11-14 is Aban 23, 1402 (got ${aban23.jy}-${aban23.jm}-${aban23.jd})`);
+
+        // 700 consecutive Gregorian days (two full Jalali years): every step must land on exactly
+        // the next Jalali day — month lengths, leap Esfand and both year rollovers included.
+        let cursor = Date.UTC(2023, 2, 21);
+        let prev = null;
+        let drift = '';
+        for (let i = 0; i < 700 && !drift; i += 1) {
+            const d = new Date(cursor);
+            const p = toJalali(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+            const monthMax = p.jm <= 6 ? 31 : p.jm <= 11 ? 30 : 30; // Esfand is 29/30 (leap).
+            if (p.jm < 1 || p.jm > 12 || p.jd < 1 || p.jd > monthMax) {
+                drift = `invalid parts ${p.jy}-${p.jm}-${p.jd}`;
+            } else if (prev) {
+                const sameMonth = p.jy === prev.jy && p.jm === prev.jm && p.jd === prev.jd + 1;
+                const nextMonth = p.jy === prev.jy && p.jm === prev.jm + 1 && p.jd === 1
+                    && prev.jd === (prev.jm <= 6 ? 31 : 30); // rolls exactly at the month's end.
+                const nextYear = p.jy === prev.jy + 1 && p.jm === 1 && p.jd === 1
+                    && prev.jm === 12 && (prev.jd === 29 || prev.jd === 30); // the leap fork.
+                if (!sameMonth && !nextMonth && !nextYear) {
+                    drift = `${p.jy}-${p.jm}-${p.jd} does not follow ${prev.jy}-${prev.jm}-${prev.jd}`;
+                }
+            }
+            prev = {jy: p.jy, jm: p.jm, jd: p.jd};
+            cursor += 86400000;
+        }
+        ok(drift === '', drift ? `day-by-day conversion drifted: ${drift}`
+            : '700 consecutive days map onto consecutive valid Jalali days');
+
+        // The chat-list formatter speaks Jalali under the default (dd.MM.yy → 24.08.02).
+        const chatTime = formatChatTime(fixture, fmt);
+        ok(/^\d{2}\.(0[1-9]|1[0-2])\.02$/.test(chatTime),
+            `formatChatTime renders the Jalali dd.MM.yy (${chatTime})`);
+
+        // The rendered chat follows the admin default (DefaultJalali: true): stamps, date
+        // separators — all live DOM, not just the helper.
+        const stamp = document.querySelector('.tgw-msg-time')?.textContent || '';
+        ok(/\bAba\b/.test(stamp) && /1402/.test(stamp) && !/202\d/.test(stamp),
+            `message stamps render in the Jalali calendar (${stamp})`);
+        const separator = document.querySelector('.tgw-date-separator')?.textContent || '';
+        ok(/\bAban\b/.test(separator) && /1402/.test(separator),
+            `the date separator carries the Jalali month and year (${separator})`);
+
+        // Per-user control through the settings screen itself.
+        document.querySelector('button[title="Menu"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const settingsEntry = Array.from(document.querySelectorAll('.tgw-menu-item'))
+            .find((el) => (el.textContent || '').trim().startsWith('Settings'));
+        ok(!!settingsEntry, 'the main menu offers the settings screen');
+        settingsEntry?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-modal'));
+        ok(!!document.querySelector('.tgw-modal'), 'the settings modal opens');
+        const jalaliToggle = () => Array.from(document.querySelectorAll('.tgw-modal .tgw-field-check input'))
+            .find((input) => ((input.nextElementSibling && input.nextElementSibling.textContent) || '').includes('Jalali'));
+        ok(!!jalaliToggle(), 'settings carry a Jalali (Solar Hijri) dates toggle');
+        ok(!!jalaliToggle() && jalaliToggle().checked, 'Jalali dates start on for this user');
+
+        // The user preference writes are counted from here on: the server-defaults check above
+        // already persisted a copy, and that one must not satisfy the assertion below.
+        const pluginPrefWrites = () => payloads.filter((entry) => entry.path === '/users/me/preferences'
+            && Array.isArray(entry.body) && entry.body[0] && entry.body[0].category === 'com.telegramweb.ui');
+        const prefsBefore = pluginPrefWrites().length;
+
+        // Turn the calendar off: the setting flips immediately, the chat re-renders in Gregorian
+        // dates, and the choice lands in localStorage + the Mattermost user preference.
+        jalaliToggle()?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => getSettings().jalali === false);
+        ok(getSettings().jalali === false, 'unchecking the toggle switches Jalali dates off');
+        await waitFor(() => /202\d/.test(document.querySelector('.tgw-msg-time')?.textContent || ''));
+        const gregorianStamp = document.querySelector('.tgw-msg-time')?.textContent || '';
+        ok(/202\d/.test(gregorianStamp), `the chat falls back to Gregorian dates (${gregorianStamp})`);
+        const gregorianChatTime = formatChatTime(fixture, fmt);
+        ok(/^\d{2}\.(0[1-9]|1[0-2])\.23$/.test(gregorianChatTime),
+            `formatChatTime renders the Gregorian dd.MM.yy again (${gregorianChatTime})`);
+        const mirror = JSON.parse(dom.window.localStorage.getItem('tgw.settings.com.telegramweb.ui') || '{}');
+        ok(mirror.jalali === false, 'the choice is mirrored in localStorage');
+        const savedOff = () => pluginPrefWrites().slice(prefsBefore)
+            .some((entry) => /"jalali":false/.test(String(entry.body[0].value)));
+        await waitFor(savedOff, 3000);
+        ok(savedOff(), 'the choice is saved as a Mattermost user preference');
+
+        // And back on — the stamps must follow without a reload.
+        jalaliToggle()?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => getSettings().jalali === true);
+        ok(getSettings().jalali === true, 'checking the toggle switches Jalali dates back on');
+        await waitFor(() => /1402/.test(document.querySelector('.tgw-msg-time')?.textContent || ''));
+        ok(/1402/.test(document.querySelector('.tgw-msg-time')?.textContent || ''),
+            'the stamps return to the Jalali calendar without a reload');
+
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-modal'));
+        ok(!document.querySelector('.tgw-modal'), 'Escape closes the settings modal');
+    }
 
     console.log('\n== url sync ==');
     // Leave search mode first so the normal chat list is back.

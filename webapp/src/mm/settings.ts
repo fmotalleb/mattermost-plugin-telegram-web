@@ -46,6 +46,9 @@ export interface PluginSettings {
     folderTabs: boolean;
     /** Translucent, blurred chrome (Settings > Appearance). On by default. */
     glassyMode: boolean;
+    /** Jalali (Solar Hijri) calendar for every date in the UI (Settings → per user; the
+        admin's DefaultJalali provides the server-side default). On by default. */
+    jalali: boolean;
     /** Order of the folder's category tabs after drag-reordering (category ids). Persisted like
         every other setting: the Mattermost user preference + a localStorage mirror. */
     tabOrder: string[];
@@ -61,6 +64,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     animations: true,
     folderTabs: true,
     glassyMode: true,
+    jalali: true,
     tabOrder: [],
 };
 
@@ -129,6 +133,9 @@ function serverDefaults(): Partial<PluginSettings> {
         }
         if (pluginConfig.DefaultAnimations !== undefined) {
             defaults.animations = pluginConfig.DefaultAnimations === true || pluginConfig.DefaultAnimations === 'true';
+        }
+        if (pluginConfig.DefaultJalali !== undefined) {
+            defaults.jalali = pluginConfig.DefaultJalali === true || pluginConfig.DefaultJalali === 'true';
         }
         return defaults;
     } catch (err) {

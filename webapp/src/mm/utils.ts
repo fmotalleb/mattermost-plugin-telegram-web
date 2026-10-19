@@ -2,6 +2,8 @@
 
 import type {MMChannel, MMFileInfo, MMUser} from './types';
 import {replaceShortcodes} from './emoji';
+import {JALALI_MONTHS_LONG, JALALI_MONTHS_SHORT, jalaliPartsOf} from './jalali';
+import {getSettings} from './settings';
 
 export const DAY = 24 * 60 * 60 * 1000;
 
@@ -89,6 +91,18 @@ export interface TimeFormat {
     locale: string;
 }
 
+/** True when the active settings render every date in the Jalali (Solar Hijri) calendar. */
+function jalaliDates(): boolean {
+    return getSettings().jalali;
+}
+
+/** "Aba 24, 1402" / "Aba 24" — the Jalali day of a timestamp, year kept only when it rolled. */
+function jalaliStamp(timestamp: number, now: number, months: string[]): string {
+    const {jy, jm, jd} = jalaliPartsOf(timestamp);
+    const head = `${months[jm - 1]} ${jd}`;
+    return jy === jalaliPartsOf(now).jy ? head : `${head}, ${jy}`;
+}
+
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
 }
@@ -125,7 +139,13 @@ export function formatChatTime(timestamp: number, fmt: TimeFormat): string {
         return 'Yesterday';
     }
     if (dayDiff < 7) {
+        // Weekdays are the same physical days in every calendar — only the date fallback below
+        // switches with the setting.
         return date.toLocaleDateString(fmt.locale, {weekday: 'short'});
+    }
+    if (jalaliDates()) {
+        const {jy, jm, jd} = jalaliPartsOf(timestamp);
+        return `${pad(jd)}.${pad(jm)}.${String(jy).slice(-2)}`;
     }
     return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${String(date.getFullYear()).slice(-2)}`;
 }
@@ -148,8 +168,13 @@ export function formatMessageStamp(timestamp: number, fmt: TimeFormat): string {
     if (dayDiff === 1) {
         return `Yesterday ${formatTime(timestamp, fmt)}`;
     }
-    const sameYear = date.getFullYear() === now.getFullYear();
-    const day = date.toLocaleDateString(fmt.locale, {month: 'short', day: 'numeric', year: sameYear ? undefined : 'numeric'});
+    const day = jalaliDates()
+        ? jalaliStamp(timestamp, now.getTime(), JALALI_MONTHS_SHORT)
+        : date.toLocaleDateString(fmt.locale, {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+        });
     return `${day} ${formatTime(timestamp, fmt)}`;
 }
 
@@ -162,6 +187,9 @@ export function formatDateSeparator(timestamp: number, fmt: TimeFormat): string 
     }
     if (dayDiff === 1) {
         return 'Yesterday';
+    }
+    if (jalaliDates()) {
+        return jalaliStamp(timestamp, now.getTime(), JALALI_MONTHS_LONG);
     }
     const sameYear = date.getFullYear() === now.getFullYear();
     return date.toLocaleDateString(fmt.locale, {month: 'long', day: 'numeric', year: sameYear ? undefined : 'numeric'});
