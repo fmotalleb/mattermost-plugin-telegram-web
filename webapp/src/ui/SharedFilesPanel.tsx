@@ -16,13 +16,37 @@ import {getBlock, receivePost, useChannelPosts} from '../mm/posts';
 import {getCurrentTeamId} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMFileInfo} from '../mm/types';
-import {displayName, formatBytes, formatMessageStamp} from '../mm/utils';
+import {displayName, fileKindOf, formatBytes, formatMessageStamp} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
-import {IconClose, IconFile, IconSearch} from './primitives';
+import {IconClose, IconSearch} from './primitives';
 
 /** loading: request on its way · done: the listing is complete · failed: nothing could load. */
 type LoadState = 'loading' | 'done' | 'failed';
+
+/**
+ * The row's glyph: images get the server's thumbnail as a small rounded preview — pictures
+ * should read as pictures, not as file names — while every other kind gets the same
+ * extension-labelled icon the chat's attachments use (Mattermost's file list labels its
+ * document icons the same way). An image whose preview never generated falls back to that
+ * icon instead of a broken-image box.
+ */
+function RowIcon({file}: {file: MMFileInfo}) {
+    const kind = fileKindOf(file.mime_type || file.name);
+    const [broken, setBroken] = useState(false);
+    if (kind === 'image' && !broken) {
+        return (
+            <span className="tgw-file-thumb">
+                <img src={api.fileURL(file.id, true)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)}/>
+            </span>
+        );
+    }
+    return (
+        <span className={`tgw-file-icon tgw-file-${kind}`}>
+            {file.extension ? file.extension.slice(0, 4).toUpperCase() : 'FILE'}
+        </span>
+    );
+}
 
 /** Debounced term-search states; the listing stays usable while a search is on its way. */
 type SearchState = 'idle' | 'pending' | 'done' | 'failed';
@@ -279,9 +303,7 @@ export function SharedFilesPanel() {
                             onClick={() => goToMessage(file)}
                             title={`Go to message with ${file.name}`}
                         >
-                            <span className="tgw-file-icon">
-                                <IconFile size={20}/>
-                            </span>
+                            <RowIcon file={file}/>
                             <span className="tgw-file-body">
                                 <span className="tgw-file-name">{file.name}</span>
                                 <span className="tgw-file-meta">

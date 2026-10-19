@@ -576,6 +576,8 @@ root.render(React.createElement(TelegramUI));
     console.log('\n== attachments, thread, image viewer ==');
     const thumbs = document.querySelectorAll('.tgw-attachment-image');
     ok(thumbs.length >= 2, `image attachments render in the chat (${thumbs.length})`);
+    const chatImgSrc = document.querySelector('.tgw-attachment-image img')?.getAttribute('src') || '';
+    ok(chatImgSrc.includes('/preview'), `chat images render the high-quality preview, not the 480px thumbnail (${chatImgSrc})`);
 
     const threadLink = document.querySelector('.tgw-thread-link');
     ok(!!threadLink, 'reply count link appears on the root post');
@@ -699,6 +701,13 @@ root.render(React.createElement(TelegramUI));
     ok(!!Array.from(fileRows).find((row) => (row.textContent || '').includes('photo-one.png')), 'image attachments are listed by name');
     ok(!!Array.from(fileRows).find((row) => (row.textContent || '').includes('voice-message-2023-11-15.webm')), 'voice message files are listed too');
     ok(!!document.querySelector('.tgw-files-panel .tgw-files-search input[placeholder="Search file names"]'), 'panel has a file-name search bar');
+
+    // Images read as pictures in the list; every other kind carries its extension on the
+    // icon (annual-report.pdf → PDF, the voice message → WEBM), like Mattermost's file list.
+    ok(!!document.querySelector('.tgw-files-panel .tgw-file-thumb img'), 'image files show a thumbnail in the panel');
+    const panelIcons = Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-icon')).map((el) => (el.textContent || '').trim());
+    ok(panelIcons.includes('PDF'), `non-image files show their extension on the icon (${panelIcons.join(', ')})`);
+    ok(panelIcons.includes('WEBM'), 'voice messages keep their extension icon too');
 
     // Typing a name filters the rows; names that match nothing fall back to a hint.
     const fileSearch = document.querySelector('.tgw-files-panel .tgw-files-search input');

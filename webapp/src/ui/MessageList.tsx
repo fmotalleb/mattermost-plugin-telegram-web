@@ -523,7 +523,9 @@ export function filesOfPost(post: MMPost): MMFileInfo[] {
 export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: MMPost; onOpenImage: () => void}) {
     const kind = fileKindOf(file.mime_type || file.name);
     const url = api.fileURL(file.id);
-    const thumbnail = api.fileURL(file.id, true);
+    // The 480px /thumbnail is visibly pixelated at the bubble's display size — render the
+    // 1024px /preview instead. Clicking still opens the full-resolution file in the viewer.
+    const thumbnail = api.previewURL(file.id);
     const voice = post.props?.voice as {fileId?: string; durationMs?: number; levels?: number[]} | undefined;
 
     // The server re-detects our webm recordings as video/webm, so anything that is audio, was
