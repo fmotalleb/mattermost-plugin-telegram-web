@@ -6,8 +6,8 @@ import {emojiChar} from '../mm/emoji';
 import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
 import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
-import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
-import {ensureViewStats, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
+import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
+import {ensureViewStats, getPostViewers, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
 import {
     attachmentSummary,
     colorForKey,
@@ -339,6 +339,22 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     // receipt (Telegram counts "somebody else looked at it", not "I am looking at it").
     const otherViewCount = views ? Math.max(0, views.count - (views.seen ? 1 : 0)) : 0;
     const rowRef = useRef<HTMLDivElement | null>(null);
+    const [showViewers, setShowViewers] = useState(false);
+    const [viewers, setViewers] = useState<MMUser[]>([]);
+    const [viewersLoading, setViewersLoading] = useState(false);
+
+    const toggleViewers = useCallback(() => {
+        if (showViewers) {
+            setShowViewers(false);
+            return;
+        }
+        setShowViewers(true);
+        if (viewers.length || viewersLoading) {
+            return;
+        }
+        setViewersLoading(true);
+        getPostViewers(post.id).then(setViewers).catch(() => setViewers([])).finally(() => setViewersLoading(false));
+    }, [post.id, showViewers, viewers.length, viewersLoading]);
 
     // View tracking: fetch the stored counts and report this post as seen once it is actually
     // on screen. jsdom (tests) has no IntersectionObserver — mounted counts as visible there.
@@ -386,6 +402,9 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                 )}
             </div>
             <div className={`tgw-bubble ${meta.showAvatar ? '' : 'tgw-bubble-grouped'}`}>
+                {post.props?.tgw_forwarded_from && (
+                    <div className="tgw-msg-forwarded">Forwarded from {post.props.tgw_forwarded_name || 'another chat'}</div>
+                )}
                 {meta.showAuthor && !meta.isOutgoing && isGroup && (
                     <div className="tgw-msg-author" style={{color: colorForKey(post.user_id)}}>{author ? displayName(author) : 'Unknown'}</div>
                 )}
@@ -438,9 +457,24 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         "they saw it", and a number next to every bubble is noise. The view
                         tracking itself keeps running everywhere: receipts depend on it. */}
                     {otherViewCount > 0 && channel.type !== 'D' && (
-                        <span className="tgw-msg-views" title="Views by others">
+                        <span className="tgw-msg-views-wrap">
+                            <button type="button" className="tgw-msg-views" onClick={toggleViewers} title="See who viewed this post" aria-expanded={showViewers}>
                             <IconEye size={14}/>
                             {otherViewCount}
+                            </button>
+                            {showViewers && (
+                                <div className="tgw-msg-viewers" role="dialog" aria-label="Post viewers">
+                                    <div className="tgw-msg-viewers-title">Seen by</div>
+                                    {viewersLoading && <div className="tgw-msg-viewers-empty">Loading…</div>}
+                                    {!viewersLoading && viewers.length === 0 && <div className="tgw-msg-viewers-empty">No viewer details available</div>}
+                                    {viewers.filter((viewer) => viewer.id !== myId).map((viewer) => (
+                                        <div className="tgw-msg-viewer" key={viewer.id}>
+                                            <Avatar userId={viewer.id} name={displayName(viewer)} size={24} status=""/>
+                                            <span>{displayName(viewer) || viewer.username}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </span>
                     )}
                     {meta.isOutgoing && (

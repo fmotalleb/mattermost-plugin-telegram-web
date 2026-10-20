@@ -7,6 +7,7 @@
 
 import {useSyncExternalStore} from 'react';
 import {APIError, api} from './api';
+import type {MMUser} from './types';
 
 export interface ViewStats {
     count: number;
@@ -186,4 +187,16 @@ function mergeStats(counts: Record<string, number>, seen: Record<string, boolean
     if (changed) {
         notify();
     }
+}
+
+/** Resolve the people who saw a post only after its tally is opened. */
+export async function getPostViewers(postId: string): Promise<MMUser[]> {
+    const result = await api.getPostViewers(postId);
+    const ids = result.viewers?.[postId] || [];
+    if (!ids.length) {
+        return [];
+    }
+    const users = await api.getUsersByIds(ids);
+    const byID = new Map(users.map((user) => [user.id, user]));
+    return ids.map((id) => byID.get(id)).filter(Boolean) as MMUser[];
 }

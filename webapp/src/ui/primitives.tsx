@@ -103,6 +103,7 @@ export const IconQuote = ({size = 20}: IconProps) => (
 
 export interface AvatarProps {
     userId?: string;
+    profile?: MMUser;
     name: string;
     colorKey?: string;
     size?: number;
@@ -119,8 +120,9 @@ function allowedToLoadAvatar(user?: MMUser): boolean {
     return user.delete_at === 0 || user.delete_at === undefined;
 }
 
-export function Avatar({userId, name, colorKey, size = 54, status, showStatus, className}: AvatarProps) {
-    const user = useSelector((state) => (userId ? getUser(state, userId) : undefined));
+export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className}: AvatarProps) {
+    const cachedUser = useSelector((state) => (userId ? getUser(state, userId) : undefined));
+    const user = profile || cachedUser;
     const siteURL = useSelector(getSiteURL);
     const [failed, setFailed] = React.useState(false);
     const background = colorForKey(colorKey || userId || name);

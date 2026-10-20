@@ -564,6 +564,8 @@ root.render(React.createElement(TelegramUI));
             await waitFor(() => document.querySelector('.tgw-menu'));
             const row = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Copy selected text'));
             ok(!!row, 'with text selected the context menu offers "Copy selected text"');
+            const labels = Array.from(document.querySelectorAll('.tgw-menu-item')).map((item) => item.textContent.trim());
+            ok(labels.indexOf('Copy selected text') + 1 === labels.indexOf('Copy text'), 'selected text appears immediately above copy text');
 
             row?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
             const toastShown = await waitFor(() => Array.from(document.querySelectorAll('.tgw-toast')).some((entry) => entry.textContent.includes('Selected text copied')));
@@ -573,6 +575,31 @@ root.render(React.createElement(TelegramUI));
             }
             selection.removeAllRanges();
         }
+    }
+
+    console.log('\n== forwarding and download URLs ==');
+    {
+        const p1row = document.querySelector('[data-post-id="p1"]');
+        p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 140, clientY: 210}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const menuItem = (label) => Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.trim() === label);
+        ok(!!menuItem('Copy download URL: photo-one.png'), 'each attachment offers a download URL');
+        const copiedURLs = [];
+        Object.defineProperty(dom.window.navigator, 'clipboard', {configurable: true, value: {writeText: (value) => {copiedURLs.push(value); return Promise.resolve();}}});
+        menuItem('Copy download URL: photo-one.png')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
+        ok(copiedURLs[0] === 'https://mattermost.example.com/api/v4/files/file-1?download=1', 'download URL is absolute and points to the file');
+        p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 140, clientY: 210}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        menuItem('Forward')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('[role="dialog"][aria-label="Forward message"]'));
+        const destination = Array.from(document.querySelectorAll('.tgw-modal .tgw-picker-row')).find((row) => row.textContent.includes('Town Square'));
+        ok(!!destination, 'forward picker offers another chat');
+        destination?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => payloads.some((entry) => entry.path === '/plugins/com.telegramweb.ui/api/v1/forward'));
+        const request = payloads.find((entry) => entry.path === '/plugins/com.telegramweb.ui/api/v1/forward');
+        ok(request?.body?.post_id === 'p1' && request?.body?.channel_id === ids.TOWN, 'forward request sends source post and destination');
+        await waitFor(() => !document.querySelector('[role="dialog"][aria-label="Forward message"]'));
     }
 
     console.log('\n== attachments, thread, image viewer ==');
@@ -845,6 +872,9 @@ root.render(React.createElement(TelegramUI));
         const townViews = (document.querySelector('.tgw-msg-views')?.textContent || '').trim();
         ok(townViews === '1', `group messages show the view tally, own view excluded (${townViews || 'nothing'})`);
         ok(!!document.querySelector('.tgw-msg-views svg'), 'the tally carries the eye icon');
+        document.querySelector('.tgw-msg-views')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-msg-viewers'));
+        ok((document.querySelector('.tgw-msg-viewers')?.textContent || '').includes('Alice Anderson'), 'channel tally opens the names of people who saw the post');
 
         // Channels/groups refresh that tally every five seconds — never at the direct-chat
         // one-second cadence. The mount fetch has landed (the eye is on screen), so what
@@ -950,6 +980,8 @@ root.render(React.createElement(TelegramUI));
     // favorite the way Mattermost stores it (a preference) and remove it from the context menu.
     // Replace the preferences object (not just a key inside it): the selectors memoize on its
     // identity, so an in-place mutation would never surface in the rendered rows.
+    clickFolder('All');
+    await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
     state.entities.preferences = {
         myPreferences: {
             ...state.entities.preferences.myPreferences,
@@ -957,7 +989,11 @@ root.render(React.createElement(TelegramUI));
         },
     };
     notifyStoreChange();
-    await waitFor(() => document.querySelector('.tgw-chat-row-star'));
+    const allChatTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).map((el) => el.textContent.trim());
+    await waitFor(() => allChatTitles()[0] === 'Town Square');
+    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson'), `favorite stays above the newer chat in All (${allChatTitles().join(',')})`);
+    const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
+    ok(allSectionTitles().join(',') === 'Favorites,Chats', `All separates favorite and regular chats (${allSectionTitles().join(',')})`);
     ok(!!document.querySelector('.tgw-chat-row-star'), 'seeding the favorite preference lights up the star on the row');
     const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!favRow, 'town square row found for the favorites check');
@@ -976,6 +1012,16 @@ root.render(React.createElement(TelegramUI));
         dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
         await waitFor(() => !document.querySelector('.tgw-menu'));
     }
+    state.entities.preferences = {
+        myPreferences: {
+            ...state.entities.preferences.myPreferences,
+            [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'false'},
+        },
+    };
+    notifyStoreChange();
+    await waitFor(() => allChatTitles()[0] === 'Alice Anderson');
+    ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square', `removing a favorite restores recent-chat order (${allChatTitles().join(',')})`);
+    ok(allSectionTitles().length === 0, 'All hides favorite section headings when no chats are favorites');
 
     console.log('\n== drag to reorder ==');
     // Category tabs reorder their chats by dragging, through Mattermost's own sidebar-category
@@ -1323,6 +1369,20 @@ root.render(React.createElement(TelegramUI));
         ok(inlineCode.classList.contains('tgw-code-copied'), 'the copied snippet flashes the feedback class');
         ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('Code copied'), 'a toast confirms the copy');
     }
+
+    console.log('\n== newly opened direct chat ==');
+    state.entities.users.profiles[ids.THIRD].last_picture_update = 42;
+    document.querySelector('button[title="New chat"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-menu'));
+    Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.trim() === 'New Message')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('[role="dialog"][aria-label="New message"]'));
+    const newPeer = Array.from(document.querySelectorAll('.tgw-modal .tgw-picker-row')).find((row) => row.textContent.includes('Nina Novak'));
+    ok(!!newPeer, 'new message picker includes the contact');
+    newPeer?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak');
+    ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak', 'new direct chat shows the contact name instead of the raw channel name');
+    ok(document.querySelector('.tgw-chat-header-main .tgw-avatar img')?.getAttribute('src')?.includes('/users/user-third/image'), 'new direct chat shows the contact profile picture');
+    ok(calls.some((call) => call === `GET /channels/${ids.NEW_DM}`), 'new channel is loaded when the host store has not received it yet');
 
     console.log('\n== stock UI view tracking ==');
     // A user on the stock Mattermost UI never scrolls our message list: opening a channel there

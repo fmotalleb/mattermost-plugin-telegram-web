@@ -137,6 +137,7 @@ const THIRD = 'user-third';
 const TEAM = 'team-1';
 const DM = 'channel-dm';
 const TOWN = 'channel-town';
+const NEW_DM = 'channel-new-dm';
 
 const users = {
     [ME]: {id: ME, username: 'me', first_name: 'Mia', last_name: 'Meyer', delete_at: 0},
@@ -149,6 +150,7 @@ const channels = {
     [DM]: {id: DM, type: 'D', name: [ME, OTHER].sort().join('__'), display_name: '', team_id: '', last_post_at: 1_700_000_500_000, create_at: 1_600_000_000_000, delete_at: 0, total_msg_count: 4},
     [TOWN]: {id: TOWN, type: 'O', name: 'town-square', display_name: 'Town Square', purpose: 'Everyone joins this channel', header: '', team_id: TEAM, last_post_at: 1_700_000_400_000, create_at: 1_600_000_000_000, delete_at: 0, total_msg_count: 12},
 };
+const newDirectChannel = {id: NEW_DM, type: 'D', name: [ME, THIRD].sort().join('__'), display_name: '', team_id: '', last_post_at: 0, create_at: Date.now(), delete_at: 0, total_msg_count: 0};
 
 const posts = {
     p1: {
@@ -240,6 +242,16 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    if (p === '/plugins/com.telegramweb.ui/api/v1/forward' && options.method === 'POST') {
+        const source = posts[post.post_id];
+        if (!source || !channels[post.channel_id]) {
+            return json({message: 'post or destination not found'}, 404);
+        }
+        return json({...source, id: 'forwarded-test-post', channel_id: post.channel_id, user_id: ME,
+            props: {tgw_forwarded_from: source.id, tgw_forwarded_name: users[source.user_id].username},
+            file_ids: (source.metadata?.files || []).map((file) => `copy-${file.id}`)});
+    }
+
     // View tracking (server component of the plugin): records who saw which post and reports
     // counts, mirroring server/plugin.go.
     if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/views')) {
@@ -264,7 +276,14 @@ global.fetch = async (url, options = {}) => {
                     seenByMe[id] = viewers.has(ME);
                 }
             });
-            return json({counts, seen: seenByMe});
+            const includeViewers = parsed.searchParams.get('include_viewers') === 'true';
+            const viewers = {};
+            if (includeViewers) {
+                ids.forEach((id) => {
+                    viewers[id] = Array.from(viewTracking.get(id) || []);
+                });
+            }
+            return json({counts, seen: seenByMe, viewers});
         }
         return json({message: 'method not allowed'}, 405);
     }
@@ -457,10 +476,13 @@ global.fetch = async (url, options = {}) => {
         return {ok: false, status: 404, statusText: 'Not Found', text: async () => ''};
     }
     if (p === '/channels/direct') {
-        return json(channels[DM]);
+        return json(Array.isArray(post) && post.includes(THIRD) ? newDirectChannel : channels[DM]);
     }
     if (p.startsWith('/channels/')) {
         const id = p.split('/')[2];
+        if (id === NEW_DM) {
+            return json(newDirectChannel);
+        }
         if (channels[id]) {
             return json(channels[id]);
         }
@@ -573,7 +595,7 @@ module.exports = {
     posts,
     state,
     store,
-    ids: {ME, OTHER, TEAM, DM, TOWN},
+    ids: {ME, OTHER, THIRD, TEAM, DM, TOWN, NEW_DM},
     holdPosts,
     pushStockPost,
     viewTracking,

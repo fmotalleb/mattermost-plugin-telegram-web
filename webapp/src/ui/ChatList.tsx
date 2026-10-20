@@ -142,11 +142,13 @@ export interface ChatListProps {
     emptyTitle?: string;
     emptyBody?: string;
     prefetchLimit?: number;
+    /** Show favorite chats as the pinned section of the All tab. */
+    groupFavorites?: boolean;
     /** When set, rows can be dragged to reorder this Mattermost category (Mattermost-style). */
     reorderable?: {categoryId: string} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, reorderable = null}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, groupFavorites = false, reorderable = null}: ChatListProps) {
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
@@ -191,7 +193,9 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
         <div className="tgw-chat-list" role="list">
             {chats.map((chat, index) => (
                 <React.Fragment key={chat.id}>
-                    {index > 0 && <div className="tgw-list-divider"/>}
+                    {groupFavorites && index === 0 && chat.isFavorite && <div className="tgw-section-title">Favorites</div>}
+                    {groupFavorites && index > 0 && chats[index - 1].isFavorite && !chat.isFavorite && <div className="tgw-section-title">Chats</div>}
+                    {index > 0 && (!groupFavorites || chats[index - 1].isFavorite === chat.isFavorite) && <div className="tgw-list-divider"/>}
                     <ChatRow
                         summary={chat}
                         selected={chat.id === selectedChannelId}

@@ -320,6 +320,10 @@ export class MattermostAPI {
         return this.request<MMPost>('/posts', {method: 'POST', body: post});
     }
 
+    forwardPost(postId: string, channelId: string): Promise<MMPost> {
+        return this.pluginRequest('/api/v1/forward', {method: 'POST', body: {post_id: postId, channel_id: channelId}});
+    }
+
     patchPost(postId: string, patch: {message?: string; props?: Record<string, any>}): Promise<MMPost> {
         return this.request<MMPost>(`/posts/${postId}/patch`, {method: 'PUT', body: {id: postId, ...patch}});
     }
@@ -354,6 +358,16 @@ export class MattermostAPI {
                 per_page: opts.perPage ?? 30,
                 team_id: teamId,
             },
+        });
+    }
+
+    // The plugin server walks a channel's retained post history. This deliberately bypasses the
+    // Mattermost global-search index, which administrators can cap well below a chat's result
+    // count. Callers fall back to the public channel-history API if this server component is off.
+    searchChannelHistory(channelId: string, term: string): Promise<{order: string[]; posts: Record<string, MMPost>}> {
+        return this.pluginRequest('/api/v1/channel-search', {
+            method: 'POST',
+            body: {channel_id: channelId, term},
         });
     }
 
@@ -482,6 +496,11 @@ export class MattermostAPI {
     /** View counts for the given posts plus whether the current user has seen each one. */
     getPostViewStats(postIds: string[]): Promise<{counts: Record<string, number>; seen: Record<string, boolean>}> {
         return this.pluginRequest('/api/v1/views', {query: {post_ids: postIds.join(',')}});
+    }
+
+    /** Viewer IDs are fetched only when the user opens a channel post's seen list. */
+    getPostViewers(postId: string): Promise<{viewers: Record<string, string[]>}> {
+        return this.pluginRequest('/api/v1/views', {query: {post_ids: postId, include_viewers: true}});
     }
 }
 

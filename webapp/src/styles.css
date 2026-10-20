@@ -802,7 +802,7 @@
     gap: 10px;
     height: 56px;
     padding: 0 12px;
-    background: var(--tgw-header-bg);
+    background: var(--tgw-bg-secondary);
     border-bottom: 1px solid var(--tgw-border);
     position: relative;
     z-index: 2;
@@ -1864,6 +1864,13 @@ img.tgw-reaction-emoji {
     color: var(--tgw-text);
     padding: 7px 4px;
     max-height: 320px;
+}
+
+.tgw-msg-forwarded {
+    color: var(--tgw-link);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
 }
 
 .tgw-composer-icon {
@@ -3224,10 +3231,57 @@ body.tgw-root-active {
     font-size: 12px;
     color: var(--tgw-text-secondary);
     font-variant-numeric: tabular-nums;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
 }
 
 .tgw-msg-views svg {
     color: var(--tgw-text-tertiary);
+}
+
+.tgw-msg-views-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.tgw-msg-viewers {
+    position: absolute;
+    z-index: 8;
+    right: 0;
+    bottom: calc(100% + 7px);
+    width: max-content;
+    min-width: 176px;
+    max-width: 260px;
+    padding: 8px;
+    border: 1px solid var(--tgw-border);
+    border-radius: 10px;
+    background: var(--tgw-bg-secondary);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .2);
+    color: var(--tgw-text);
+}
+
+.tgw-msg-viewers-title {
+    padding: 2px 4px 6px;
+    color: var(--tgw-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tgw-msg-viewer {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    padding: 3px 2px;
+    font-size: 13px;
+}
+
+.tgw-msg-viewers-empty {
+    padding: 4px;
+    color: var(--tgw-text-secondary);
+    font-size: 13px;
 }
 
 .tgw-status-offline {
@@ -3271,6 +3325,70 @@ body.tgw-root-active {
 
 .tgw-file-file {
     background: #a2acb4;
+}
+
+/* File labels read as small document tiles rather than flat, circular status dots. The subtle
+   folded corner makes ZIP/PDF/etc. recognizable before reading the extension, and the richer
+   colors keep enough separation against the dark chat wallpaper. */
+.tgw-file-icon,
+.tgw-attachment-chip-icon {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: 11px;
+    background: linear-gradient(145deg, #5b98c8, #3679ad);
+    box-shadow: 0 3px 8px rgba(24, 47, 68, .24), inset 0 1px rgba(255, 255, 255, .22);
+    color: #fff;
+    letter-spacing: .025em;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, .2);
+}
+
+.tgw-file-icon::after,
+.tgw-attachment-chip-icon::after {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 0;
+    height: 0;
+    border-top: 13px solid rgba(255, 255, 255, .42);
+    border-left: 13px solid transparent;
+    content: '';
+}
+
+.tgw-file-pdf {
+    background: linear-gradient(145deg, #f06a61, #c93e38);
+}
+
+.tgw-file-archive {
+    background: linear-gradient(145deg, #f0ae45, #d77b17);
+}
+
+.tgw-file-image {
+    background: linear-gradient(145deg, #63c873, #32984b);
+}
+
+.tgw-file-video {
+    background: linear-gradient(145deg, #a08bf0, #6d56c8);
+}
+
+.tgw-file-audio {
+    background: linear-gradient(145deg, #f293b9, #cc5384);
+}
+
+.tgw-file-code {
+    background: linear-gradient(145deg, #70bae7, #3b88bd);
+}
+
+.tgw-file-file {
+    background: linear-gradient(145deg, #aebac3, #788993);
+}
+
+.tgw-theme-dark .tgw-file-icon,
+.tgw-theme-dark .tgw-attachment-chip-icon,
+.tgw-theme-midnight .tgw-file-icon,
+.tgw-theme-midnight .tgw-attachment-chip-icon {
+    border-color: rgba(255, 255, 255, .34);
+    box-shadow: 0 4px 11px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .22);
 }
 
 .tgw-spinner {

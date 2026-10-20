@@ -525,6 +525,11 @@ class CDP {
         ok(parseInt(box.styleHeight, 10) >= 100,
             `the edit box grows to fit a long message (style height ${box.styleHeight}, box ${box.rectHeight}px, ${box.textLength} chars)`);
         ok(box.rectHeight >= 100, `the grown height is visible on screen (${box.rectHeight}px)`);
+        await cdp.eval('document.querySelector(".tgw-composer textarea").select()');
+        await cdp.send('Input.insertText', {text: 'short'});
+        await sleep(150);
+        const shrunk = await cdp.eval('Math.round(document.querySelector(".tgw-composer textarea").getBoundingClientRect().height)');
+        ok(shrunk < box.rectHeight && shrunk < 60, `removing long input shrinks the composer again (${shrunk}px)`);
         await cdp.eval(`(() => {
             const textarea = document.querySelector('.tgw-composer textarea');
             textarea.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));

@@ -6,7 +6,7 @@ import type {ChatTab} from '../mm/selectors';
 import type {MMChannel, MMPost, MMUser} from '../mm/types';
 import type {TimeFormat} from '../mm/utils';
 
-export type ModalKind = null | 'settings' | 'newGroup' | 'newChannel' | 'newContact' | 'channelInfo' | 'addMembers' | 'userPicker';
+export type ModalKind = null | 'settings' | 'newGroup' | 'newChannel' | 'newContact' | 'channelInfo' | 'addMembers' | 'userPicker' | 'forward';
 
 export interface ConfirmDialog {
     title: string;

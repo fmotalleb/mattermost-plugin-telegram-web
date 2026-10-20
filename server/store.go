@@ -109,6 +109,39 @@ func (p *Plugin) viewCounts(postIDs []string) (map[string]int, error) {
 	return counts, rows.Err()
 }
 
+// viewUserIDs returns viewers newest first. Profile data remains behind Mattermost's normal
+// user API, so this tracking table never becomes a second, stale user directory.
+func (p *Plugin) viewUserIDs(postIDs []string) (map[string][]string, error) {
+	db, err := p.client.Store.GetMasterDB()
+	if err != nil {
+		return nil, err
+	}
+
+	args := make([]any, len(postIDs))
+	for i, id := range postIDs {
+		args[i] = id
+	}
+	rows, err := db.Query(`
+		SELECT post_id, user_id
+		  FROM `+viewTrackingTable+`
+		 WHERE post_id IN `+p.inPlaceholders(1, len(postIDs))+`
+		 ORDER BY post_id, viewed_at DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	viewers := map[string][]string{}
+	for rows.Next() {
+		var postID, userID string
+		if err := rows.Scan(&postID, &userID); err != nil {
+			return nil, err
+		}
+		viewers[postID] = append(viewers[postID], userID)
+	}
+	return viewers, rows.Err()
+}
+
 func (p *Plugin) seenPostIDs(userID string, postIDs []string) (map[string]bool, error) {
 	db, err := p.client.Store.GetMasterDB()
 	if err != nil {

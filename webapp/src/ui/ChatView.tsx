@@ -4,10 +4,10 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {api} from '../mm/api';
 import {setChannelFavorite} from '../mm/favorites';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
-import {getChatSummary, getCurrentTeamId, getTypingUserIds} from '../mm/selectors';
+import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
-import {copyToClipboard, displayName, memberCountLabel, statusLabel, toPlainPreview, truncate} from '../mm/utils';
+import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
+import {channelMemberIds, copyToClipboard, displayName, initialsFor, memberCountLabel, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {Composer} from './Composer';
 import {useTg} from './context';
 import {MessageList} from './MessageList';
@@ -15,16 +15,18 @@ import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
 import {Avatar, IconBack, IconClose, IconFile, IconLink, IconMore, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
 
-function minimalSummary(channel: MMChannel) {
-    const title = channel.display_name || channel.name || 'Conversation';
+const IN_CHAT_SEARCH_PAGE_SIZE = 100;
+
+function minimalSummary(channel: MMChannel, peerId?: string, peer?: MMUser) {
+    const title = channel.type === 'D' ? (peer ? displayName(peer) : 'Direct message') : (channel.display_name || channel.name || 'Conversation');
     return {
         id: channel.id,
         channel,
         type: channel.type,
         title,
         subtitle: '',
-        avatarUserId: undefined,
-        initials: title.slice(0, 2).toUpperCase(),
+        avatarUserId: channel.type === 'D' ? peerId : undefined,
+        initials: initialsFor(title),
         color: '',
         isFavorite: false,
         folded: false,
@@ -38,7 +40,7 @@ function minimalSummary(channel: MMChannel) {
         memberCount: 0,
         teamId: channel.team_id,
         teamName: '',
-        peerIds: [],
+        peerIds: peerId ? [peerId] : [],
     };
 }
 
@@ -46,11 +48,31 @@ export function ChatView() {
     const {ui, actions, timeFormat, me, isMobile, channel} = useTg();
     const channelId = ui.selectedChannelId;
     const storeSummary = useSelector((state) => (channelId ? getChatSummary(state, channelId) : undefined));
-    const summary = storeSummary || (channel ? minimalSummary(channel) : undefined);
+    const profiles = useSelector((state) => state.entities?.users?.profiles);
+    const peerId = channel?.type === 'D' ? channelMemberIds(channel).find((id) => id !== me?.id) : undefined;
+    const [fetchedPeer, setFetchedPeer] = useState<MMUser | undefined>();
+    useEffect(() => {
+        if (!peerId || profiles?.[peerId]) {
+            return undefined;
+        }
+        let cancelled = false;
+        api.getUsersByIds([peerId]).then((users) => {
+            if (!cancelled) {
+                setFetchedPeer(users?.[0]);
+            }
+        }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [peerId, profiles]);
+    const peer = peerId ? profiles?.[peerId] || (fetchedPeer?.id === peerId ? fetchedPeer : undefined) : undefined;
+    const baseSummary = storeSummary || (channel ? minimalSummary(channel, peerId, peer) : undefined);
+    const summary = baseSummary && channel?.type === 'D' && peerId ? {
+        ...baseSummary,
+        title: peer ? displayName(peer) : 'Direct message',
+        avatarUserId: peerId,
+        peerIds: [peerId],
+    } : baseSummary;
     const {posts, loading, loadingOlder, hasMoreOlder} = useChannelPosts(channelId);
     const typingIds = useSelector((state) => (channelId ? getTypingUserIds(state, channelId) : []));
-    const profiles = useSelector((state) => state.entities?.users?.profiles);
-    const teamId = useSelector(getCurrentTeamId);
     const teamName = useSelector((state) => (channel ? state.entities?.teams?.teams?.[channel.team_id]?.name : ''));
     const [inChatSearch, setInChatSearch] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
@@ -75,12 +97,12 @@ export function ChatView() {
         }
     }, [channelId]);
 
-    // In-chat search needs the server rather than a filter over the loaded message window: a
-    // match can be months back. Search broadly and then use the returned channel id as the
-    // authoritative scope, which also works for DMs whose searchable channel name is opaque.
+    // Mattermost's indexed post search can be capped. Prefer the plugin endpoint that walks the
+    // complete retained history; installations without the server component fall back to walking
+    // the channel's public `before` cursor directly.
     useEffect(() => {
         const term = inChatSearch.trim();
-        if (!term || !teamId || !channelId) {
+        if (!term || !channelId) {
             setSearchHits([]);
             setSearchLoading(false);
             setSelectedSearchId(null);
@@ -88,34 +110,88 @@ export function ChatView() {
         }
         let cancelled = false;
         setSearchLoading(true);
+        setSearchHits([]);
+        setSelectedSearchId(null);
         const timer = setTimeout(() => {
-            api.searchPosts(teamId, term, {perPage: 100})
-                .then((data) => {
+            const publish = (hits: MMPost[]) => {
+                hits.sort((left, right) => right.create_at - left.create_at);
+                setSearchHits(hits.slice());
+                setSelectedSearchId((current) => current || hits[0]?.id || null);
+            };
+            const loadEntireHistory = async () => {
+                const hits: MMPost[] = [];
+                const seenPostIds = new Set<string>();
+                let beforePostId = '';
+                while (!cancelled) {
+                    const data = beforePostId
+                        ? await api.getPostsBefore(channelId, beforePostId, IN_CHAT_SEARCH_PAGE_SIZE)
+                        : await api.getPosts(channelId, 0, IN_CHAT_SEARCH_PAGE_SIZE);
                     if (cancelled) {
                         return;
                     }
-                    const hits = (data.order || []).map((id) => data.posts[id])
-                        .filter((post): post is MMPost => Boolean(post && post.channel_id === channelId));
-                    setSearchHits(hits);
-                    setSelectedSearchId((current) => hits.some((post) => post.id === current) ? current : (hits[0]?.id || null));
-                })
-                .catch(() => {
-                    if (!cancelled) {
+                    const ids = data.order || [];
+                    if (!ids.length) {
+                        break;
+                    }
+                    const pagePosts = ids.map((id) => data.posts[id]).filter(Boolean) as MMPost[];
+                    const oldest = pagePosts.reduce<MMPost | undefined>((oldestPost, post) => {
+                        if (!oldestPost || post.create_at < oldestPost.create_at) {
+                            return post;
+                        }
+                        return oldestPost;
+                    }, undefined);
+                    // A repeated cursor page would otherwise loop forever if a legacy server
+                    // ignores `before`. Keep the first response but stop once it adds nothing.
+                    let foundNewPost = false;
+                    pagePosts.forEach((post) => {
+                        if (seenPostIds.has(post.id)) {
+                            return;
+                        }
+                        foundNewPost = true;
+                        seenPostIds.add(post.id);
+                        if (!post.delete_at && (post.message || '').toLowerCase().includes(term.toLowerCase())) {
+                            hits.push(post);
+                        }
+                    });
+                    publish(hits);
+                    if (!foundNewPost || !oldest || oldest.id === beforePostId) {
+                        break;
+                    }
+                    beforePostId = oldest.id;
+                }
+            };
+            const searchChannel = async () => {
+                try {
+                    const data = await api.searchChannelHistory(channelId, term);
+                    if (cancelled) {
+                        return;
+                    }
+                    if (!Array.isArray(data.order) || !data.posts) {
+                        throw new Error('invalid channel search response');
+                    }
+                    publish((data.order || []).map((id) => data.posts[id]).filter((post): post is MMPost => Boolean(post)));
+                } catch {
+                    // A plugin server is optional. Its 404 (or an older plugin version) should
+                    // still leave deep chat search working through Mattermost's public API.
+                    try {
+                        await loadEntireHistory();
+                    } catch {
                         setSearchHits([]);
                         setSelectedSearchId(null);
                     }
-                })
-                .then(() => {
+                } finally {
                     if (!cancelled) {
                         setSearchLoading(false);
                     }
-                });
+                }
+            };
+            searchChannel();
         }, 250);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [inChatSearch, teamId, channelId]);
+    }, [inChatSearch, channelId]);
 
     const selectedSearchIndex = searchHits.findIndex((post) => post.id === selectedSearchId);
     const selectSearchResult = useCallback((index: number) => {
@@ -308,6 +384,7 @@ export function ChatView() {
                 <button type="button" className="tgw-chat-header-main" onClick={() => actions.setUI({infoOpen: true})}>
                     <Avatar
                         userId={summary.avatarUserId}
+                        profile={peer}
                         name={summary.title}
                         colorKey={channel.type === 'D' ? summary.peerIds[0] : channel.id}
                         size={44}

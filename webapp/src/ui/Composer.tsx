@@ -13,13 +13,12 @@ import {getState, useSelector} from '../mm/store';
 import {useVoiceRecorder} from './voice';
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
-function autoGrow(element: HTMLTextAreaElement | null, value?: number) {
+function autoGrow(element: HTMLTextAreaElement | null) {
     if (!element) {
         return;
     }
-    const height = value === undefined ? element.scrollHeight : value;
     element.style.height = 'auto';
-    element.style.height = `${Math.min(Math.max(height, 24), 320)}px`;
+    element.style.height = `${Math.min(Math.max(element.scrollHeight, 24), 320)}px`;
 }
 
 export interface ComposerProps {
@@ -124,7 +123,6 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     const reset = () => {
         setMessage('');
         setFiles([]);
-        autoGrow(textareaRef.current, 0);
     };
 
     // Mirror of the files state for the send-failure path: the closure of an in-flight send

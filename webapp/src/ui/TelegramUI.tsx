@@ -18,7 +18,7 @@ import {InfoPanel} from './InfoPanel';
 import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
 import type {MenuEntry} from './menu';
-import {ReactionEmoji} from './MessageList';
+import {ReactionEmoji, filesOfPost} from './MessageList';
 import {SearchPanel} from './SearchPanel';
 import {Sidebar} from './Sidebar';
 import {ThreadPanel} from './ThreadPanel';
@@ -264,6 +264,7 @@ export function TelegramUI() {
                     });
                 },
                 thread: (post) => setUI({threadRootId: post.root_id || post.id}),
+                forward: (post) => setUI({modal: 'forward', modalPayload: {post}}),
                 markUnread: (post) => {
                     markPostUnread(post)
                         .then((ok) => {
@@ -418,6 +419,7 @@ interface BuildMenuHandlers {
     /** One-tap reaction rows at the top of the menu; the handler toggles it on/off. */
     quickReact: (post: MMPost, emojiName: string) => void;
     thread: (post: MMPost) => void;
+    forward: (post: MMPost) => void;
     markUnread: (post: MMPost) => void;
     toast: (message: string, kind?: 'info' | 'error' | 'success') => void;
     openChat: (channelId: string, opts?: {postId?: string}) => void;
@@ -458,6 +460,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         },
         'separator',
         {key: 'reply', label: 'Reply', onClick: () => handlers.reply(post)},
+        {key: 'forward', label: 'Forward', onClick: () => handlers.forward(post)},
         {key: 'react', label: 'Add reaction', onClick: () => handlers.react(post)},
         {
             key: 'copy',
@@ -466,6 +469,15 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         },
         {key: 'unread', label: 'Mark as unread', onClick: () => handlers.markUnread(post)},
     ];
+    filesOfPost(post).forEach((file) => {
+        items.splice(items.findIndex((item) => item !== 'separator' && item.key === 'unread'), 0, {
+            key: `copy-download-${file.id}`,
+            label: filesOfPost(post).length === 1 ? 'Copy download URL' : `Copy download URL: ${file.name}`,
+            onClick: () => copyToClipboard(new URL(`${api.fileURL(file.id)}?download=1`, window.location.origin).href)
+                .then(() => handlers.toast('Download URL copied', 'success'))
+                .catch(() => handlers.toast('Could not copy download URL', 'error')),
+        });
+    });
     // Telegram's reactor list goes into the post menu grouped by emoji: one bare emoji row heads
     // each group, then the people who used it. Rows keep just the first name — hovering one
     // explains the rest: the full name and when that person reacted.

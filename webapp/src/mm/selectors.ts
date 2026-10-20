@@ -224,7 +224,7 @@ export function getChatSummary(state: MMState, channelId: string): ChatSummary |
     const totalMsgCount = state.entities?.channels?.messageCounts?.[channelId]?.total ?? channel.total_msg_count ?? 0;
 
     return chatMemo.get(
-        [channel, myMember, peerUser, getStatus(state, peerIds[0]), membersInChannel, cachedPreview?.id, cachedPreview?.create_at, totalMsgCount],
+        [channel, myMember, peerUser, getStatus(state, peerIds[0]), membersInChannel, state.entities?.preferences?.myPreferences, cachedPreview?.id, cachedPreview?.create_at, totalMsgCount],
         () => {
             const unread = Math.max(0, totalMsgCount - (myMember?.msg_count || 0));
             const mentions = myMember?.mention_count || 0;
@@ -316,7 +316,7 @@ export function getAllChats(state: MMState): ChatSummary[] {
                     ids.push(channelId);
                 }
             });
-            return summarise(state, ids).sort(compareChats);
+            return summarise(state, ids).sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || compareChats(a, b));
         },
     );
 }

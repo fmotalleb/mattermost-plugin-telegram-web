@@ -6,7 +6,7 @@ import {api} from '../mm/api';
 import {useChannelPosts} from '../mm/posts';
 import {ACCENTS, THEME_LABELS, updateSettings, WALLPAPER_LABELS} from '../mm/settings';
 import type {AccentName, ThemeName, WallpaperName} from '../mm/settings';
-import {getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
+import {getAllChats, getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMPost, MMUser} from '../mm/types';
 import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
@@ -318,7 +318,7 @@ export function NewChannelModal() {
 
     const create = async () => {
         if (!name.trim()) {
-            actions.toast('A group name is required', 'error');
+            actions.toast('A channel name is required', 'error');
             return;
         }
         setBusy(true);
@@ -336,19 +336,19 @@ export function NewChannelModal() {
             actions.closeModal();
             actions.openChat(channel.id);
         } catch (error: any) {
-            actions.toast(error?.message || 'Could not create the group', 'error');
+            actions.toast(error?.message || 'Could not create the channel', 'error');
         }
         setBusy(false);
     };
 
     return (
         <ModalShell
-            title="New group"
+            title="New channel"
             onClose={actions.closeModal}
-            footer={<button type="button" className="tgw-button" disabled={busy || !name.trim()} onClick={create}>Create group</button>}
+            footer={<button type="button" className="tgw-button" disabled={busy || !name.trim()} onClick={create}>Create channel</button>}
         >
-            <input className="tgw-input" value={displayNameValue} placeholder="Group display name" onChange={(event) => setDisplayNameValue(event.target.value)}/>
-            <input className="tgw-input" value={name} placeholder="group-name (lowercase, no spaces)" onChange={(event) => setName(event.target.value)}/>
+            <input className="tgw-input" value={displayNameValue} placeholder="Channel display name" onChange={(event) => setDisplayNameValue(event.target.value)}/>
+            <input className="tgw-input" value={name} placeholder="channel-name (lowercase, no spaces)" onChange={(event) => setName(event.target.value)}/>
             <textarea className="tgw-input" rows={2} value={purpose} placeholder="Purpose (optional)" onChange={(event) => setPurpose(event.target.value)}/>
             <div className="tgw-segmented tgw-segmented-full">
                 <button type="button" className={!isPrivate ? 'active' : ''} onClick={() => setIsPrivate(false)}>Public</button>
@@ -487,6 +487,41 @@ export function ConfirmModal() {
     );
 }
 
+function ForwardModal({post}: {post: MMPost}) {
+    const {actions} = useTg();
+    const chats = useSelector(getAllChats);
+    const [term, setTerm] = useState('');
+    const [busy, setBusy] = useState(false);
+    const choices = chats.filter((chat) => chat.title.toLowerCase().includes(term.trim().toLowerCase()));
+    const forward = async (channelId: string) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        try {
+            await api.forwardPost(post.id, channelId);
+            actions.closeModal();
+            actions.toast('Message forwarded', 'success');
+        } catch (error: any) {
+            actions.toast(error?.message || 'Could not forward the message', 'error');
+            setBusy(false);
+        }
+    };
+    return (
+        <ModalShell title="Forward message" onClose={actions.closeModal}>
+            <input autoFocus className="tgw-input" value={term} placeholder="Search chats" onChange={(event) => setTerm(event.target.value)}/>
+            <div className="tgw-picker-list tgw-picker-list-tall">
+                {choices.map((chat) => (
+                    <button type="button" className="tgw-picker-row" key={chat.id} disabled={busy} onClick={() => forward(chat.id)}>
+                        <span className="tgw-picker-body"><span className="tgw-picker-name">{chat.title}</span></span>
+                    </button>
+                ))}
+                {!choices.length && <div className="tgw-picker-empty">No chats found</div>}
+            </div>
+        </ModalShell>
+    );
+}
+
 export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
@@ -502,6 +537,8 @@ export function Modals() {
         return <AddMembersModal payload={ui.modalPayload}/>;
     case 'channelInfo':
         return <ChannelInfoModal payload={ui.modalPayload}/>;
+    case 'forward':
+        return ui.modalPayload?.post ? <ForwardModal post={ui.modalPayload.post}/> : null;
     default:
         return null;
     }

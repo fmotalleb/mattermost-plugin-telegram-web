@@ -102,10 +102,11 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
         };
     }, [onClose]);
 
-    // "Copy selected text" joins the end of whatever menus were handed in — post menu, header
-    // menu, chat-list menu — but only while the user actually has a selection to copy.
-    const entries: MenuEntry[] = selectedText
-        ? [...items, {
+    // Put the selected-text action immediately before the full post text when it exists.
+    const entries: MenuEntry[] = items.slice();
+    if (selectedText) {
+        const copyIndex = entries.findIndex((item) => item !== 'separator' && item.key === 'copy');
+        entries.splice(copyIndex < 0 ? entries.length : copyIndex, 0, {
             key: 'copy-selection',
             label: 'Copy selected text',
             onClick: () => {
@@ -113,8 +114,8 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                     .then(() => actions.toast('Selected text copied', 'success'))
                     .catch(() => actions.toast('Could not copy the selected text', 'error'));
             },
-        }]
-        : items;
+        });
+    }
 
     // Portal into the overlay root so the menu inherits the --tgw-* theme variables
     // (background, border, shadow) - see portal.ts.
