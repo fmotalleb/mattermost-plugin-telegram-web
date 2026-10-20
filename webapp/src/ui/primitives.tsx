@@ -51,12 +51,39 @@ export const IconStarOutline = make('M12 4.5 13.6 9h4.7l-3.8 3.4 1.2 5-3.7-2.6-3
 export const IconMute = make('M21 4.8 19.2 3 15 7.2V6a3 3 0 0 0-6 0v6c0 .3 0 .6.1.8L3 12.9v2l4.2-.8 2.2 2.2c.3.5.9.9 1.6.9l1.4-1.4 6.6 6.6 1.8-1.8-9.8-9.8M18 12v-2.2l-4.5 4.5c.3.9 1.2 1.5 2.2 1.5 1.3 0 2.3-1 2.3-2.3V12Zm-3 6.5L6.5 10 5 11.5 12 18.5l3-3v3.8c0 1.5 1.2 2.7 2.7 2.7H20v-2h-2a1 1 0 0 1-1-1v-3.3l-2-2Z', {filled: true});
 export const IconBell = make('M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22Zm7-5.5V11a7 7 0 0 0-5-6.7V3.5a2 2 0 1 0-4 0v.8A7 7 0 0 0 5 11v5.5L3 18.5v1h18v-1l-2-2Z', {filled: true});
 export const IconCheck = make('M9.6 17.2 4.4 12l-1.4 1.4 6.6 6.6L21 8.6 19.6 7.2 9.6 17.2Z', {filled: true});
-export const IconCheckDouble = make('M4 12.5 8.5 17 19.5 6M10 13 14 17 21 10');
+// Telegram's double check: two parallel ticks where the second one tucks behind
+// the first — its short arm is clipped (via the mask) right where it meets the
+// first tick's stroke, leaving the thin sliver that reads as “underneath”.
+export const IconCheckDouble = ({size = 24, className}: IconProps) => (
+    <svg
+        className={className}
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        focusable="false"
+    >
+        <defs>
+            <mask id="tgw-check-double-clip">
+                <rect x="0" y="0" width="24" height="24" fill="#fff"/>
+                <path d="M4.94 20.04 16.94 8.04" stroke="#000" strokeWidth="0.85"/>
+            </mask>
+        </defs>
+        <path d="M4 11.9 7.6 15.5 15 8.1"/>
+        <path d="M10.05 13.05 12.5 15.5 19.9 8.1" mask="url(#tgw-check-double-clip)"/>
+    </svg>
+);
 export const IconClock = make('M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm1-13h-2v6l4.3 2.6 1-1.7-3.3-2V7Z', {filled: true});
 export const IconWarning = make('M12 2 1 21h22L12 2Zm1 15h-2v2h2v-2Zm0-7h-2v5h2v-5Z', {filled: true});
 export const IconArrowDown = make('M12 21 5 14l1.4-1.4L11 17.2V3h2v14.2l4.6-4.6L19 14l-7 7Z', {filled: true});
 export const IconInfo = make('M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15h-2v-6h2v6Zm0-8h-2V7h2v2Z', {filled: true});
 export const IconUsers = make('M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.7 0-6 1.3-6 3.5V19h8v-2.5c0-.9.5-1.9 1.4-2.7A12 12 0 0 0 8 13Zm8 0c-3 0-6 1.5-6 3.5V19h12v-2.5c0-2-3-3.5-6-3.5Z', {filled: true});
+export const IconUser = make('M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-3.34 0-10 1.67-10 5v2h20v-2c0-3.33-6.66-5-10-5Z', {filled: true});
 export const IconTrash = make('M9 3v1H4v2h16V4h-5V3H9ZM6 7v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6Zm3 2h2v10H9V9Zm4 0h2v10h-2V9Z', {filled: true});
 export const IconEdit = make('M3 17.3V21h3.7L18.1 9.6l-3.7-3.7L3 17.3ZM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7L20.7 7Z', {filled: true});
 export const IconReply = make('M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z', {filled: true});

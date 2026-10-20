@@ -44,12 +44,18 @@ dom.window.cancelAnimationFrame = global.cancelAnimationFrame;
 global.IS_REACT_ACT_ENVIRONMENT = false;
 window.basename = '';
 // WebappUtils with a recording history so the plugin's route syncing is observable in tests.
+// openUserSettings stands in for the host's "open my Account Settings" export (recent Mattermost
+// exposes it); recording the dialogProps lets the tests assert the profile popup ask.
 window.__historyPushes = [];
+window.__userSettingsOpens = [];
 window.WebappUtils = {
     browserHistory: {
         push: (path) => {
             window.__historyPushes.push(path);
         },
+    },
+    openUserSettings: (dialogProps) => {
+        window.__userSettingsOpens.push(dialogProps);
     },
 };
 

@@ -27,7 +27,7 @@ import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconBell, IconMenu, IconMute, IconNewChat, IconSearch, IconSettings} from './primitives';
+import {Avatar, IconBell, IconMenu, IconMute, IconNewChat, IconSearch, IconSettings, IconUser} from './primitives';
 
 function SearchResults({term}: {term: string}) {
     const {actions, timeFormat} = useTg();
@@ -267,6 +267,18 @@ export function Sidebar() {
         });
     };
 
+    // Opens Mattermost's own profile edit popup (Account Settings → Profile). Recent hosts export
+    // window.WebappUtils.openUserSettings; the popup is portalled above this overlay, so it stays
+    // visible without leaving the Telegram UI.
+    const openHostProfileSettings = () => {
+        const utils = (window as any).WebappUtils;
+        if (typeof utils?.openUserSettings === 'function') {
+            utils.openUserSettings({activeTab: 'profile'});
+            return;
+        }
+        actions.toast('Profile settings are not available in this Mattermost version', 'error');
+    };
+
     const openUserMenu = () => {
         const position = menuPositionFromElement(userButtonRef.current);
         const statuses: Array<{key: string; label: string}> = [
@@ -287,6 +299,7 @@ export function Sidebar() {
                     },
                 })),
                 'separator' as const,
+                {key: 'profile', label: 'Profile settings', icon: <IconUser size={18}/>, onClick: openHostProfileSettings},
                 {key: 'settings', label: 'Settings', icon: <IconSettings size={18}/>, onClick: () => actions.openModal('settings')},
             ],
         });

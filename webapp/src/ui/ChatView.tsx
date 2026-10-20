@@ -13,7 +13,7 @@ import {useTg} from './context';
 import {MessageList} from './MessageList';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconBack, IconClose, IconFile, IconLink, IconMore, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
+import {Avatar, IconBack, IconBell, IconClose, IconFile, IconLink, IconMore, IconMute, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
 
 const IN_CHAT_SEARCH_PAGE_SIZE = 100;
 
@@ -312,6 +312,7 @@ export function ChatView() {
             {
                 key: 'mute',
                 label: summary.muted ? 'Unmute' : 'Mute',
+                icon: summary.muted ? <IconBell size={18}/> : <IconMute size={18}/>,
                 onClick: () => {
                     api.updateChannelNotifyProps(channel.id, me?.id || '', {
                         desktop: summary.muted ? 'default' : 'none',

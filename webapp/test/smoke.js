@@ -223,7 +223,7 @@ root.render(React.createElement(TelegramUI));
         return p2?.querySelector('.tgw-msg-status svg path[d^="M4 12.5"]');
     });
     const p2row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
-    ok(!!p2row?.querySelector('.tgw-msg-status svg path[d^="M4 12.5"]'), 'message seen by someone else shows two checkmarks');
+    ok(!!p2row?.querySelector('.tgw-msg-status svg path[d^="M4 11.9"]'), 'message seen by someone else shows two checkmarks');
     await waitFor(() => calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 3000);
     ok(calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 'visible posts reported as seen to the plugin API');
     ok(calls.some((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')), 'view counts fetched from the plugin API');
@@ -272,7 +272,7 @@ root.render(React.createElement(TelegramUI));
     // The peer opens the message between two polls: the next fetch must flip the receipt.
     viewTracking.set(freshId, new Set([ids.ME, ids.OTHER]));
     await waitFor(() => document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M4 12.5"]`), 4000);
-    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M4 12.5"]`), 'the receipt flips to two checkmarks once the peer sees the message');
+    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M4 11.9"]`), 'the receipt flips to two checkmarks once the peer sees the message');
 
     // Every message of mine has now been seen: with nothing left pending the polling stops
     // and waits for the next message to be sent.
@@ -1408,6 +1408,34 @@ root.render(React.createElement(TelegramUI));
     ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak', 'new direct chat shows the contact name instead of the raw channel name');
     ok(document.querySelector('.tgw-chat-header-main .tgw-avatar img')?.getAttribute('src')?.includes('/users/user-third/image'), 'new direct chat shows the contact profile picture');
     ok(calls.some((call) => call === `GET /channels/${ids.NEW_DM}`), 'new channel is loaded when the host store has not received it yet');
+
+    console.log('\n== own avatar menu ==');
+    // The bottom-left avatar opens the user menu; its "Profile settings" entry hands over to
+    // Mattermost's own profile edit popup through the host's WebappUtils.openUserSettings.
+    dom.window.__userSettingsOpens.length = 0;
+    document.querySelector('.tgw-user-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-menu'));
+    const profileSettingsItem = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Profile settings'));
+    ok(!!profileSettingsItem, 'pressing the own avatar offers Profile settings');
+    if (profileSettingsItem) {
+        profileSettingsItem.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await tick(30);
+        ok(dom.window.__userSettingsOpens.length === 1, 'the host is asked to open its own profile popup');
+        ok(JSON.stringify(dom.window.__userSettingsOpens[0]) === JSON.stringify({activeTab: 'profile'}),
+            'the popup lands on the profile tab (got: ' + JSON.stringify(dom.window.__userSettingsOpens[0]) + ')');
+    }
+
+    // Older hosts do not export openUserSettings; the menu reports that instead of failing silently.
+    const realOpenUserSettings = dom.window.WebappUtils.openUserSettings;
+    delete dom.window.WebappUtils.openUserSettings;
+    document.querySelector('.tgw-user-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-menu'));
+    Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Profile settings'))
+        ?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await tick(30);
+    ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('Profile settings are not available in this Mattermost version'),
+        'a host without the export gets a clear message');
+    dom.window.WebappUtils.openUserSettings = realOpenUserSettings;
 
     console.log('\n== stock UI view tracking ==');
     // A user on the stock Mattermost UI never scrolls our message list: opening a channel there
