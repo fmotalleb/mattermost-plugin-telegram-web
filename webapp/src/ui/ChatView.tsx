@@ -1,13 +1,13 @@
 // The chat screen: header, message list, composer and the thread side panel.
 
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {api} from '../mm/api';
 import {setChannelFavorite} from '../mm/favorites';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
-import {getChatSummary, getTypingUserIds} from '../mm/selectors';
+import {getChatSummary, getCurrentTeamId, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction} from '../mm/types';
-import {copyToClipboard, displayName, memberCountLabel, statusLabel} from '../mm/utils';
+import {copyToClipboard, displayName, memberCountLabel, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {Composer} from './Composer';
 import {useTg} from './context';
 import {MessageList} from './MessageList';
@@ -50,15 +50,22 @@ export function ChatView() {
     const {posts, loading, loadingOlder, hasMoreOlder} = useChannelPosts(channelId);
     const typingIds = useSelector((state) => (channelId ? getTypingUserIds(state, channelId) : []));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
+    const teamId = useSelector(getCurrentTeamId);
     const teamName = useSelector((state) => (channel ? state.entities?.teams?.teams?.[channel.team_id]?.name : ''));
     const [inChatSearch, setInChatSearch] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
+    const [searchHits, setSearchHits] = useState<MMPost[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [selectedSearchId, setSelectedSearchId] = useState<string | null>(null);
     const [menu, setMenu] = useState<{x: number; y: number; items: MenuEntry[]} | null>(null);
     const headerMoreRef = React.useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         setInChatSearch('');
         setSearchOpen(false);
+        setSearchHits([]);
+        setSearchLoading(false);
+        setSelectedSearchId(null);
     }, [channelId]);
 
     useEffect(() => {
@@ -68,13 +75,60 @@ export function ChatView() {
         }
     }, [channelId]);
 
-    const visiblePosts = useMemo(() => {
-        if (!inChatSearch.trim()) {
-            return posts;
+    // In-chat search needs the server rather than a filter over the loaded message window: a
+    // match can be months back. Search broadly and then use the returned channel id as the
+    // authoritative scope, which also works for DMs whose searchable channel name is opaque.
+    useEffect(() => {
+        const term = inChatSearch.trim();
+        if (!term || !teamId || !channelId) {
+            setSearchHits([]);
+            setSearchLoading(false);
+            setSelectedSearchId(null);
+            return undefined;
         }
-        const term = inChatSearch.trim().toLowerCase();
-        return posts.filter((post) => (post.message || '').toLowerCase().includes(term));
-    }, [posts, inChatSearch]);
+        let cancelled = false;
+        setSearchLoading(true);
+        const timer = setTimeout(() => {
+            api.searchPosts(teamId, term, {perPage: 100})
+                .then((data) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    const hits = (data.order || []).map((id) => data.posts[id])
+                        .filter((post): post is MMPost => Boolean(post && post.channel_id === channelId));
+                    setSearchHits(hits);
+                    setSelectedSearchId((current) => hits.some((post) => post.id === current) ? current : (hits[0]?.id || null));
+                })
+                .catch(() => {
+                    if (!cancelled) {
+                        setSearchHits([]);
+                        setSelectedSearchId(null);
+                    }
+                })
+                .then(() => {
+                    if (!cancelled) {
+                        setSearchLoading(false);
+                    }
+                });
+        }, 250);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [inChatSearch, teamId, channelId]);
+
+    const selectedSearchIndex = searchHits.findIndex((post) => post.id === selectedSearchId);
+    const selectSearchResult = useCallback((index: number) => {
+        const post = searchHits[index];
+        if (!post) {
+            return;
+        }
+        // Search responses contain the complete post, so ingest it before jumping. This avoids
+        // another round trip for old hits and lets MessageList scroll/highlight it immediately.
+        receivePost(post);
+        setSelectedSearchId(post.id);
+        actions.setUI({highlightedPostId: post.id});
+    }, [searchHits, actions]);
 
     const handleSend = useCallback(async ({message, fileIds, rootId, files, voice}: {message: string; fileIds: string[]; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => {
         if (!channel) {
@@ -291,22 +345,57 @@ export function ChatView() {
                         value={inChatSearch}
                         placeholder="Search in this chat"
                         onChange={(event) => setInChatSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'ArrowUp' && selectedSearchIndex > 0) {
+                                event.preventDefault();
+                                selectSearchResult(selectedSearchIndex - 1);
+                            } else if ((event.key === 'ArrowDown' || event.key === 'Enter') && selectedSearchIndex < searchHits.length - 1) {
+                                event.preventDefault();
+                                selectSearchResult(Math.max(0, selectedSearchIndex + 1));
+                            }
+                        }}
                         spellCheck={false}
                     />
-                    <span className="tgw-inchat-search-count">{inChatSearch ? `${visiblePosts.length} found` : ''}</span>
+                    <span className="tgw-inchat-search-count">{inChatSearch ? (searchLoading ? 'Searching…' : `${searchHits.length} found`) : ''}</span>
+                    {searchHits.length > 0 && (
+                        <span className="tgw-inchat-search-nav">
+                            <button type="button" className="tgw-icon-button" title="Previous result" disabled={selectedSearchIndex <= 0} onClick={() => selectSearchResult(selectedSearchIndex - 1)}>‹</button>
+                            <span>{selectedSearchIndex + 1}/{searchHits.length}</span>
+                            <button type="button" className="tgw-icon-button" title="Next result" disabled={selectedSearchIndex < 0 || selectedSearchIndex >= searchHits.length - 1} onClick={() => selectSearchResult(selectedSearchIndex + 1)}>›</button>
+                        </span>
+                    )}
                     <button type="button" className="tgw-icon-button" onClick={() => {setSearchOpen(false); setInChatSearch('');}} title="Close search">
                         <IconClose size={18}/>
                     </button>
                 </div>
             )}
 
+            {searchOpen && inChatSearch.trim() && (
+                <div className="tgw-inchat-search-results" role="listbox" aria-label="Search results">
+                    {!searchLoading && !searchHits.length && <div className="tgw-inchat-search-empty">No messages found</div>}
+                    {searchHits.map((post, index) => (
+                        <button
+                            key={post.id}
+                            type="button"
+                            role="option"
+                            aria-selected={post.id === selectedSearchId}
+                            className={`tgw-inchat-search-hit ${post.id === selectedSearchId ? 'tgw-inchat-search-hit-active' : ''}`}
+                            onClick={() => selectSearchResult(index)}
+                        >
+                            <span className="tgw-inchat-search-hit-top">{profiles?.[post.user_id] ? displayName(profiles[post.user_id]) : 'Message'}</span>
+                            <span className="tgw-inchat-search-hit-text">{truncate(toPlainPreview(post.message || ''), 110)}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="tgw-chat-body">
                 <MessageList
                     channel={channel}
-                    posts={visiblePosts}
+                    posts={posts}
                     loading={loading}
                     loadingOlder={loadingOlder}
-                    hasMoreOlder={hasMoreOlder && !inChatSearch}
+                    hasMoreOlder={hasMoreOlder}
                     highlightedPostId={ui.highlightedPostId}
                     onContextMenu={(event, post) => {
                         event.preventDefault();
