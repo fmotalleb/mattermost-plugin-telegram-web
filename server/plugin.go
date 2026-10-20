@@ -282,12 +282,13 @@ func (p *Plugin) handleViewStats(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]any{"counts": counts, "seen": seen}
 	if r.URL.Query().Get("include_viewers") == "true" {
-		viewers, err := p.viewUserIDs(ids)
+		viewers, viewedAt, err := p.viewUserIDs(ids)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "could not load viewers")
 			return
 		}
 		response["viewers"] = viewers
+		response["viewed_at"] = viewedAt
 	}
 	writeJSON(w, response)
 }

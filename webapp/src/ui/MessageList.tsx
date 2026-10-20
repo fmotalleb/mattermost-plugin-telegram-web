@@ -64,6 +64,7 @@ export function MessageList(props: MessageListProps) {
     const [unseenBelow, setUnseenBelow] = useState(0);
     const previousHeight = useRef(0);
     const previousFirstId = useRef<string | null>(null);
+    const previousPostIds = useRef<Set<string>>(new Set());
     const lastChannelId = useRef<string>('');
 
     const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
@@ -151,10 +152,13 @@ export function MessageList(props: MessageListProps) {
             return;
         }
         const firstId = posts[0]?.id || null;
+        const sentNewPost = posts.some((post) => post.user_id === myId && !!post.pending_post_id && !previousPostIds.current.has(post.id));
         const heightGrew = previousHeight.current && element.scrollHeight > previousHeight.current;
 
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
+            scrollToBottom();
+        } else if (sentNewPost) {
             scrollToBottom();
         } else if (previousFirstId.current && firstId !== previousFirstId.current && heightGrew) {
             // Older messages were prepended: keep the viewport anchored.
@@ -168,7 +172,8 @@ export function MessageList(props: MessageListProps) {
 
         previousHeight.current = element.scrollHeight;
         previousFirstId.current = firstId;
-    }, [posts, channel.id, atBottom, scrollToBottom]);
+        previousPostIds.current = new Set(posts.map((post) => post.id));
+    }, [posts, channel.id, atBottom, myId, scrollToBottom]);
 
     useEffect(() => {
         if (!highlightedPostId) {
@@ -340,7 +345,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     const otherViewCount = views ? Math.max(0, views.count - (views.seen ? 1 : 0)) : 0;
     const rowRef = useRef<HTMLDivElement | null>(null);
     const [showViewers, setShowViewers] = useState(false);
-    const [viewers, setViewers] = useState<MMUser[]>([]);
+    const [viewers, setViewers] = useState<Array<{user: MMUser; viewedAt: number}>>([]);
     const [viewersLoading, setViewersLoading] = useState(false);
 
     const toggleViewers = useCallback(() => {
@@ -421,7 +426,6 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                 <MessageBody
                     message={post.message}
                     postId={post.id}
-                    editedAt={post.edit_at}
                     mentionKeys={mentionKeys}
                     className="tgw-message-text"
                 />
@@ -432,23 +436,23 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         ))}
                     </div>
                 )}
+                {reactions.length > 0 && (
+                    <div className="tgw-reactions">
+                        {summariseReactions(reactions, customEmoji).map((group) => (
+                            <button
+                                type="button"
+                                key={group.emoji_name}
+                                className={`tgw-reaction ${group.mine ? 'tgw-reaction-mine' : ''}`}
+                                title={group.users.join(', ')}
+                                onClick={() => onToggleReaction(post, group.reaction)}
+                            >
+                                <ReactionEmoji name={group.emoji_name} customEmoji={customEmoji}/>
+                                <span>{group.count}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <div className="tgw-msg-meta">
-                    {reactions.length > 0 && (
-                        <div className="tgw-reactions">
-                            {summariseReactions(reactions, customEmoji).map((group) => (
-                                <button
-                                    type="button"
-                                    key={group.emoji_name}
-                                    className={`tgw-reaction ${group.mine ? 'tgw-reaction-mine' : ''}`}
-                                    title={group.users.join(', ')}
-                                    onClick={() => onToggleReaction(post, group.reaction)}
-                                >
-                                    <ReactionEmoji name={group.emoji_name} customEmoji={customEmoji}/>
-                                    <span>{group.count}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
                     <span className="tgw-msg-time">{formatMessageStamp(post.create_at, timeFormat)}</span>
@@ -467,10 +471,11 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                                     <div className="tgw-msg-viewers-title">Seen by</div>
                                     {viewersLoading && <div className="tgw-msg-viewers-empty">Loading…</div>}
                                     {!viewersLoading && viewers.length === 0 && <div className="tgw-msg-viewers-empty">No viewer details available</div>}
-                                    {viewers.filter((viewer) => viewer.id !== myId).map((viewer) => (
-                                        <div className="tgw-msg-viewer" key={viewer.id}>
-                                            <Avatar userId={viewer.id} name={displayName(viewer)} size={24} status=""/>
-                                            <span>{displayName(viewer) || viewer.username}</span>
+                                    {viewers.filter((entry) => entry.user.id !== myId).map(({user, viewedAt}) => (
+                                        <div className="tgw-msg-viewer" key={user.id}>
+                                            <Avatar userId={user.id} name={displayName(user)} size={24} status=""/>
+                                            <span>{displayName(user) || user.username}</span>
+                                            {viewedAt > 0 && <time dateTime={new Date(viewedAt).toISOString()}>{formatDateSeparator(viewedAt, timeFormat)} {formatTime(viewedAt, timeFormat)}</time>}
                                         </div>
                                     ))}
                                 </div>

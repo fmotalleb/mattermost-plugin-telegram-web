@@ -425,6 +425,29 @@
     font-weight: 600;
 }
 
+.tgw-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 12px;
+}
+
+.tgw-section-heading button {
+    border: 0;
+    background: transparent;
+    color: var(--tgw-link);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.tgw-folder-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
 /* ------------------------------------------------------------------ chat list */
 
 .tgw-chat-list {
@@ -1142,6 +1165,7 @@
 
 .tgw-bubble {
     position: relative;
+    display: flow-root;
     max-width: min(560px, 78%);
     background: var(--tgw-in-bubble);
     border-radius: var(--tgw-radius);
@@ -1398,12 +1422,14 @@
     color: var(--tgw-accent);
 }
 
-/* Reaction chips share the floated meta row with the send time (Telegram-style stamp line). */
+/* Reaction chips sit at the lower left of the bubble, opposite the send stamp. */
 .tgw-reactions {
     display: flex;
+    float: left;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
+    margin: 6px 8px -2px 0;
 }
 
 .tgw-reaction {
@@ -2042,10 +2068,12 @@ img.tgw-reaction-emoji {
 .tgw-files-search {
     padding: 10px 12px;
     border-bottom: 1px solid var(--tgw-border);
-    position: sticky;
-    top: 56px;
+    flex: none;
     background: var(--tgw-bg-secondary);
-    z-index: 1;
+}
+
+.tgw-info-panel.tgw-files-panel {
+    overflow: hidden;
 }
 
 .tgw-files-search-field {
@@ -2065,6 +2093,9 @@ img.tgw-reaction-emoji {
 .tgw-files-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .tgw-file-row {
@@ -3033,6 +3064,15 @@ img.tgw-reaction-emoji {
     pointer-events: none;
 }
 
+.tgw-toasts-top-right {
+    top: 20px;
+    right: 20px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    align-items: flex-end;
+}
+
 .tgw-toast {
     background: rgba(0, 0, 0, 0.82);
     color: #ffffff;
@@ -3276,6 +3316,13 @@ body.tgw-root-active {
     min-height: 30px;
     padding: 3px 2px;
     font-size: 13px;
+}
+
+.tgw-msg-viewer time {
+    margin-left: auto;
+    color: var(--tgw-text-tertiary);
+    font-size: 11px;
+    white-space: nowrap;
 }
 
 .tgw-msg-viewers-empty {

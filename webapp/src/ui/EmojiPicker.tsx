@@ -1,6 +1,6 @@
 // Emoji picker (unicode set + the instance's custom emoji).
 
-import React, {useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {EMOJI_CATEGORIES, searchEmoji} from '../mm/emoji';
 import {getCustomEmoji} from '../mm/selectors';
@@ -31,6 +31,18 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
     const customEmoji = useSelector(getCustomEmoji);
     const [activeCategory, setActiveCategory] = useState(EMOJI_CATEGORIES[0].id);
     const bodyRef = useRef<HTMLDivElement>(null);
+    const pickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const closeOutside = (event: MouseEvent) => {
+            const target = event.target as Element | null;
+            if (target && !pickerRef.current?.contains(target) && !target.closest('button[title="Emoji"]')) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', closeOutside, true);
+        return () => document.removeEventListener('mousedown', closeOutside, true);
+    }, [onClose]);
 
     const isDark = ui.selectedChannelId ? undefined : undefined;
 
@@ -53,7 +65,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
     };
 
     return (
-        <div className="tgw-emoji-picker" onMouseDown={(event) => event.preventDefault()}>
+        <div ref={pickerRef} className="tgw-emoji-picker" onMouseDown={(event) => event.preventDefault()}>
             <div className="tgw-emoji-header">
                 <input
                     autoFocus

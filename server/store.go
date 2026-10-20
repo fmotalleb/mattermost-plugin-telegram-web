@@ -111,10 +111,10 @@ func (p *Plugin) viewCounts(postIDs []string) (map[string]int, error) {
 
 // viewUserIDs returns viewers newest first. Profile data remains behind Mattermost's normal
 // user API, so this tracking table never becomes a second, stale user directory.
-func (p *Plugin) viewUserIDs(postIDs []string) (map[string][]string, error) {
+func (p *Plugin) viewUserIDs(postIDs []string) (map[string][]string, map[string]map[string]int64, error) {
 	db, err := p.client.Store.GetMasterDB()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	args := make([]any, len(postIDs))
@@ -122,24 +122,30 @@ func (p *Plugin) viewUserIDs(postIDs []string) (map[string][]string, error) {
 		args[i] = id
 	}
 	rows, err := db.Query(`
-		SELECT post_id, user_id
+		SELECT post_id, user_id, viewed_at
 		  FROM `+viewTrackingTable+`
 		 WHERE post_id IN `+p.inPlaceholders(1, len(postIDs))+`
 		 ORDER BY post_id, viewed_at DESC`, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
 	viewers := map[string][]string{}
+	viewedAt := map[string]map[string]int64{}
 	for rows.Next() {
 		var postID, userID string
-		if err := rows.Scan(&postID, &userID); err != nil {
-			return nil, err
+		var at int64
+		if err := rows.Scan(&postID, &userID, &at); err != nil {
+			return nil, nil, err
 		}
 		viewers[postID] = append(viewers[postID], userID)
+		if viewedAt[postID] == nil {
+			viewedAt[postID] = map[string]int64{}
+		}
+		viewedAt[postID][userID] = at
 	}
-	return viewers, rows.Err()
+	return viewers, viewedAt, rows.Err()
 }
 
 func (p *Plugin) seenPostIDs(userID string, postIDs []string) (map[string]bool, error) {

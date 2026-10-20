@@ -484,6 +484,20 @@ class CDP {
             ok(focused.isComposer, `composer owns the keyboard after opening a chat, even when the host app steals it (focus on: ${focused.where})`);
         }
 
+        console.log('\n== shared files scrolling ==');
+        await cdp.eval(`document.querySelector('.tgw-chat-header button[title="Shared files"]').click()`);
+        await cdp.waitFor('!!document.querySelector(".tgw-files-panel .tgw-files-search")', 6000, 'the shared files panel');
+        const filesLayout = await cdp.eval(`(() => {
+            const panel = document.querySelector('.tgw-files-panel');
+            const body = panel.querySelector('.tgw-files-body');
+            const search = panel.querySelector('.tgw-files-search');
+            return {panelOverflow: getComputedStyle(panel).overflowY, bodyOverflow: getComputedStyle(body).overflowY,
+                searchTop: search.getBoundingClientRect().top, panelTop: panel.getBoundingClientRect().top};
+        })()`);
+        ok(filesLayout.panelOverflow === 'hidden' && filesLayout.bodyOverflow === 'auto' && filesLayout.searchTop >= filesLayout.panelTop,
+            `file rows scroll below the fixed search bar (${JSON.stringify(filesLayout)})`);
+        await cdp.eval(`document.querySelector('.tgw-files-panel button[title="Collapse"]').click()`);
+
         // ------------------------------------------------- 2. edit a long message grows the box
         console.log('\\n== editing a long message ==');
         const marker = 'zebrafish-observatory';
@@ -496,8 +510,25 @@ class CDP {
         await cdp.type(longMessage);
         const typedLength = await cdp.eval('document.querySelector(".tgw-composer textarea").value.length');
         ok(typedLength > 200, `typed a long message into the composer (${typedLength} chars)`);
+        await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            list.style.height = '120px';
+            list.style.flex = 'none';
+            list.scrollTop = 0;
+            list.dispatchEvent(new Event('scroll', {bubbles: true}));
+        })()`);
+        await sleep(100);
         await cdp.eval('document.querySelector(".tgw-send-button").click()');
         await cdp.waitFor(`Array.from(document.querySelectorAll(".tgw-msg-out")).some((row) => row.textContent.includes(${JSON.stringify(marker)}))`, 10000, 'the sent message to render');
+        const sentScroll = await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            const result = {scrollTop: list.scrollTop, clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
+            list.style.height = '';
+            list.style.flex = '';
+            return result;
+        })()`);
+        ok(sentScroll.scrollHeight > sentScroll.clientHeight && sentScroll.scrollTop + sentScroll.clientHeight >= sentScroll.scrollHeight - 2,
+            `sending from above scrolls to the new message (${JSON.stringify(sentScroll)})`);
         await cdp.eval(`(() => {
             const row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((entry) => entry.textContent.includes(${JSON.stringify(marker)}));
             row.querySelector('button[title="More"]').click();

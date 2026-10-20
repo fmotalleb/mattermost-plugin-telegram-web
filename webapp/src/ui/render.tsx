@@ -26,7 +26,6 @@ function postUtils(): PostUtilsShape | null {
 export interface MessageBodyProps {
     message: string;
     postId?: string;
-    editedAt?: number;
     mentionKeys?: Array<{key: string; caseSensitive?: boolean}>;
     className?: string;
 }
@@ -89,7 +88,7 @@ function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (mess
     });
 }
 
-export function MessageBody({message, postId, editedAt, mentionKeys, className}: MessageBodyProps) {
+export function MessageBody({message, postId, mentionKeys, className}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
     const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
     const fallback = <span className={className} dir="auto" onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
@@ -115,7 +114,6 @@ export function MessageBody({message, postId, editedAt, mentionKeys, className}:
                 mentionKeys,
                 singleline: false,
                 unsafeLinks: false,
-                editedAt,
                 postId,
             },
             undefined,
@@ -127,7 +125,6 @@ export function MessageBody({message, postId, editedAt, mentionKeys, className}:
             images: true,
             latex: true,
             postId,
-            editedAt,
         });
         // The host formatter hands back bare unicode emoji inside its text nodes: their own
         // fallback-font metrics stretch the row (or split a sequence over two lines). Same box

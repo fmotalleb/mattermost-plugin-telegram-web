@@ -182,7 +182,7 @@ root.render(React.createElement(TelegramUI));
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
     ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
     ok(!!document.querySelector('.tgw-reaction'), 'reactions rendered');
-    ok(!!document.querySelector('.tgw-msg-meta .tgw-reactions'), 'reaction chips share the row with the send time');
+    ok(!!document.querySelector('.tgw-bubble > .tgw-reactions') && !document.querySelector('.tgw-msg-meta .tgw-reactions'), 'reaction chips sit on the left side of the bubble');
     const firstStamp = document.querySelector('.tgw-msg-time')?.textContent || '';
     // The shipped admin default (plugin.json → DefaultJalali: true) turns the Jalali calendar on,
     // so the fixture date (mid-November 2023) renders as its Jalali day in Aban 1402.
@@ -220,10 +220,10 @@ root.render(React.createElement(TelegramUI));
     // a fresh outgoing post nobody else saw keeps a single check (asserted in the reply section).
     await waitFor(() => {
         const p2 = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
-        return p2?.querySelector('.tgw-msg-status svg path[d^="M19.6"]');
+        return p2?.querySelector('.tgw-msg-status svg path[d^="M4 12.5"]');
     });
     const p2row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((row) => row.getAttribute('data-post-id') === 'p2');
-    ok(!!p2row?.querySelector('.tgw-msg-status svg path[d^="M19.6"]'), 'message seen by someone else shows two checkmarks');
+    ok(!!p2row?.querySelector('.tgw-msg-status svg path[d^="M4 12.5"]'), 'message seen by someone else shows two checkmarks');
     await waitFor(() => calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 3000);
     ok(calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 'visible posts reported as seen to the plugin API');
     ok(calls.some((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')), 'view counts fetched from the plugin API');
@@ -271,8 +271,8 @@ root.render(React.createElement(TelegramUI));
 
     // The peer opens the message between two polls: the next fetch must flip the receipt.
     viewTracking.set(freshId, new Set([ids.ME, ids.OTHER]));
-    await waitFor(() => document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 4000);
-    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M19.6"]`), 'the receipt flips to two checkmarks once the peer sees the message');
+    await waitFor(() => document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M4 12.5"]`), 4000);
+    ok(!!document.querySelector(`[data-post-id="${freshId}"] .tgw-msg-status svg path[d^="M4 12.5"]`), 'the receipt flips to two checkmarks once the peer sees the message');
 
     // Every message of mine has now been seen: with nothing left pending the polling stops
     // and waits for the next message to be sent.
@@ -394,6 +394,10 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== emoji previews ==');
+    document.querySelector('button[title="Emoji"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-emoji-picker'));
+    document.querySelector('.tgw-chat-header')?.dispatchEvent(new dom.window.MouseEvent('mousedown', {bubbles: true}));
+    ok(!!(await waitFor(() => !document.querySelector('.tgw-emoji-picker'))), 'clicking outside closes the emoji picker');
     {
         // p2 contains ":smile:" — the chat-list preview and reply previews must show the
         // unicode emoji, not the raw shortcode. Start a reply on p2 to inspect its preview.
@@ -717,6 +721,12 @@ root.render(React.createElement(TelegramUI));
             ok(!document.querySelector('.tgw-voice-recording'), 'composer returns to normal after the voice message was sent');
         }
     }
+    const getUserMedia = dom.window.navigator.mediaDevices.getUserMedia;
+    dom.window.navigator.mediaDevices.getUserMedia = async () => { throw new Error('denied'); };
+    document.querySelector('.tgw-composer-icon[title="Record a voice message"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-toasts-top-right .tgw-toast'));
+    ok((document.querySelector('.tgw-toasts-top-right')?.textContent || '').includes('Microphone access denied'), 'microphone denial appears at the top right');
+    dom.window.navigator.mediaDevices.getUserMedia = getUserMedia;
 
     console.log('\n== shared files panel ==');
     // The right-hand "Shared files" menu is minimized by default and is not rendered until the
@@ -875,6 +885,7 @@ root.render(React.createElement(TelegramUI));
         document.querySelector('.tgw-msg-views')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => document.querySelector('.tgw-msg-viewers'));
         ok((document.querySelector('.tgw-msg-viewers')?.textContent || '').includes('Alice Anderson'), 'channel tally opens the names of people who saw the post');
+        ok(!!document.querySelector('.tgw-msg-viewer time[datetime]'), 'viewer list shows when each person saw the post');
 
         // Channels/groups refresh that tally every five seconds — never at the direct-chat
         // one-second cadence. The mount fetch has landed (the eye is on screen), so what
@@ -994,6 +1005,11 @@ root.render(React.createElement(TelegramUI));
     ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson'), `favorite stays above the newer chat in All (${allChatTitles().join(',')})`);
     const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
     ok(allSectionTitles().join(',') === 'Favorites,Chats', `All separates favorite and regular chats (${allSectionTitles().join(',')})`);
+    const favoriteHeading = Array.from(document.querySelectorAll('.tgw-section-heading')).find((heading) => heading.textContent.includes('Favorites'));
+    const readBefore = payloads.length;
+    favoriteHeading?.querySelector('button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => payloads.slice(readBefore).some((entry) => entry.path === `/channels/members/${ids.ME}/view` && entry.body?.channel_id === ids.TOWN));
+    ok(payloads.slice(readBefore).some((entry) => entry.path === `/channels/members/${ids.ME}/view` && entry.body?.channel_id === ids.TOWN), 'Favorites mark-all action reads its own chats');
     ok(!!document.querySelector('.tgw-chat-row-star'), 'seeding the favorite preference lights up the star on the row');
     const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!favRow, 'town square row found for the favorites check');
@@ -1002,6 +1018,8 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => document.querySelector('.tgw-menu'));
         const removeEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.includes('Remove from favorites'));
         ok(!!removeEntry, 'context menu offers removing the chat from favorites');
+        const muteEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.trim() === 'Mute');
+        ok(!!muteEntry?.querySelector('svg'), 'mute menu item has an icon');
         const prefCallsBefore = calls.length;
         removeEntry?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => calls.slice(prefCallsBefore).some((call) => call === 'PUT /users/me/preferences'), 3000);
@@ -1021,7 +1039,7 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     await waitFor(() => allChatTitles()[0] === 'Alice Anderson');
     ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square', `removing a favorite restores recent-chat order (${allChatTitles().join(',')})`);
-    ok(allSectionTitles().length === 0, 'All hides favorite section headings when no chats are favorites');
+    ok(allSectionTitles().join(',') === 'Chats', 'All keeps a read action for the Chats section when no chats are favorites');
 
     console.log('\n== drag to reorder ==');
     // Category tabs reorder their chats by dragging, through Mattermost's own sidebar-category
@@ -1217,6 +1235,13 @@ root.render(React.createElement(TelegramUI));
     await tick(60);
     ok(!!rootEl && rootEl.classList.contains('tgw-theme-midnight'), 'the extra midnight theme applies its own palette class');
     updateSettings({theme: 'dark'});
+    await tick(60);
+    updateSettings({quietUnreadCounts: true});
+    await tick(60);
+    const allFolder = Array.from(document.querySelectorAll('.tgw-folder')).find((button) => button.textContent.includes('All'));
+    ok(!!allFolder?.querySelector('.tgw-folder-dot'), 'quiet unread counts add a dot for unread channel messages');
+    ok(!!allFolder?.querySelector('.tgw-folder-badge'), 'quiet unread counts retain a number for direct messages and mentions');
+    updateSettings({quietUnreadCounts: false});
     await tick(60);
 
     console.log('\n== jalali dates ==');

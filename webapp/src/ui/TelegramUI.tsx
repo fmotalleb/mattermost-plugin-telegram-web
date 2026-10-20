@@ -400,7 +400,12 @@ export function TelegramUI() {
                         </div>
                     )}
                     <div className="tgw-toasts">
-                        {toasts.map((entry) => (
+                        {toasts.filter((entry) => entry.message !== 'Microphone access denied').map((entry) => (
+                            <div key={entry.id} className={`tgw-toast tgw-toast-${entry.kind}`}>{entry.message}</div>
+                        ))}
+                    </div>
+                    <div className="tgw-toasts tgw-toasts-top-right">
+                        {toasts.filter((entry) => entry.message === 'Microphone access denied').map((entry) => (
                             <div key={entry.id} className={`tgw-toast tgw-toast-${entry.kind}`}>{entry.message}</div>
                         ))}
                     </div>

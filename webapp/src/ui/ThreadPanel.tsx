@@ -135,10 +135,11 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
                                 <div className="tgw-thread-post-head">
                                     <span className="tgw-thread-author">{author ? displayName(author) : 'User'}</span>
                                     <span className="tgw-thread-time">{formatTime(post.create_at, timeFormat)}</span>
+                                    {post.edit_at > 0 && <span className="tgw-thread-time" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                                     {post._failed && <span className="tgw-thread-failed">failed</span>}
                                     <button type="button" className="tgw-thread-goto" onClick={() => goToMessage(post)}>Go to message</button>
                                 </div>
-                                {post.message ? <MessageBody message={post.message} postId={post.id} editedAt={post.edit_at}/> : <span className="tgw-thread-empty">Attachment</span>}
+                                {post.message ? <MessageBody message={post.message} postId={post.id}/> : <span className="tgw-thread-empty">Attachment</span>}
                                 {files.length > 0 && (
                                     <div className="tgw-attachments">
                                         {files.map((file) => (

@@ -278,12 +278,14 @@ global.fetch = async (url, options = {}) => {
             });
             const includeViewers = parsed.searchParams.get('include_viewers') === 'true';
             const viewers = {};
+            const viewed_at = {};
             if (includeViewers) {
                 ids.forEach((id) => {
                     viewers[id] = Array.from(viewTracking.get(id) || []);
+                    viewed_at[id] = Object.fromEntries(viewers[id].map((userId) => [userId, 1_700_000_000_000]));
                 });
             }
-            return json({counts, seen: seenByMe, viewers});
+            return json({counts, seen: seenByMe, viewers, viewed_at});
         }
         return json({message: 'method not allowed'}, 405);
     }

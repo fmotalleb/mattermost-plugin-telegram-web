@@ -190,7 +190,7 @@ function mergeStats(counts: Record<string, number>, seen: Record<string, boolean
 }
 
 /** Resolve the people who saw a post only after its tally is opened. */
-export async function getPostViewers(postId: string): Promise<MMUser[]> {
+export async function getPostViewers(postId: string): Promise<Array<{user: MMUser; viewedAt: number}>> {
     const result = await api.getPostViewers(postId);
     const ids = result.viewers?.[postId] || [];
     if (!ids.length) {
@@ -198,5 +198,6 @@ export async function getPostViewers(postId: string): Promise<MMUser[]> {
     }
     const users = await api.getUsersByIds(ids);
     const byID = new Map(users.map((user) => [user.id, user]));
-    return ids.map((id) => byID.get(id)).filter(Boolean) as MMUser[];
+    return ids.map((id) => ({user: byID.get(id), viewedAt: result.viewed_at?.[postId]?.[id] || 0}))
+        .filter((entry) => !!entry.user) as Array<{user: MMUser; viewedAt: number}>;
 }

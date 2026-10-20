@@ -27,7 +27,7 @@ import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconMenu, IconNewChat, IconSearch, IconSettings} from './primitives';
+import {Avatar, IconBell, IconMenu, IconMute, IconNewChat, IconSearch, IconSettings} from './primitives';
 
 function SearchResults({term}: {term: string}) {
     const {actions, timeFormat} = useTg();
@@ -191,6 +191,16 @@ export function Sidebar() {
     const tab = tabs.find((entry) => entry.id === ui.activeTabId) || tabs[0];
     const isSearching = ui.search.trim().length > 0;
 
+    const markSectionRead = async (sectionChats: ChatSummary[]) => {
+        const unread = sectionChats.filter((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
+        if (!unread.length) {
+            return;
+        }
+        const results = await Promise.allSettled(unread.map((chat) => api.viewChannel(chat.id)));
+        const failed = results.filter((result) => result.status === 'rejected').length;
+        actions.toast(failed ? `Could not mark ${failed} chats as read` : 'Chats marked as read', failed ? 'error' : 'success');
+    };
+
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -319,6 +329,7 @@ export function Sidebar() {
             {
                 key: 'mute',
                 label: summary.muted ? 'Unmute' : 'Mute',
+                icon: summary.muted ? <IconBell size={18}/> : <IconMute size={18}/>,
                 onClick: () => {
                     api.updateChannelNotifyProps(summary.id, myId, {
                         desktop: summary.muted ? 'default' : 'none',
@@ -385,6 +396,9 @@ export function Sidebar() {
                 <nav className="tgw-folders">
                     {tabs.map((entry) => {
                         const unread = tabUnread[entry.id] || 0;
+                        const tabChats = settings.quietUnreadCounts ? getTabChats(getState(), entry.id) : [];
+                        const priorityUnread = tabChats.reduce((sum, chat) => sum + (chat.type === 'D' ? chat.unread : chat.mentions), 0);
+                        const otherUnread = tabChats.some((chat) => chat.type !== 'D' && (chat.unread > 0 || chat.manuallyUnread));
                         const isCategory = entry.kind === 'category';
                         return (
                             <button
@@ -439,7 +453,12 @@ export function Sidebar() {
                                 }}
                             >
                                 {entry.label}
-                                {unread > 0 && <span className="tgw-folder-badge">{unread > 99 ? '99+' : unread}</span>}
+                                {settings.quietUnreadCounts ? (
+                                    <>
+                                        {priorityUnread > 0 && <span className="tgw-folder-badge">{priorityUnread > 99 ? '99+' : priorityUnread}</span>}
+                                        {otherUnread && <span className="tgw-folder-dot" aria-label="Other unread messages"/>}
+                                    </>
+                                ) : unread > 0 && <span className="tgw-folder-badge">{unread > 99 ? '99+' : unread}</span>}
                             </button>
                         );
                     })}
@@ -476,6 +495,8 @@ export function Sidebar() {
                 ) : (
                     <ChatList
                         chats={chats}
+                        sectionTitle={tab?.kind !== 'all' ? tab?.label : undefined}
+                        onMarkSectionRead={markSectionRead}
                         selectedChannelId={ui.selectedChannelId}
                         onSelect={(id) => actions.openChat(id)}
                         onContextMenu={contextMenuForChat}

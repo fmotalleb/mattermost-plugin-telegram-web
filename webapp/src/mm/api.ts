@@ -499,7 +499,7 @@ export class MattermostAPI {
     }
 
     /** Viewer IDs are fetched only when the user opens a channel post's seen list. */
-    getPostViewers(postId: string): Promise<{viewers: Record<string, string[]>}> {
+    getPostViewers(postId: string): Promise<{viewers: Record<string, string[]>; viewed_at?: Record<string, Record<string, number>>}> {
         return this.pluginRequest('/api/v1/views', {query: {post_ids: postId, include_viewers: true}});
     }
 }
