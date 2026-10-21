@@ -146,23 +146,22 @@ export interface ChatListProps {
     emptyTitle?: string;
     emptyBody?: string;
     prefetchLimit?: number;
-    /** Show favorite chats as the pinned section of the All tab. */
-    groupFavorites?: boolean;
+    /** Split the All tab into unread and remaining chats. */
+    groupAllChats?: boolean;
     sectionTitle?: string;
     onMarkSectionRead?: (chats: ChatSummary[]) => void;
     /** When set, rows can be dragged to reorder this Mattermost category (Mattermost-style). */
     reorderable?: {categoryId: string} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, groupFavorites = false, sectionTitle, onMarkSectionRead, reorderable = null}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, groupAllChats = false, sectionTitle, onMarkSectionRead, reorderable = null}: ChatListProps) {
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
     const isUnread = (chat: ChatSummary) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread;
     const allSections = [
         {key: 'unread', label: 'Unread', chats: chats.filter(isUnread)},
-        {key: 'favorites', label: 'Favorites', chats: chats.filter((chat) => chat.isFavorite)},
-        {key: 'chats', label: 'Chats', chats: chats.filter((chat) => !isUnread(chat) && !chat.isFavorite)},
+        {key: 'chats', label: 'Chats', chats: chats.filter((chat) => !isUnread(chat))},
     ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.
@@ -231,7 +230,7 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     return (
         <div className="tgw-chat-list" role="list">
             {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onMarkSectionRead?.(chats)}>Mark all as read</button></div>}
-            {groupFavorites ? allSections.map((section) => (
+            {groupAllChats ? allSections.map((section) => (
                 <React.Fragment key={section.key}>
                     <div className="tgw-section-heading"><span className="tgw-section-title">{section.label}</span><button type="button" onClick={() => onMarkSectionRead?.(section.chats)}>Mark all as read</button></div>
                     {section.chats.map((chat, index) => <React.Fragment key={`${section.key}:${chat.id}`}>{index > 0 && <div className="tgw-list-divider"/>}{renderChat(chat)}</React.Fragment>)}

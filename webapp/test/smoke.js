@@ -1001,14 +1001,10 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     const allChatTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).map((el) => el.textContent.trim());
     await waitFor(() => allChatTitles()[0] === 'Town Square');
-    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson') && allChatTitles()[2] === 'Town Square', `All shows unread chats first, then favorites (${allChatTitles().join(',')})`);
+    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson') && allChatTitles().length === 2, `All shows unread chats first without duplicating favorites (${allChatTitles().join(',')})`);
     const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
-    ok(allSectionTitles().join(',') === 'Unread,Favorites', `All places Favorites under Unread (${allSectionTitles().join(',')})`);
-    const favoriteHeading = Array.from(document.querySelectorAll('.tgw-section-heading')).find((heading) => heading.textContent.includes('Favorites'));
-    const readBefore = payloads.length;
-    favoriteHeading?.querySelector('button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-    await waitFor(() => payloads.slice(readBefore).some((entry) => entry.path === `/channels/members/${ids.ME}/view` && entry.body?.channel_id === ids.TOWN));
-    ok(payloads.slice(readBefore).some((entry) => entry.path === `/channels/members/${ids.ME}/view` && entry.body?.channel_id === ids.TOWN), 'Favorites mark-all action reads its own chats');
+    ok(allSectionTitles().includes('Unread') && allSectionTitles().every((title) => title === 'Unread' || title === 'Chats'), `All groups chats only under Unread and Chats (${allSectionTitles().join(',')})`);
+    ok(!allSectionTitles().includes('Favorites'), 'All does not show a separate Favorites section');
     ok(!!document.querySelector('.tgw-chat-row-star'), 'seeding the favorite preference lights up the star on the row');
     const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!favRow, 'town square row found for the favorites check');
@@ -1056,6 +1052,11 @@ root.render(React.createElement(TelegramUI));
         dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
         await waitFor(() => !document.querySelector('.tgw-menu'));
     }
+    const townMemberBeforeFinalSort = state.entities.channels.myMembers[ids.TOWN];
+    state.entities.channels.myMembers = {
+        ...state.entities.channels.myMembers,
+        [ids.TOWN]: {...state.entities.channels.myMembers[ids.TOWN], msg_count: state.entities.channels.channels[ids.TOWN].total_msg_count},
+    };
     state.entities.preferences = {
         myPreferences: {
             ...state.entities.preferences.myPreferences,
@@ -1065,7 +1066,9 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     await waitFor(() => allChatTitles()[0] === 'Alice Anderson');
     ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square', `removing a favorite restores recent-chat order (${allChatTitles().join(',')})`);
-    ok(allSectionTitles().join(',') === 'Unread', 'All keeps unread chats grouped when there are no favorites');
+    ok(!allSectionTitles().includes('Favorites'), `All keeps favorites out of a separate section after removal (${allSectionTitles().join(',')})`);
+    state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.TOWN]: townMemberBeforeFinalSort};
+    notifyStoreChange();
 
     console.log('\n== drag to reorder ==');
     // Category tabs reorder their chats by dragging, through Mattermost's own sidebar-category

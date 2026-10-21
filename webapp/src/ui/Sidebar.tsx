@@ -518,7 +518,7 @@ export function Sidebar() {
                         onSelect={(id) => actions.openChat(id)}
                         onContextMenu={contextMenuForChat}
                         showTeamNames={tab?.kind === 'all'}
-                        groupFavorites={tab?.kind === 'all'}
+                        groupAllChats={tab?.kind === 'all'}
                         reorderable={tab?.kind === 'category' ? {categoryId: tab.id} : null}
                         emptyTitle={tab?.kind === 'unread' ? 'No unread chats' : 'No chats here yet'}
                         emptyBody={tab?.kind === 'unread' ? 'You are all caught up.' : 'Start a conversation to see it listed here.'}
