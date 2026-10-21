@@ -273,7 +273,9 @@ export function Sidebar() {
     const openHostProfileSettings = () => {
         const utils = (window as any).WebappUtils;
         if (typeof utils?.openUserSettings === 'function') {
-            utils.openUserSettings({activeTab: 'profile'});
+            // Mattermost's helper opens a user's settings dialog and needs the target user ID.
+            // Without it, newer hosts can resolve the call as an empty/no-op dialog request.
+            utils.openUserSettings({userId: myId, activeTab: 'profile'});
             return;
         }
         actions.toast('Profile settings are not available in this Mattermost version', 'error');

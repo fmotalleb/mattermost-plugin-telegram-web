@@ -1420,7 +1420,7 @@ root.render(React.createElement(TelegramUI));
         profileSettingsItem.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await tick(30);
         ok(dom.window.__userSettingsOpens.length === 1, 'the host is asked to open its own profile popup');
-        ok(JSON.stringify(dom.window.__userSettingsOpens[0]) === JSON.stringify({activeTab: 'profile'}),
+        ok(JSON.stringify(dom.window.__userSettingsOpens[0]) === JSON.stringify({userId: ids.ME, activeTab: 'profile'}),
             'the popup lands on the profile tab (got: ' + JSON.stringify(dom.window.__userSettingsOpens[0]) + ')');
     }
 
