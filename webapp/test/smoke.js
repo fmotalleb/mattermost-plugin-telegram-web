@@ -409,10 +409,19 @@ root.render(React.createElement(TelegramUI));
         ok(toPlainPreview('deploy done :party_parrot: dance').includes(':party_parrot:'), 'a custom emoji shortcode keeps its shape in preview text');
         ok(toPlainPreview('__bold__ and _italic_ markers').includes('bold and italic'), 'bold and italic markers are still stripped pairwise');
         // The full Mattermost system set resolves, not just the curated picker rows.
-        const {EMOJI_CATEGORIES, emojiChar, replaceShortcodes, searchEmoji} = require('../src/mm/emoji');
+        const {EMOJI_CATEGORIES, emojiChar, replaceShortcodes, replaceUnsupportedMattermostShortcodes, searchEmoji} = require('../src/mm/emoji');
+        const {EMOJI_SHORTCODES} = require('../src/mm/emoji-data');
         ok(replaceShortcodes('go :space_invader: go').includes('👾'), ':space_invader: expands to its emoji');
         ok(replaceShortcodes('go :technologist: go').includes('\u{1F9D1}\u200D\u{1F4BB}'), ':technologist: expands to its ZWJ sequence');
         ok(replaceShortcodes('go :hankey: go').includes('💩'), ':hankey: expands as well');
+        ok(emojiChar('grinning_face_with_smiling_eyes') === '😄', 'the grinning face alias maps to the correct emoji');
+        ok(replaceUnsupportedMattermostShortcodes('hi :grinning_face_with_smiling_eyes:') === 'hi 😄', 'unsupported legacy aliases expand before Mattermost formats a message');
+        const unsupportedNative = Object.keys(EMOJI_SHORTCODES)
+            .filter((name) => replaceUnsupportedMattermostShortcodes(`:${name}:`) !== `:${name}:`);
+        ok(unsupportedNative.length === 0, `all ${Object.keys(EMOJI_SHORTCODES).length} Mattermost shortcodes remain for the host formatter (${unsupportedNative.length} changed)`);
+        const invalidNative = Object.entries(EMOJI_SHORTCODES)
+            .filter(([name, char]) => emojiChar(name) !== char || replaceShortcodes(`:${name}:`) !== char);
+        ok(invalidNative.length === 0, `all ${Object.keys(EMOJI_SHORTCODES).length} Mattermost shortcodes map to their canonical emoji (${invalidNative.length} mismatches)`);
         const unnamed = EMOJI_CATEGORIES.flatMap((category) => category.emojis).filter((entry) => !entry.char || !emojiChar(entry.name));
         ok(unnamed.length === 0, `every picker row has a character and a matching shortcode (${unnamed.length} broken)`);
         ok(searchEmoji('space_invader').some((entry) => entry.name === 'space_invader'), 'picker search reaches emoji outside the curated categories');

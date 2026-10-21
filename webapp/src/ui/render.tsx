@@ -6,7 +6,7 @@
 // surface ever changes.
 
 import React from 'react';
-import {replaceShortcodes, splitEmoji} from '../mm/emoji';
+import {replaceShortcodes, replaceUnsupportedMattermostShortcodes, splitEmoji} from '../mm/emoji';
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
 
@@ -143,7 +143,7 @@ export function MessageBody({message, postId, mentionKeys, className, onTaskTogg
     let rendered: React.ReactNode = null;
     try {
         const html = utils.formatText!(
-            message,
+            replaceUnsupportedMattermostShortcodes(message),
             {
                 markdown: true,
                 mentionHighlight: true,

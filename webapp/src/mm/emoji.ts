@@ -29,7 +29,7 @@ export interface EmojiCategory {
  */
 const EXTRA_EMOJI: Record<string, string> = {
     // face aliases
-    grinning_face_with_smiling_eyes: '😆',
+    grinning_face_with_smiling_eyes: '😄',
     kissing_heart_face: '😘',
     kissing_face: '😗',
     raised_eyebrow: '🤨',
@@ -252,6 +252,22 @@ export function replaceShortcodes(text: string): string {
         return text;
     }
     return text.replace(SHORTCODE_PATTERN, (match, name: string) => SHORTCODE_MAP[name] || match);
+}
+
+/**
+ * Mattermost's formatter knows its bundled emoji.json names, but not every legacy alias our UI
+ * accepts. Expand only aliases absent from that host table before passing text to PostUtils.
+ */
+export function replaceUnsupportedMattermostShortcodes(text: string): string {
+    if (!text || text.indexOf(':') === -1) {
+        return text;
+    }
+    return text.replace(SHORTCODE_PATTERN, (match, name: string) => {
+        if (Object.prototype.hasOwnProperty.call(EMOJI_SHORTCODES, name)) {
+            return match;
+        }
+        return SHORTCODE_MAP[name] || match;
+    });
 }
 
 // One whole emoji as a line-breaking unit: base + optional variation selector/skin tone, ZWJ
