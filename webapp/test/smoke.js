@@ -1015,6 +1015,30 @@ root.render(React.createElement(TelegramUI));
     if (favRow) {
         favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
         await waitFor(() => document.querySelector('.tgw-menu'));
+        const readActions = () => Array.from(document.querySelectorAll('.tgw-menu-item'))
+            .map((el) => (el.textContent || '').trim())
+            .filter((label) => label === 'Mark as read' || label === 'Mark as unread');
+        ok(readActions().join(',') === 'Mark as read', 'an unread chat offers only Mark as read');
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
+
+        const townMember = state.entities.channels.myMembers[ids.TOWN];
+        state.entities.channels.myMembers = {
+            ...state.entities.channels.myMembers,
+            [ids.TOWN]: {...townMember, msg_count: state.entities.channels.channels[ids.TOWN].total_msg_count, mention_count: 0},
+        };
+        notifyStoreChange();
+        await tick(50);
+        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        ok(readActions().join(',') === 'Mark as unread', `a read chat offers only Mark as unread (${readActions().join(',') || 'none'})`);
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
+        state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.TOWN]: townMember};
+        notifyStoreChange();
+
+        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
         const removeEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.includes('Remove from favorites'));
         ok(!!removeEntry, 'context menu offers removing the chat from favorites');
         const muteEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.trim() === 'Mute');

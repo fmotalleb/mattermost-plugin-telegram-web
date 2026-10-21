@@ -311,27 +311,28 @@ export function Sidebar() {
         event.preventDefault();
         const items: MenuEntry[] = [
             {key: 'open', label: 'Open chat', onClick: () => actions.openChat(summary.id)},
-            {
-                key: 'read',
-                label: 'Mark as read',
-                onClick: () => {
-                    api.viewChannel(summary.id).catch(() => undefined);
-                },
-            },
-            {
-                key: 'unread',
-                label: 'Mark as unread',
-                disabled: !summary.lastPostAt,
-                onClick: () => {
-                    markChannelUnreadFromLastPost(summary.id)
-                        .then((ok) => {
-                            if (!ok) {
-                                actions.toast('Could not mark as unread', 'error');
-                            }
-                        })
-                        .catch(() => actions.toast('Could not mark as unread', 'error'));
-                },
-            },
+            ...(summary.unread > 0 || summary.manuallyUnread
+                ? [{
+                    key: 'read',
+                    label: 'Mark as read',
+                    onClick: () => {
+                        api.viewChannel(summary.id).catch(() => undefined);
+                    },
+                } as MenuEntry]
+                : [{
+                    key: 'unread',
+                    label: 'Mark as unread',
+                    disabled: !summary.lastPostAt,
+                    onClick: () => {
+                        markChannelUnreadFromLastPost(summary.id)
+                            .then((ok) => {
+                                if (!ok) {
+                                    actions.toast('Could not mark as unread', 'error');
+                                }
+                            })
+                            .catch(() => actions.toast('Could not mark as unread', 'error'));
+                    },
+                } as MenuEntry]),
             {
                 key: 'favorite',
                 label: summary.isFavorite ? 'Remove from favorites' : 'Add to favorites',
