@@ -238,7 +238,10 @@ export function getChatSummary(state: MMState, channelId: string): ChatSummary |
             let status: string | undefined;
 
             if (channel.type === 'D') {
-                title = peerUser ? displayName(peerUser) : (channel.display_name || 'Direct message');
+                // Mattermost represents the personal Saved Messages conversation as a DM
+                // whose two member IDs are both the current user.
+                const isSavedMessages = !peerIds.length && channel.name.split('__').length === 2 && channel.name.split('__').every((id) => id === getMyId(state));
+                title = isSavedMessages ? 'Saved Messages' : (peerUser ? displayName(peerUser) : (channel.display_name || 'Direct message'));
                 avatarUserId = peerUser?.id;
                 status = getStatus(state, peerUser?.id);
                 subtitle = '';
@@ -493,7 +496,9 @@ export function searchChats(state: MMState, term: string): ChatSummary[] {
         if (!lower) {
             return [];
         }
-        return all.filter((chat) => chat.title.toLowerCase().includes(lower) || (chat.channel.name || '').includes(lower)).slice(0, 40);
+        // Search visible chat names only. Internal channel names contain user IDs and used to
+        // make generic terms produce misleading results unrelated to the displayed title.
+        return all.filter((chat) => chat.title.toLowerCase().includes(lower)).slice(0, 40);
     });
 }
 
