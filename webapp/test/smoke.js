@@ -478,8 +478,10 @@ root.render(React.createElement(TelegramUI));
             let dividers = 0;
             panel.querySelectorAll('.tgw-menu-separator').forEach(() => dividers++);
             ok(dividers === 1, `a horizontal divider separates the emoji groups (${dividers})`);
-            dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+            reactor?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
             await waitFor(() => !document.querySelector('.tgw-menu'));
+            await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)');
+            ok(calls.some((call) => call === 'POST /channels/direct'), 'clicking a reactor opens a direct chat with them');
         }
     }
 
@@ -916,6 +918,14 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => groupGets() > mountedGets, 4500);
         ok(groupGets() > mountedGets, `group view tally re-polls every five seconds (${mountedGets} → ${groupGets()})`);
 
+        document.querySelector('.tgw-msg-viewer')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)');
+        ok(!document.querySelector('.tgw-msg-viewers'), 'clicking a seen user closes the viewer list');
+        ok(calls.some((call) => call === 'POST /channels/direct'), 'clicking a seen user opens their direct chat');
+        const townSidebarRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+        townSidebarRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square');
+
         // Info panel members must come from the REST list, not the sparse host Redux copy.
         document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => document.querySelector('.tgw-members'));
@@ -923,6 +933,13 @@ root.render(React.createElement(TelegramUI));
         ok(memberNames.includes('Nina Novak'), 'member list shows people the host store never loaded');
         ok(memberNames.length === 3, `member list renders every member (${memberNames.length})`);
         ok(document.body.innerHTML.includes('3 members'), 'member count label matches the list');
+        Array.from(document.querySelectorAll('.tgw-member')).find((row) => row.textContent.includes('Nina Novak'))?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak');
+        ok(calls.some((call) => call === 'POST /channels/direct'), 'clicking a channel member opens their direct chat');
+        Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'))?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square');
+        document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-members'));
         document.querySelector('.tgw-info-header .tgw-icon-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await tick(30);
     }

@@ -183,12 +183,11 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                                         if (child === 'separator') {
                                             return <div key={`submenu-sep-${childIndex}`} className="tgw-menu-separator"/>;
                                         }
-                                        return (
-                                            <div key={child.key} className={`tgw-menu-submenu-row ${child.heading ? 'tgw-menu-submenu-heading' : ''}`} title={child.title}>
-                                                {child.icon && <span className="tgw-menu-item-icon">{child.icon}</span>}
-                                                <span className="tgw-menu-item-label">{child.label}</span>
-                                            </div>
-                                        );
+                                        const contents = <>{child.icon && <span className="tgw-menu-item-icon">{child.icon}</span>}<span className="tgw-menu-item-label">{child.label}</span></>;
+                                        const className = `tgw-menu-submenu-row ${child.heading ? 'tgw-menu-submenu-heading' : ''} ${child.onClick ? 'tgw-menu-submenu-clickable' : ''}`;
+                                        return child.onClick
+                                            ? <button key={child.key} type="button" className={className} title={child.title} onClick={() => {onClose(); child.onClick?.();}}>{contents}</button>
+                                            : <div key={child.key} className={className} title={child.title}>{contents}</div>;
                                     })}
                                 </div>
                             )}

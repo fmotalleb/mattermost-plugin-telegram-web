@@ -306,7 +306,7 @@ export function InfoPanel() {
                     <div className="tgw-info-block-title">{memberCountLabel(Math.max(memberCount, members.length))}</div>
                     <div className="tgw-members">
                         {members.map(({id, user}) => (
-                            <button type="button" className="tgw-member" key={id} onContextMenu={(event) => openMemberMenu(event, user)} onClick={() => actions.openModal('newContact', {userId: id})}>
+                            <button type="button" className="tgw-member" key={id} onContextMenu={(event) => openMemberMenu(event, user)} onClick={() => actions.openUserChat(id)}>
                                 <Avatar userId={id} name={displayName(user)} size={40}/>
                                 <span className="tgw-member-body">
                                     <span className="tgw-member-name">{displayName(user)}</span>

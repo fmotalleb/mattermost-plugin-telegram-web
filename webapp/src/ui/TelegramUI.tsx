@@ -213,6 +213,14 @@ export function TelegramUI() {
     const actions: TgActions = useMemo(() => ({
         setUI,
         openChat,
+        openUserChat: (userId) => {
+            if (!me?.id || !userId) {
+                return;
+            }
+            api.createDirectChannel([me.id, userId])
+                .then((direct) => openChat(direct.id))
+                .catch(() => toast('Could not open the conversation', 'error'));
+        },
         // Going back to the list also drops the right-hand panels: on a phone the files panel
         // sits on top of the chat, so leaving it open would cover the list we just revealed.
         backToList: () => setUI({mobilePane: 'list', filesOpen: false}),
@@ -279,6 +287,14 @@ export function TelegramUI() {
                 },
                 toast,
                 openChat,
+                openUserChat: (userId) => {
+                    if (!me?.id || !userId) {
+                        return;
+                    }
+                    api.createDirectChannel([me.id, userId])
+                        .then((direct) => openChat(direct.id))
+                        .catch(() => toast('Could not open the conversation', 'error'));
+                },
             });
             setContextMenu({x: target.x, y: target.y, items: menuItems});
         },
@@ -289,7 +305,7 @@ export function TelegramUI() {
             // The plugin exposes this through index.tsx (which flips the setting).
             (window as any).dispatchEvent(new CustomEvent('tgw:disable'));
         },
-    }), [openChat, setUI, toast]);
+    }), [me?.id, openChat, setUI, toast]);
 
     // Keep the selected chat in sync with the Mattermost app (notification clicks, deep links).
     const hostSyncPrimed = useRef(false);
@@ -429,6 +445,7 @@ interface BuildMenuHandlers {
     markUnread: (post: MMPost) => void;
     toast: (message: string, kind?: 'info' | 'error' | 'success') => void;
     openChat: (channelId: string, opts?: {postId?: string}) => void;
+    openUserChat: (userId: string) => void;
 }
 
 // Telegram's quick reactions: 🙏 👍 👎 💪 as one bare row on top of the post context menu —
@@ -517,6 +534,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
                     label: reaction.user_id === myId ? `${full} (You)` : full,
                     icon: <Avatar userId={reaction.user_id} name={full} size={24} status=""/>,
                     title: `${full} · ${formatDateSeparator(reaction.create_at, timeFormat)}, ${formatTime(reaction.create_at, timeFormat)}`,
+                    onClick: () => handlers.openUserChat(reaction.user_id),
                 });
             });
         });

@@ -346,6 +346,10 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     // overflows the slot and lets the bubble paint over the face.
     const avatarSize = settings.compactMode ? 28 : 40;
     const author = useSelector((state) => state.entities?.users?.profiles?.[post.user_id]);
+    const systemUsername = post.props?.username || post.props?.removedUsername;
+    const systemUser = useSelector((state) => systemUsername
+        ? Object.values(state.entities?.users?.profiles || {}).find((user) => user.username === systemUsername)
+        : undefined);
     const customEmoji = useSelector(getCustomEmoji);
     // The reaction cache lives outside the Mattermost store and mutates in place, so a plain
     // selector never sees the change: subscribe to the cache itself instead.
@@ -453,7 +457,9 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     if (isSystem) {
         return (
             <div className="tgw-system-post" data-post-id={post.id}>
-                <span>{toPlainPreview(post.message) || systemText(post)}</span>
+                {systemUser && systemUsername
+                    ? <span><button type="button" className="tgw-system-user-link" onClick={() => actions.openUserChat(systemUser.id)}>{systemUsername}</button>{post.props?.removedUsername ? ' left' : ' joined'}</span>
+                    : <span>{toPlainPreview(post.message) || systemText(post)}</span>}
             </div>
         );
     }
@@ -570,11 +576,11 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                                         {!viewersLoading && viewers.length === 0 && <div className="tgw-msg-viewers-empty">No viewer details available</div>}
                                         {!viewersLoading && viewers.length > 0 && matchingViewers.length === 0 && <div className="tgw-msg-viewers-empty">No matching viewers</div>}
                                         {matchingViewers.map(({user, viewedAt}) => (
-                                            <div className="tgw-msg-viewer" key={user.id}>
+                                            <button type="button" className="tgw-msg-viewer" key={user.id} onClick={() => {setShowViewers(false); actions.openUserChat(user.id);}} title={`Open chat with ${displayName(user)}`}>
                                                 <Avatar userId={user.id} name={displayName(user)} size={24} status=""/>
                                                 <span>{displayName(user) || user.username}</span>
                                                 {viewedAt > 0 && <time dateTime={new Date(viewedAt).toISOString()}>{formatDateSeparator(viewedAt, timeFormat)} {formatTime(viewedAt, timeFormat)}</time>}
-                                            </div>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>

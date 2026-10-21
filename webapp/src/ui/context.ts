@@ -53,6 +53,7 @@ export interface TgUIState {
 export interface TgActions {
     setUI: (patch: Partial<TgUIState>) => void;
     openChat: (channelId: string, opts?: {keepSearch?: boolean; postId?: string}) => void;
+    openUserChat: (userId: string) => void;
     backToList: () => void;
     openModal: (modal: ModalKind, payload?: any) => void;
     closeModal: () => void;
