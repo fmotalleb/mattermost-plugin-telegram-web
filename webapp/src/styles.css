@@ -1295,6 +1295,12 @@
     unicode-bidi: plaintext;
 }
 
+.tgw-message-body {
+    /* Let each paragraph choose direction from its own first strong character. A dir="auto"
+       wrapper would lock every paragraph to the direction of the message's first line. */
+    unicode-bidi: plaintext;
+}
+
 .tgw-bidi-ltr {
     direction: ltr;
     unicode-bidi: isolate;

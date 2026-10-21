@@ -338,7 +338,8 @@ root.render(React.createElement(TelegramUI));
         valueSetter.call(area, '');
         area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
         await tick(30);
-        ok(!!document.querySelector('.tgw-message-text[dir="auto"]'), 'message bodies carry dir=auto for per-line direction');
+        const messageBody = document.querySelector('.tgw-message-text');
+        ok(!!messageBody && !messageBody.hasAttribute('dir'), 'message bodies leave direction to per-paragraph bidi layout');
     }
 
     console.log('\n== display names ==');
