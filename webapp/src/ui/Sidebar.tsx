@@ -273,9 +273,10 @@ export function Sidebar() {
     const openHostProfileSettings = () => {
         const utils = (window as any).WebappUtils;
         if (typeof utils?.openUserSettings === 'function') {
-            // Mattermost's settings modal prop is `userID` (capital ID); its profile content
-            // stays blank when the similarly named `userId` prop is passed instead.
-            utils.openUserSettings({userID: myId, activeTab: 'profile'});
+            // This opens the current user's profile settings. Mattermost requires the
+            // isContentProductSettings flag to choose account settings instead of product
+            // preferences; activeTab selects the profile page within that modal.
+            utils.openUserSettings({isContentProductSettings: false, activeTab: 'profile'});
             return;
         }
         actions.toast('Profile settings are not available in this Mattermost version', 'error');
