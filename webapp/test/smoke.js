@@ -1479,9 +1479,34 @@ root.render(React.createElement(TelegramUI));
     ok(calls.some((call) => call === `GET /channels/${ids.NEW_DM}`), 'new channel is loaded when the host store has not received it yet');
 
     console.log('\n== own avatar menu ==');
-    // The bottom-left avatar opens the user menu; its "Profile settings" entry hands over to
-    // Mattermost's own profile edit popup through the host's WebappUtils.openUserSettings.
+    // Simulate Mattermost's own account menu so the test catches hosts where openUserSettings is
+    // present but does not mount its modal from the plugin root.
     dom.window.__userSettingsOpens.length = 0;
+    const hostAccountButton = document.createElement('button');
+    hostAccountButton.id = 'userAccountMenuButton';
+    hostAccountButton.addEventListener('click', () => {
+        let hostMenu = document.getElementById('userAccountMenu');
+        if (hostMenu) {
+            hostMenu.remove();
+            return;
+        }
+        hostMenu = document.createElement('div');
+        hostMenu.id = 'userAccountMenu';
+        hostMenu.setAttribute('role', 'menu');
+        const hostProfileItem = document.createElement('button');
+        hostProfileItem.setAttribute('role', 'menuitem');
+        hostProfileItem.textContent = 'Profile';
+        hostProfileItem.addEventListener('click', () => {
+            const profileDialog = document.createElement('div');
+            profileDialog.id = 'accountSettingsModal';
+            profileDialog.textContent = 'Profile Settings';
+            document.body.appendChild(profileDialog);
+            hostMenu.remove();
+        });
+        hostMenu.appendChild(hostProfileItem);
+        document.body.appendChild(hostMenu);
+    });
+    document.body.appendChild(hostAccountButton);
     document.querySelector('.tgw-user-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     await waitFor(() => document.querySelector('.tgw-menu'));
     const profileSettingsItem = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Profile settings'));
@@ -1492,18 +1517,31 @@ root.render(React.createElement(TelegramUI));
         ok(dom.window.__userSettingsOpens.length === 1, 'the host is asked to open its own profile popup');
         ok(JSON.stringify(dom.window.__userSettingsOpens[0]) === JSON.stringify({isContentProductSettings: false, activeTab: 'profile'}),
             'the popup lands on the profile tab (got: ' + JSON.stringify(dom.window.__userSettingsOpens[0]) + ')');
+        await waitFor(() => document.getElementById('accountSettingsModal'));
+        ok(!!document.getElementById('accountSettingsModal'), 'a no-op host helper falls back to Mattermost Profile Settings');
     }
 
-    // Older hosts do not export openUserSettings; the menu reports that instead of failing silently.
+    // Hosts without openUserSettings still reach the native profile dialog through the account menu.
     const realOpenUserSettings = dom.window.WebappUtils.openUserSettings;
     delete dom.window.WebappUtils.openUserSettings;
+    document.getElementById('accountSettingsModal')?.remove();
+    document.querySelector('.tgw-user-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-menu'));
+    Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Profile settings'))
+        ?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.getElementById('accountSettingsModal'));
+    ok(!!document.getElementById('accountSettingsModal'), 'a host without the helper still opens native Profile Settings');
+
+    // If neither host entry point is available, the menu reports the unavailable action.
+    document.getElementById('accountSettingsModal')?.remove();
+    hostAccountButton.remove();
     document.querySelector('.tgw-user-button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     await waitFor(() => document.querySelector('.tgw-menu'));
     Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.includes('Profile settings'))
         ?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     await tick(30);
     ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('Profile settings are not available in this Mattermost version'),
-        'a host without the export gets a clear message');
+        'a host without either entry point gets a clear message');
     dom.window.WebappUtils.openUserSettings = realOpenUserSettings;
 
     console.log('\n== stock UI view tracking ==');

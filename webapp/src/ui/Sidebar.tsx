@@ -267,19 +267,42 @@ export function Sidebar() {
         });
     };
 
-    // Opens Mattermost's own profile edit popup (Account Settings → Profile). Recent hosts export
-    // window.WebappUtils.openUserSettings; the popup is portalled above this overlay, so it stays
-    // visible without leaving the Telegram UI.
+    // Opens Mattermost's own profile settings. Some hosts expose openUserSettings but do not open
+    // the dialog from a plugin root, so fall back to the stock account menu's Profile action.
     const openHostProfileSettings = () => {
         const utils = (window as any).WebappUtils;
         if (typeof utils?.openUserSettings === 'function') {
-            // This opens the current user's profile settings. Mattermost requires the
-            // isContentProductSettings flag to choose account settings instead of product
-            // preferences; activeTab selects the profile page within that modal.
             utils.openUserSettings({isContentProductSettings: false, activeTab: 'profile'});
+            // The helper is a no-op in some current hosts. Give its React modal a turn to mount
+            // before checking for the known native dialog, then use the stock menu if it did not.
+            window.setTimeout(() => {
+                if (!document.getElementById('accountSettingsModal')) {
+                    openNativeProfileSettings();
+                }
+            }, 100);
             return;
         }
-        actions.toast('Profile settings are not available in this Mattermost version', 'error');
+        openNativeProfileSettings();
+    };
+
+    const openNativeProfileSettings = () => {
+        const accountButton = document.getElementById('userAccountMenuButton') as HTMLButtonElement | null;
+        if (!accountButton) {
+            actions.toast('Profile settings are not available in this Mattermost version', 'error');
+            return;
+        }
+        accountButton.click();
+        window.setTimeout(() => {
+            const menu = document.getElementById('userAccountMenu') || document.querySelector('[role="menu"]');
+            const profileItem = menu && Array.from(menu.querySelectorAll('[role="menuitem"], button'))
+                .find((item) => item.textContent?.trim() === 'Profile') as HTMLElement | undefined;
+            if (profileItem) {
+                profileItem.click();
+            } else {
+                accountButton.click();
+                actions.toast('Could not open profile settings', 'error');
+            }
+        }, 0);
     };
 
     const openUserMenu = () => {
