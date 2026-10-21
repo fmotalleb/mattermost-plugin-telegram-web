@@ -197,7 +197,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                         return <div className="tgw-unread-peek-message" key={post.id}><span className="tgw-unread-peek-sender">{post.user_id === myId ? 'You' : (sender ? displayName(sender).split(' ')[0] : 'Someone')}</span><span className="tgw-unread-peek-text"><EmojiText text={truncate(body, 100)}/></span></div>;
                     })}
                 </div>,
-                document.body,
+                document.querySelector('.tgw-root') || document.body,
             )}
         </button>
     );

@@ -492,7 +492,9 @@
     padding: 10px;
     border: 1px solid var(--tgw-border);
     border-radius: 11px;
-    background: var(--tgw-bg-secondary);
+    background: var(--tgw-header-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
     box-shadow: 0 8px 26px rgba(0, 0, 0, .22);
     color: var(--tgw-text);
     pointer-events: auto;
