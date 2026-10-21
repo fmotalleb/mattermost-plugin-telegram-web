@@ -319,11 +319,7 @@ export function getAllChats(state: MMState): ChatSummary[] {
                     ids.push(channelId);
                 }
             });
-            // Active chats stay above pinned favorites; favorites then stay above empty chats.
-            return summarise(state, ids).sort((a, b) => {
-                const tier = (chat: ChatSummary) => chat.lastPostAt ? (chat.isFavorite ? 1 : 0) : (chat.isFavorite ? 1 : 2);
-                return tier(a) - tier(b) || compareChats(a, b);
-            });
+            return sortChatsByPriority(summarise(state, ids), true);
         },
     );
 }
@@ -510,29 +506,30 @@ function isPersonalUnread(chat: ChatSummary): boolean {
     return chat.type === 'D' || chat.type === 'G';
 }
 
-/** What a chat contributes to the Unread folder's tally: its DM messages, or its mentions. */
+/** What a chat contributes to the Unread folder's tally. */
 function unreadFolderTally(chat: ChatSummary): number {
-    if (isPersonalUnread(chat)) {
-        return chat.unread || (chat.manuallyUnread ? 1 : 0);
-    }
-    return chat.mentions;
+    return chat.unread || (chat.manuallyUnread ? 1 : 0);
 }
 
-export function getUnreadChats(state: MMState): ChatSummary[] {
-    // Keep the folder comprehensive, but put personal/targeted unread traffic first, then
-    // other unread chats, followed by the remaining conversations.
-    return getAllChats(state).slice().sort((a, b) => {
+function sortChatsByPriority(chats: ChatSummary[], includeRead: boolean): ChatSummary[] {
+    return chats.sort((a, b) => {
         const priority = (chat: ChatSummary) => {
-            if ((isPersonalUnread(chat) && (chat.unread > 0 || chat.manuallyUnread)) || chat.mentions > 0) {
-                return 0;
-            }
-            if (chat.unread > 0 || chat.manuallyUnread) {
-                return 1;
-            }
+            const unread = chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0;
+            if (chat.isFavorite) return 0;
+            if (!unread) return includeRead ? 3 : 4;
+            // Unmuted personal chats and chats with a direct mention get the next priority.
+            if (!chat.muted && (isPersonalUnread(chat) || chat.mentions > 0)) return 1;
             return 2;
         };
         return priority(a) - priority(b) || compareChats(a, b);
     });
+}
+
+export function getUnreadChats(state: MMState): ChatSummary[] {
+    return sortChatsByPriority(
+        getAllChats(state).filter((chat) => chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0),
+        false,
+    );
 }
 
 /** All channels of one team, used by the "add members"/"browse channels" pickers. */
