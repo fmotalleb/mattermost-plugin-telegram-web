@@ -529,6 +529,7 @@
     min-width: 0;
     overflow-wrap: anywhere;
     color: var(--tgw-text);
+    unicode-bidi: plaintext;
 }
 
 .tgw-unread-peek-empty {

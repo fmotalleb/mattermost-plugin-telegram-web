@@ -194,7 +194,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                     {!peekLoading && peekPosts.map((post) => {
                         const sender = profiles?.[post.user_id];
                         const body = toPlainPreview(post.message || '') || attachmentSummary(post.metadata?.files) || 'Message';
-                        return <div className="tgw-unread-peek-message" key={post.id}><span className="tgw-unread-peek-sender">{post.user_id === myId ? 'You' : (sender ? displayName(sender).split(' ')[0] : 'Someone')}</span><span className="tgw-unread-peek-text"><EmojiText text={truncate(body, 100)}/></span></div>;
+                        return <div className="tgw-unread-peek-message" key={post.id}><span className="tgw-unread-peek-sender">{post.user_id === myId ? 'You' : (sender ? displayName(sender).split(' ')[0] : 'Someone')}</span><span className="tgw-unread-peek-text" dir="auto"><EmojiText text={truncate(body, 100)}/></span></div>;
                     })}
                 </div>,
                 document.querySelector('.tgw-root') || document.body,

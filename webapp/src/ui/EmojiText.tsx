@@ -13,6 +13,7 @@ import {emojiChar} from '../mm/emoji';
 import {getCustomEmoji} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMCustomEmoji} from '../mm/types';
+import {isolateLatinRuns} from './render';
 
 /** name → emoji id; a null value records "the server has no such custom emoji". */
 const customIds = new Map<string, string | null>();
@@ -156,5 +157,5 @@ export function EmojiText({text, term, className}: EmojiTextProps) {
         });
     }, [source, idsByName]);
 
-    return <span className={className}>{nodes}</span>;
+    return <span className={className} dir="auto">{isolateLatinRuns(nodes)}</span>;
 }
