@@ -169,6 +169,7 @@ export function MessageBody({message, postId, mentionKeys, className, onTaskTogg
         // the fallback renderer uses, applied to the whole rendered tree; linkify first so the
         // bare-domain links it creates pass through the emoji walk untouched.
         rendered = wrapEmojiNodes(linkifyNodes(rendered));
+        rendered = isolateLatinRuns(rendered);
         rendered = wireTaskCheckboxes(rendered, markdownTaskStates(message), onTaskToggle);
     } catch (error) {
         // eslint-disable-next-line no-console
@@ -336,6 +337,51 @@ export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
             return element;
         }
         return React.cloneElement(element, undefined, wrapEmojiNodes(props.children));
+    }
+    return node;
+}
+
+/** Keep embedded Latin words and punctuation (for example, CI/CD) together in RTL messages. */
+export function isolateLatinRuns(node: React.ReactNode): React.ReactNode {
+    if (node === null || node === undefined || typeof node === 'boolean') {
+        return node;
+    }
+    if (typeof node === 'string' || typeof node === 'number') {
+        const text = String(node);
+        const pattern = /\p{Script=Latin}[\p{Script=Latin}\p{N}._:/+-]*(?:\s+\p{Script=Latin}[\p{Script=Latin}\p{N}._:/+-]*)*/gu;
+        const parts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push(text.slice(lastIndex, match.index));
+            }
+            parts.push(<bdi key={`bidi-${match.index}`} dir="ltr" className="tgw-bidi-ltr">{match[0]}</bdi>);
+            lastIndex = match.index + match[0].length;
+        }
+        if (!parts.length) {
+            return node;
+        }
+        if (lastIndex < text.length) {
+            parts.push(text.slice(lastIndex));
+        }
+        return parts;
+    }
+    if (Array.isArray(node)) {
+        return node.map((child, index) => {
+            const mapped = isolateLatinRuns(child);
+            if (React.isValidElement(mapped) && mapped.key === null) {
+                return React.cloneElement(mapped, {key: `bidi-child-${index}`});
+            }
+            return mapped;
+        });
+    }
+    if (React.isValidElement(node)) {
+        const element = node as React.ReactElement<any>;
+        if (element.type === 'code' || element.type === 'pre' || element.type === 'bdi') {
+            return element;
+        }
+        return React.cloneElement(element, undefined, isolateLatinRuns(element.props.children));
     }
     return node;
 }

@@ -361,19 +361,21 @@ root.render(React.createElement(TelegramUI));
     {
         // The host formatter path has no PostUtils in jsdom: feed a synthetic element tree — the
         // same shape messageHtmlToComponent returns — through the wrapper instead.
-        const {wrapEmojiNodes} = require('../src/ui/render');
+        const {isolateLatinRuns, wrapEmojiNodes} = require('../src/ui/render');
         const hostTree = React.createElement('span', null,
-            'turn ', '⚙️ now ', '👨‍👩‍👧‍👦 ', React.createElement('code', null, ':gear: kept'));
+            'سلام CI/CD اجرا میشن ', 'turn ', '⚙️ now ', '👨‍👩‍👧‍👦 ', React.createElement('code', null, ':gear: kept'));
         const probe = document.createElement('div');
         document.body.appendChild(probe);
         const probeRoot = ReactDOMClient.createRoot(probe);
-        probeRoot.render(wrapEmojiNodes(hostTree));
+        probeRoot.render(isolateLatinRuns(wrapEmojiNodes(hostTree)));
         await tick(40);
         const wrappedBoxes = probe.querySelectorAll('.tgw-emoji');
         ok(wrappedBoxes.length === 2, `host-path emoji wrapped into boxes (${wrappedBoxes.length})`);
         ok((wrappedBoxes[0]?.textContent || '') === '⚙️', `variation-selector emoji kept whole (${wrappedBoxes[0]?.textContent || ''})`);
         ok((wrappedBoxes[1]?.textContent || '') === '👨‍👩‍👧‍👦', 'ZWJ sequence stays inside one box');
         ok(probe.querySelector('code')?.textContent === ':gear: kept', 'code spans keep their raw text');
+        const isolated = probe.querySelector('.tgw-bidi-ltr');
+        ok(isolated?.tagName === 'BDI' && isolated.getAttribute('dir') === 'ltr' && isolated.textContent === 'CI/CD', 'Latin tokens with punctuation stay isolated inside Persian text');
         probeRoot.unmount();
         probe.remove();
     }

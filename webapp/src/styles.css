@@ -1292,6 +1292,11 @@
     unicode-bidi: plaintext;
 }
 
+.tgw-bidi-ltr {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
 .tgw-message-text p,
 .tgw-message-text li,
 .tgw-message-text blockquote,
