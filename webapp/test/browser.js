@@ -453,6 +453,36 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        console.log('\n== late chat layout ==');
+        await cdp.waitFor('document.querySelectorAll(".tgw-messages .tgw-msg-row").length > 0', 8000, 'initial chat messages');
+        const lateLayout = await cdp.eval(`(async () => {
+            const list = document.querySelector('.tgw-messages');
+            const lastRow = Array.from(list.querySelectorAll('.tgw-msg-row')).pop();
+            list.style.height = '120px';
+            list.style.flex = 'none';
+            list.scrollTop = list.scrollHeight;
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const beforeHeight = list.scrollHeight;
+            const clientHeight = list.clientHeight;
+            lastRow.style.minHeight = (lastRow.getBoundingClientRect().height + 48) + 'px';
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const afterHeight = list.scrollHeight;
+            const pinnedGap = list.scrollHeight - list.scrollTop - list.clientHeight;
+            list.scrollTop = 0;
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            lastRow.style.minHeight = (lastRow.getBoundingClientRect().height + 48) + 'px';
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const scrolledUpTop = list.scrollTop;
+            lastRow.style.minHeight = '';
+            list.style.height = '';
+            list.style.flex = '';
+            return {beforeHeight, afterHeight, clientHeight, pinnedGap, scrolledUpTop};
+        })()`);
+        ok(lateLayout.beforeHeight > lateLayout.clientHeight && lateLayout.afterHeight > lateLayout.beforeHeight && lateLayout.pinnedGap <= 2,
+            `late message growth keeps an opened chat at the bottom (${JSON.stringify(lateLayout)})`);
+        ok(lateLayout.scrolledUpTop === 0,
+            `late message growth preserves a deliberately scrolled-up position (${JSON.stringify(lateLayout)})`);
+
         console.log('\n== unread chat hover preview ==');
         const unreadPreviewPoint = await cdp.eval(`(() => {
             const row = Array.from(document.querySelectorAll('.tgw-chat-row-unread')).find((entry) => entry.textContent.includes('Alice'));

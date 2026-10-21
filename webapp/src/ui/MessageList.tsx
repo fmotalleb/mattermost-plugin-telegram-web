@@ -61,6 +61,7 @@ export function MessageList(props: MessageListProps) {
     const listRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const [atBottom, setAtBottom] = useState(true);
+    const followBottom = useRef(true);
     const [unseenBelow, setUnseenBelow] = useState(0);
     const previousHeight = useRef(0);
     const previousFirstId = useRef<string | null>(null);
@@ -147,6 +148,7 @@ export function MessageList(props: MessageListProps) {
         } else {
             element.scrollTop = element.scrollHeight;
         }
+        followBottom.current = true;
         setAtBottom(true);
         setUnseenBelow(0);
     }, []);
@@ -182,6 +184,23 @@ export function MessageList(props: MessageListProps) {
         previousPostIds.current = new Set(posts.map((post) => post.id));
     }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId]);
 
+    // Images, rich content and the composer can settle after the posts have rendered. Their
+    // size changes do not change `posts`, so the effect above cannot keep an open chat pinned.
+    useLayoutEffect(() => {
+        const element = listRef.current;
+        if (!element || typeof ResizeObserver === 'undefined') {
+            return undefined;
+        }
+        const observer = new ResizeObserver(() => {
+            if (followBottom.current && element.scrollHeight - element.scrollTop - element.clientHeight > 1) {
+                scrollToBottom();
+            }
+        });
+        observer.observe(element);
+        Array.from(element.children).forEach((child) => observer.observe(child));
+        return () => observer.disconnect();
+    }, [channel.id, posts, loading, loadingOlder, hasMoreOlder, typingIds.length, unreadDividerPostId, scrollToBottom]);
+
     useEffect(() => {
         if (!highlightedPostId) {
             return undefined;
@@ -193,6 +212,7 @@ export function MessageList(props: MessageListProps) {
             return undefined;
         }
         // Not every embedded webview implements scrollIntoView.
+        followBottom.current = false;
         if (typeof element.scrollIntoView === 'function') {
             element.scrollIntoView({block: 'center'});
         }
@@ -212,6 +232,7 @@ export function MessageList(props: MessageListProps) {
             return;
         }
         const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+        followBottom.current = distanceFromBottom < 80;
         setAtBottom(distanceFromBottom < 80);
         if (distanceFromBottom < 80) {
             setUnseenBelow(0);
