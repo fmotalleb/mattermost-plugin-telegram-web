@@ -441,6 +441,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     mentionKeys={mentionKeys}
                     className="tgw-message-text"
                 />
+                <PostAttachments attachments={post.props?.attachments}/>
                 {files.length > 0 && (
                     <div className="tgw-attachments">
                         {files.map((file) => (
@@ -524,6 +525,28 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
             </div>
         </div>
     );
+}
+
+/** Mattermost message attachments use the Slack-compatible attachment shape in post.props. */
+function PostAttachments({attachments}: {attachments?: any[]}) {
+    if (!Array.isArray(attachments) || !attachments.length) {
+        return null;
+    }
+    return <div className="tgw-post-attachments">{attachments.map((attachment, index) => {
+        if (!attachment || typeof attachment !== 'object') {
+            return null;
+        }
+        const fields = Array.isArray(attachment.fields) ? attachment.fields : [];
+        return <section className="tgw-post-attachment" key={attachment.id || index} style={attachment.color ? {borderLeftColor: attachment.color} : undefined}>
+            {attachment.pretext && <MessageBody message={String(attachment.pretext)} className="tgw-post-attachment-pretext"/>}
+            {attachment.author_name && <div className="tgw-post-attachment-author">{attachment.author_link ? <a href={attachment.author_link} target="_blank" rel="noopener noreferrer">{attachment.author_name}</a> : attachment.author_name}</div>}
+            {attachment.title && <div className="tgw-post-attachment-title">{attachment.title_link ? <a href={attachment.title_link} target="_blank" rel="noopener noreferrer">{attachment.title}</a> : attachment.title}</div>}
+            {attachment.text && <MessageBody message={String(attachment.text)} className="tgw-post-attachment-text"/>}
+            {!!fields.length && <div className="tgw-post-attachment-fields">{fields.map((field: any, fieldIndex: number) => <div className={field?.short ? 'tgw-post-attachment-field tgw-post-attachment-field-short' : 'tgw-post-attachment-field'} key={field?.title || fieldIndex}><strong>{field?.title}</strong><MessageBody message={String(field?.value || '')} className="tgw-post-attachment-field-value"/></div>)}</div>}
+            {attachment.image_url && <img className="tgw-post-attachment-image" src={attachment.image_url} alt={attachment.image_alt || attachment.title || ''} loading="lazy"/>}
+            {attachment.footer && <div className="tgw-post-attachment-footer">{attachment.footer}</div>}
+        </section>;
+    })}</div>;
 }
 
 function replyAuthorName(post: MMPost, myId: string): string {

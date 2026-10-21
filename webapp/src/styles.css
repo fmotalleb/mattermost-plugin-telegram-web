@@ -1553,6 +1553,18 @@ img.tgw-reaction-emoji {
     clear: both;
 }
 
+.tgw-post-attachments { display: grid; gap: 8px; margin: 6px 0; }
+.tgw-post-attachment { min-width: 0; padding: 8px 10px; border-left: 3px solid var(--tgw-border); border-radius: 3px; background: var(--tgw-bg-secondary); }
+.tgw-post-attachment-author, .tgw-post-attachment-footer { color: var(--tgw-text-secondary); font-size: 12px; }
+.tgw-post-attachment-title { font-weight: 600; margin: 2px 0; }
+.tgw-post-attachment a { color: var(--tgw-link); }
+.tgw-post-attachment-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.tgw-post-attachment-field { min-width: 0; }
+.tgw-post-attachment-field strong { display: block; font-size: 12px; }
+.tgw-post-attachment-field-value { color: var(--tgw-text-secondary); }
+.tgw-post-attachment-image { display: block; max-width: 100%; max-height: 320px; object-fit: contain; margin-top: 8px; border-radius: 4px; }
+.tgw-post-attachment-footer { margin-top: 6px; }
+
 .tgw-attachment-image {
     border: none;
     padding: 0;
