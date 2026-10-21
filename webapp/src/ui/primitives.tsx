@@ -138,6 +138,7 @@ export interface AvatarProps {
     status?: string;
     showStatus?: boolean;
     className?: string;
+    savedMessages?: boolean;
 }
 
 function allowedToLoadAvatar(user?: MMUser): boolean {
@@ -147,7 +148,7 @@ function allowedToLoadAvatar(user?: MMUser): boolean {
     return user.delete_at === 0 || user.delete_at === undefined;
 }
 
-export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className}: AvatarProps) {
+export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className, savedMessages}: AvatarProps) {
     const cachedUser = useSelector((state) => (userId ? getUser(state, userId) : undefined));
     const user = profile || cachedUser;
     const siteURL = useSelector(getSiteURL);
@@ -161,10 +162,12 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
 
     return (
         <span
-            className={`tgw-avatar ${className || ''}`}
+            className={`tgw-avatar ${savedMessages ? 'tgw-avatar-saved-messages' : ''} ${className || ''}`}
             style={{width: size, height: size, fontSize: Math.max(12, Math.round(size / 2.6)), background}}
         >
-            {hasPicture && (
+            {savedMessages ? (
+                <svg className="tgw-saved-messages-bookmark" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5A1.5 1.5 0 0 1 8.5 3h7A1.5 1.5 0 0 1 17 4.5V21l-5-3.5L7 21V4.5Z"/></svg>
+            ) : hasPicture && (
                 <img
                     src={url}
                     alt=""
@@ -172,7 +175,7 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
                     onError={() => setFailed(true)}
                 />
             )}
-            {(!hasPicture || failed) && <span className="tgw-avatar-initials">{initialsFor(name)}</span>}
+            {!savedMessages && (!hasPicture || failed) && <span className="tgw-avatar-initials">{initialsFor(name)}</span>}
             {showStatus && <span className={`tgw-status-dot tgw-status-${status || 'offline'}`}/>}
         </span>
     );

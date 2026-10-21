@@ -87,6 +87,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 size={54}
                 status={status}
                 showStatus={summary.type === 'D'}
+                savedMessages={summary.title === 'Saved Messages'}
             />
             <span className="tgw-chat-row-body">
                 <span className="tgw-chat-row-top">

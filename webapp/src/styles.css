@@ -656,6 +656,17 @@
     line-height: 1;
 }
 
+.tgw-avatar-saved-messages {
+    background: linear-gradient(145deg, #62b8ff, #168acd) !important;
+}
+
+.tgw-saved-messages-bookmark {
+    width: 54%;
+    height: 54%;
+    fill: #fff;
+    filter: drop-shadow(0 1px 1px rgba(0, 67, 130, .22));
+}
+
 /* Raised above the avatar content: the badge must read as overlaying the circle. */
 .tgw-status-dot {
     position: absolute;
