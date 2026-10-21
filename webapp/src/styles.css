@@ -1247,6 +1247,61 @@
     color: var(--tgw-link);
     text-decoration: none;
 }
+
+/* Markdown task lists should feel like controls in the chat, while staying compact beside text. */
+.tgw-message-text input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 17px;
+    height: 17px;
+    margin: 0 7px 0 1px;
+    vertical-align: -3px;
+    flex: 0 0 auto;
+    border: 1.5px solid color-mix(in srgb, currentColor 42%, transparent);
+    border-radius: 5px;
+    background: color-mix(in srgb, currentColor 5%, transparent);
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.tgw-message-text input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--tgw-accent);
+    background: var(--tgw-accent-soft);
+    transform: scale(1.06);
+}
+
+.tgw-message-text input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--tgw-accent);
+    outline-offset: 2px;
+}
+
+.tgw-message-text input[type="checkbox"]:checked {
+    border-color: var(--tgw-accent);
+    background: var(--tgw-accent);
+}
+
+.tgw-message-text input[type="checkbox"]:checked::after {
+    width: 8px;
+    height: 4px;
+    border: solid #fff;
+    border-width: 0 0 2px 2px;
+    content: "";
+    transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.tgw-message-text input[type="checkbox"]:disabled {
+    cursor: default;
+    opacity: .72;
+}
+
+.tgw-message-text li:has(> input[type="checkbox"]:checked) {
+    opacity: .72;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
 .tgw-message-text a:hover {
     text-decoration: underline;
 }
