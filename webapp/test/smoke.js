@@ -1001,9 +1001,9 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     const allChatTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).map((el) => el.textContent.trim());
     await waitFor(() => allChatTitles()[0] === 'Town Square');
-    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson'), `favorites stay above other chats in All (${allChatTitles().join(',')})`);
+    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson') && allChatTitles()[2] === 'Town Square', `All shows unread chats first, then favorites (${allChatTitles().join(',')})`);
     const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
-    ok(allSectionTitles().join(',') === 'Favorites,Chats', `All pins Favorites above Chats (${allSectionTitles().join(',')})`);
+    ok(allSectionTitles().join(',') === 'Unread,Favorites', `All places Favorites under Unread (${allSectionTitles().join(',')})`);
     const favoriteHeading = Array.from(document.querySelectorAll('.tgw-section-heading')).find((heading) => heading.textContent.includes('Favorites'));
     const readBefore = payloads.length;
     favoriteHeading?.querySelector('button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
@@ -1013,7 +1013,8 @@ root.render(React.createElement(TelegramUI));
     const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!favRow, 'town square row found for the favorites check');
     if (favRow) {
-        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        const townRowAfterRead = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+        townRowAfterRead?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
         await waitFor(() => document.querySelector('.tgw-menu'));
         const readActions = () => Array.from(document.querySelectorAll('.tgw-menu-item'))
             .map((el) => (el.textContent || '').trim())
@@ -1029,7 +1030,8 @@ root.render(React.createElement(TelegramUI));
         };
         notifyStoreChange();
         await tick(50);
-        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        const townRowAfterRestore = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+        townRowAfterRestore?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
         await waitFor(() => document.querySelector('.tgw-menu'));
         ok(readActions().join(',') === 'Mark as unread', `a read chat offers only Mark as unread (${readActions().join(',') || 'none'})`);
         dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
@@ -1037,7 +1039,8 @@ root.render(React.createElement(TelegramUI));
         state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.TOWN]: townMember};
         notifyStoreChange();
 
-        favRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        const townRowWithUnreadRestored = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+        townRowWithUnreadRestored?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
         await waitFor(() => document.querySelector('.tgw-menu'));
         const removeEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.includes('Remove from favorites'));
         ok(!!removeEntry, 'context menu offers removing the chat from favorites');
@@ -1062,7 +1065,7 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     await waitFor(() => allChatTitles()[0] === 'Alice Anderson');
     ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square', `removing a favorite restores recent-chat order (${allChatTitles().join(',')})`);
-    ok(allSectionTitles().join(',') === 'Chats', 'All keeps a read action for the Chats section when no chats are favorites');
+    ok(allSectionTitles().join(',') === 'Unread', 'All keeps unread chats grouped when there are no favorites');
 
     console.log('\n== drag to reorder ==');
     // Category tabs reorder their chats by dragging, through Mattermost's own sidebar-category

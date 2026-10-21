@@ -157,9 +157,12 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
-    const sectionKey = (chat: ChatSummary) => chat.isFavorite ? 'favorites' : chat.lastPostAt ? 'active' : 'other';
-    const sectionLabel = (chat: ChatSummary) => chat.isFavorite ? 'Favorites' : chat.lastPostAt ? 'Chats' : 'Other chats';
-    const sectionChats = (chat: ChatSummary) => chats.filter((item) => sectionKey(item) === sectionKey(chat));
+    const isUnread = (chat: ChatSummary) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread;
+    const allSections = [
+        {key: 'unread', label: 'Unread', chats: chats.filter(isUnread)},
+        {key: 'favorites', label: 'Favorites', chats: chats.filter((chat) => chat.isFavorite)},
+        {key: 'chats', label: 'Chats', chats: chats.filter((chat) => !isUnread(chat) && !chat.isFavorite)},
+    ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.
     useEffect(() => {
@@ -197,37 +200,45 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
         );
     }
 
+    const renderChat = (chat: ChatSummary) => (
+        <ChatRow
+            summary={chat}
+            selected={chat.id === selectedChannelId}
+            onSelect={onSelect}
+            onContextMenu={onContextMenu}
+            showTeamName={showTeamNames}
+            draggable={!!reorderable}
+            dragState={dragId === chat.id ? 'source' : (dragId && overId === chat.id ? 'over' : null)}
+            onDragStart={() => setDragId(chat.id)}
+            onDragOver={(event) => {
+                if (dragId && dragId !== chat.id) {
+                    event.preventDefault();
+                    setOverId(chat.id);
+                }
+            }}
+            onDrop={(event) => {
+                event.preventDefault();
+                dropChat(chat.id, event.clientY, event.currentTarget.getBoundingClientRect());
+            }}
+            onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+            }}
+        />
+    );
+
     return (
         <div className="tgw-chat-list" role="list">
             {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onMarkSectionRead?.(chats)}>Mark all as read</button></div>}
-            {chats.map((chat, index) => (
+            {groupFavorites ? allSections.map((section) => (
+                <React.Fragment key={section.key}>
+                    <div className="tgw-section-heading"><span className="tgw-section-title">{section.label}</span><button type="button" onClick={() => onMarkSectionRead?.(section.chats)}>Mark all as read</button></div>
+                    {section.chats.map((chat, index) => <React.Fragment key={`${section.key}:${chat.id}`}>{index > 0 && <div className="tgw-list-divider"/>}{renderChat(chat)}</React.Fragment>)}
+                </React.Fragment>
+            )) : chats.map((chat, index) => (
                 <React.Fragment key={chat.id}>
-                    {groupFavorites && (index === 0 || sectionKey(chats[index - 1]) !== sectionKey(chat)) && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionLabel(chat)}</span><button type="button" onClick={() => onMarkSectionRead?.(sectionChats(chat))}>Mark all as read</button></div>}
-                    {index > 0 && (!groupFavorites || sectionKey(chats[index - 1]) === sectionKey(chat)) && <div className="tgw-list-divider"/>}
-                    <ChatRow
-                        summary={chat}
-                        selected={chat.id === selectedChannelId}
-                        onSelect={onSelect}
-                        onContextMenu={onContextMenu}
-                        showTeamName={showTeamNames}
-                        draggable={!!reorderable}
-                        dragState={dragId === chat.id ? 'source' : (dragId && overId === chat.id ? 'over' : null)}
-                        onDragStart={() => setDragId(chat.id)}
-                        onDragOver={(event) => {
-                            if (dragId && dragId !== chat.id) {
-                                event.preventDefault();
-                                setOverId(chat.id);
-                            }
-                        }}
-                        onDrop={(event) => {
-                            event.preventDefault();
-                            dropChat(chat.id, event.clientY, event.currentTarget.getBoundingClientRect());
-                        }}
-                        onDragEnd={() => {
-                            setDragId(null);
-                            setOverId(null);
-                        }}
-                    />
+                    {index > 0 && <div className="tgw-list-divider"/>}
+                    {renderChat(chat)}
                 </React.Fragment>
             ))}
         </div>

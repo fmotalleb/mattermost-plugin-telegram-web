@@ -513,15 +513,18 @@ function unreadFolderTally(chat: ChatSummary): number {
 
 function sortChatsByPriority(chats: ChatSummary[], includeRead: boolean): ChatSummary[] {
     return chats.sort((a, b) => {
-        const priority = (chat: ChatSummary) => {
-            const unread = chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0;
+        const unreadPriority = (chat: ChatSummary) => {
             if (chat.isFavorite) return 0;
-            if (!unread) return includeRead ? 3 : 4;
             // Unmuted personal chats and chats with a direct mention get the next priority.
             if (!chat.muted && (isPersonalUnread(chat) || chat.mentions > 0)) return 1;
             return 2;
         };
-        return priority(a) - priority(b) || compareChats(a, b);
+        const tier = (chat: ChatSummary) => {
+            const unread = chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0;
+            if (unread) return 0;
+            return chat.isFavorite ? (includeRead ? 1 : 4) : (includeRead ? 2 : 4);
+        };
+        return tier(a) - tier(b) || (tier(a) === 0 ? unreadPriority(a) - unreadPriority(b) : 0) || compareChats(a, b);
     });
 }
 
