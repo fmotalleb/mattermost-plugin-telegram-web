@@ -20,6 +20,7 @@ const {
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings, getSettings} = require('../src/mm/settings');
 const {handleSocketEvent} = require('../src/mm/socket');
+const {api} = require('../src/mm/api');
 const {startStockUIViewTracking} = require('../src/mm/stock-views');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 
@@ -1482,6 +1483,12 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     const lateSeen = await waitFor(() => viewTracking.get('p-stock-new') && viewTracking.get('p-stock-new').has(ids.ME), 4000);
     ok(!!lateSeen, 'a new post in the already-open stock channel is reported as seen without any channel switch');
+
+    console.log('\n== leaving a group ==');
+    await api.leaveChannel(ids.TOWN);
+    ok(calls.some((call) => call === `DELETE /channels/${ids.TOWN}/members/me`), 'leaving a group uses the Mattermost membership endpoint');
+    ok(!state.entities.channels.myMembers[ids.TOWN], 'leaving a group removes its current-user membership from the host store');
+    ok(!require('../src/mm/selectors').getAllChats(state).some((chat) => chat.id === ids.TOWN), 'a left group disappears from the Telegram chat list');
 
     console.log('\n== api calls observed ==');
     calls.slice(0, 12).forEach((call) => console.log(`  ${call}`));

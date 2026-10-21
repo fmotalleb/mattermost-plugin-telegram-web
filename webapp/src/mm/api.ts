@@ -7,7 +7,7 @@
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
 import type {MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMUser} from './types';
-import {getState} from './store';
+import {getState, getStore} from './store';
 
 declare const window: any;
 
@@ -238,7 +238,18 @@ export class MattermostAPI {
     }
 
     leaveChannel(channelId: string): Promise<any> {
-        return this.request(`/channels/${channelId}/members/me`, {method: 'DELETE'});
+        return this.request(`/channels/${channelId}/members/me`, {method: 'DELETE'}).then((result) => {
+            // This REST client bypasses mattermost-redux's leaveChannel action creator. Mirror
+            // its success action so the host store drops the membership and the plugin list
+            // removes the chat immediately after the server accepts the leave.
+            const channel = getState().entities?.channels?.channels?.[channelId];
+            const userId = getState().entities?.users?.currentUserId || '';
+            getStore()?.dispatch({
+                type: 'LEAVE_CHANNEL',
+                data: {id: channelId, user_id: userId, team_id: channel?.team_id || '', type: channel?.type || ''},
+            });
+            return result;
+        });
     }
 
     addChannelMember(channelId: string, userId: string): Promise<any> {

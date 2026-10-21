@@ -554,7 +554,19 @@ const state = {
 const listeners = new Set();
 const store = {
     getState: () => state,
-    dispatch: () => undefined,
+    dispatch: (action) => {
+        if (action?.type === 'LEAVE_CHANNEL' && action.data?.id) {
+            const {id} = action.data;
+            const myMembers = {...state.entities.channels.myMembers};
+            const channels = {...state.entities.channels.channels};
+            delete myMembers[id];
+            delete channels[id];
+            state.entities.channels.myMembers = myMembers;
+            state.entities.channels.channels = channels;
+            listeners.forEach((listener) => listener());
+        }
+        return action;
+    },
     subscribe: (listener) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
