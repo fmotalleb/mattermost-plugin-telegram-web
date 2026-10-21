@@ -396,6 +396,20 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
         };
     }, [showViewers, positionViewers]);
 
+    useEffect(() => {
+        if (!showViewers) {
+            return undefined;
+        }
+        const closeOutside = (event: MouseEvent) => {
+            const element = viewersWrapRef.current;
+            if (element && event.target instanceof Node && !element.contains(event.target)) {
+                setShowViewers(false);
+            }
+        };
+        document.addEventListener('mousedown', closeOutside, true);
+        return () => document.removeEventListener('mousedown', closeOutside, true);
+    }, [showViewers]);
+
     const toggleViewers = useCallback(() => {
         if (showViewers) {
             setShowViewers(false);
