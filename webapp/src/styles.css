@@ -580,6 +580,27 @@
     min-width: 0;
 }
 
+.tgw-chat-row-inactive-peer:not(.tgw-chat-row-active) .tgw-avatar {
+    filter: grayscale(.8);
+    opacity: .72;
+}
+
+.tgw-chat-row-account-state {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: var(--tgw-hover);
+    color: var(--tgw-text-tertiary);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.tgw-chat-row-active .tgw-chat-row-account-state {
+    background: rgba(255, 255, 255, .18);
+    color: rgba(255, 255, 255, .9);
+}
+
 .tgw-chat-row-meta {
     display: inline-flex;
     align-items: center;

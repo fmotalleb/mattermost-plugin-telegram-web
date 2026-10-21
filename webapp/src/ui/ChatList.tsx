@@ -8,7 +8,7 @@ import {getBlock, getCachedPreview, isPreviewLoading, prefetchPreview, subscribe
 import {getMyId, getStatus} from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMPost} from '../mm/types';
+import type {MMPost, MMUser} from '../mm/types';
 import {attachmentSummary, displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
 import {useTg} from './context';
 import {EmojiText} from './EmojiText';
@@ -59,15 +59,20 @@ export interface ChatRowProps {
     onDragOver?: (event: React.DragEvent) => void;
     onDrop?: (event: React.DragEvent) => void;
     onDragEnd?: () => void;
+    peerUser?: MMUser;
+    peerUnavailable?: boolean;
 }
 
-export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd}: ChatRowProps) {
+export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd, peerUser: resolvedPeer, peerUnavailable}: ChatRowProps) {
     const {timeFormat, settings} = useTg();
     const myId = useSelector(getMyId);
     const {post: preview, loading: previewLoading} = usePreview(summary.id);
     const lastPost = preview || undefined;
     const author = useSelector((state) => (lastPost && lastPost.user_id !== myId ? state.entities?.users?.profiles?.[lastPost.user_id] : undefined));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
+    const peerUser = summary.type === 'D' ? (profiles?.[summary.peerIds[0]] || resolvedPeer) : undefined;
+    const peerInactive = !!peerUser && peerUser.delete_at !== undefined && peerUser.delete_at > 0;
+    const title = peerInactive ? displayName(peerUser) : peerUnavailable ? 'Unavailable account' : (summary.type === 'D' && peerUser ? displayName(peerUser) : summary.title);
     const status = useSelector((state) => (summary.type === 'D' ? getStatus(state, summary.peerIds[0]) : undefined));
 
     const text = previewText(lastPost, lastPost?.user_id === myId, summary.type === 'G' || summary.type === 'P' || summary.type === 'O', author ? displayName(author) : '');
@@ -136,7 +141,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
         <button
             type="button"
             draggable={draggable}
-            className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''} ${dragState === 'source' ? 'tgw-chat-row-dragging' : ''} ${dragState === 'over' ? 'tgw-chat-row-dragover' : ''}`}
+            className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''} ${peerInactive || peerUnavailable ? 'tgw-chat-row-inactive-peer' : ''} ${dragState === 'source' ? 'tgw-chat-row-dragging' : ''} ${dragState === 'over' ? 'tgw-chat-row-dragover' : ''}`}
             onMouseEnter={openPeek}
             onMouseLeave={closePeekSoon}
             onClick={() => onSelect(summary.id)}
@@ -147,8 +152,8 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
             onDragEnd={() => onDragEnd?.()}
         >
             <Avatar
-                userId={summary.avatarUserId}
-                name={summary.title}
+                userId={summary.avatarUserId || peerUser?.id || summary.peerIds[0]}
+                name={title}
                 colorKey={summary.type === 'D' ? summary.peerIds[0] : summary.id}
                 imageUrl={summary.avatarUrl}
                 size={54}
@@ -160,7 +165,9 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 <span className="tgw-chat-row-top">
                     <span className="tgw-chat-row-title">
                         {summary.muted && <IconMute size={16} className="tgw-chat-row-mute"/>}
-                        {summary.title}
+                        {title}
+                        {peerInactive && <span className="tgw-chat-row-account-state">Deactivated</span>}
+                        {peerUnavailable && !peerUser && <span className="tgw-chat-row-account-state">Unavailable</span>}
                     </span>
                     <span className="tgw-chat-row-meta">
                         {summary.isFavorite && <IconStar size={14} className="tgw-chat-row-star"/>}
@@ -237,6 +244,10 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
+    const profiles = useSelector((state) => state.entities?.users?.profiles || {});
+    const [fetchedPeers, setFetchedPeers] = useState<Record<string, MMUser>>({});
+    const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
+    const requestedPeers = useRef(new Set<string>());
     const isUnread = (chat: ChatSummary) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread;
     const allSections = [
         {key: 'unread', label: 'Unread', chats: chats.filter(isUnread)},
@@ -251,6 +262,31 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
             }
         });
     }, [chats, prefetchLimit]);
+
+    // DM channels can remain in the sidebar after their peer is deactivated or omitted from the
+    // host's current profile cache. Resolve those profiles in batches so old conversations keep
+    // their proper name and avatar instead of all looking like an anonymous "Direct message".
+    useEffect(() => {
+        const missing = Array.from(new Set(chats
+            .filter((chat) => chat.type === 'D')
+            .map((chat) => chat.peerIds[0])
+            .filter((id): id is string => !!id && !profiles[id] && !fetchedPeers[id] && !requestedPeers.current.has(id))));
+        if (!missing.length) {
+            return;
+        }
+        missing.forEach((id) => requestedPeers.current.add(id));
+        let cancelled = false;
+        Promise.all(Array.from({length: Math.ceil(missing.length / 100)}, (_, index) =>
+            api.getUsersByIds(missing.slice(index * 100, (index + 1) * 100)),
+        )).then((batches) => {
+            if (cancelled) return;
+            const users = batches.flat();
+            const found = new Set(users.map((user) => user.id));
+            setFetchedPeers((current) => ({...current, ...Object.fromEntries(users.map((user) => [user.id, user]))}));
+            setUnavailablePeers((current) => ({...current, ...Object.fromEntries(missing.filter((id) => !found.has(id)).map((id) => [id, true]))}));
+        }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [chats, profiles, fetchedPeers]);
 
     // Mattermost-style placement: dropping on the upper half of a row inserts the dragged chat
     // before it, the lower half after it (in jsdom-sized rows this degrades to "after").
@@ -282,6 +318,8 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const renderChat = (chat: ChatSummary) => (
         <ChatRow
             summary={chat}
+            peerUser={chat.peerIds[0] ? fetchedPeers[chat.peerIds[0]] : undefined}
+            peerUnavailable={!!(chat.peerIds[0] && unavailablePeers[chat.peerIds[0]])}
             selected={chat.id === selectedChannelId}
             onSelect={onSelect}
             onContextMenu={onContextMenu}
