@@ -85,6 +85,12 @@ root.render(React.createElement(TelegramUI));
     ok(unreadRowTexts().some((text) => text.includes('Alice Anderson')), 'a direct message is displayed in the Unread folder');
     ok(unreadRowTexts().some((text) => text.includes('Town Square')), 'a channel that mentions you is displayed in the Unread folder');
     ok(unreadRowTexts().length === 2, 'the Unread folder omits read chats');
+    const unreadPreviewRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
+    unreadPreviewRow?.dispatchEvent(new dom.window.MouseEvent('mouseover', {bubbles: true}));
+    await waitFor(() => !!document.querySelector('.tgw-unread-peek'), 3000);
+    await waitFor(() => !document.querySelector('.tgw-unread-peek-empty')?.textContent.includes('Loading'));
+    ok((document.querySelector('.tgw-unread-peek')?.textContent || '').includes('Deploy'), 'hovering an unread chat previews recent unread messages');
+    unreadPreviewRow?.dispatchEvent(new dom.window.MouseEvent('mouseout', {bubbles: true}));
     // Take Town Square's mention away: its unread messages still qualify it for this folder.
     const originalMembers = state.entities.channels.myMembers;
     state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: {...originalMembers[ids.TOWN], mention_count: 0}};

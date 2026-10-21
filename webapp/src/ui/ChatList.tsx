@@ -1,8 +1,10 @@
 // Chat list rows (the left column of Telegram Web).
 
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
+import {api} from '../mm/api';
 import {reorderCategoryChannels} from '../mm/categories';
-import {getCachedPreview, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
+import {getBlock, getCachedPreview, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
 import {getMyId, getStatus} from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
 import {useSelector} from '../mm/store';
@@ -62,17 +64,78 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
     const preview = usePreview(summary.id);
     const lastPost = preview || undefined;
     const author = useSelector((state) => (lastPost && lastPost.user_id !== myId ? state.entities?.users?.profiles?.[lastPost.user_id] : undefined));
+    const profiles = useSelector((state) => state.entities?.users?.profiles);
     const status = useSelector((state) => (summary.type === 'D' ? getStatus(state, summary.peerIds[0]) : undefined));
 
     const text = previewText(lastPost, lastPost?.user_id === myId, summary.type === 'G' || summary.type === 'P' || summary.type === 'O', author ? displayName(author) : '');
     const time = formatChatTime(lastPost?.create_at || summary.lastPostAt, timeFormat);
-    const unread = summary.unread > 0 || summary.mentions > 0;
+    const unread = summary.unread > 0 || summary.mentions > 0 || summary.manuallyUnread;
+    const [peekOpen, setPeekOpen] = useState(false);
+    const [peekLoading, setPeekLoading] = useState(false);
+    const [peekPosts, setPeekPosts] = useState<MMPost[]>([]);
+    const [peekPosition, setPeekPosition] = useState({left: 0, top: 0});
+    const peekDelay = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const peekCloseDelay = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => () => {
+        if (peekDelay.current) clearTimeout(peekDelay.current);
+        if (peekCloseDelay.current) clearTimeout(peekCloseDelay.current);
+    }, []);
+
+    useEffect(() => {
+        if (!peekOpen || !unread) return undefined;
+        let cancelled = false;
+        setPeekLoading(true);
+        const cachedBlock = getBlock(summary.id);
+        const applyPosts = (posts: MMPost[]) => {
+            const allPosts = posts
+                .filter((post) => !post.delete_at && !post.root_id)
+                .sort((left, right) => left.create_at - right.create_at);
+            const unreadPosts = allPosts.filter((post) => post.create_at > summary.lastViewedAt);
+            const messages = unreadPosts.length ? unreadPosts : allPosts;
+            setPeekPosts(messages.length ? messages.slice(-5) : (preview ? [preview] : []));
+        };
+        if (cachedBlock?.order.length) {
+            applyPosts(cachedBlock.order.map((id) => cachedBlock.posts[id]).filter(Boolean));
+            setPeekLoading(false);
+            return () => { cancelled = true; };
+        }
+        api.getPosts(summary.id, 0, 12).then((result) => {
+            if (cancelled) return;
+            const posts = result.order?.map((id) => result.posts[id]).filter(Boolean) || Object.values(result.posts || {});
+            applyPosts(posts);
+        }).catch(() => {
+            if (!cancelled) setPeekPosts([]);
+        }).finally(() => {
+            if (!cancelled) setPeekLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, [peekOpen, unread, summary.id, summary.lastViewedAt, summary.lastPostAt, preview]);
+
+    const openPeek = (event: React.MouseEvent<HTMLButtonElement>) => {
+        if (!unread) return;
+        if (peekDelay.current) clearTimeout(peekDelay.current);
+        const rect = event.currentTarget.getBoundingClientRect();
+        peekDelay.current = setTimeout(() => {
+            setPeekPosition({left: Math.max(12, Math.min(rect.right + 10, window.innerWidth - 330)), top: Math.max(12, Math.min(rect.top, window.innerHeight - 250))});
+            setPeekOpen(true);
+        }, 350);
+    };
+    const closePeekSoon = () => {
+        if (peekDelay.current) clearTimeout(peekDelay.current);
+        peekCloseDelay.current = setTimeout(() => setPeekOpen(false), 160);
+    };
+    const keepPeekOpen = () => {
+        if (peekCloseDelay.current) clearTimeout(peekCloseDelay.current);
+    };
 
     return (
         <button
             type="button"
             draggable={draggable}
             className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''} ${dragState === 'source' ? 'tgw-chat-row-dragging' : ''} ${dragState === 'over' ? 'tgw-chat-row-dragover' : ''}`}
+            onMouseEnter={openPeek}
+            onMouseLeave={closePeekSoon}
             onClick={() => onSelect(summary.id)}
             onContextMenu={(event) => onContextMenu?.(event, summary)}
             onDragStart={() => onDragStart?.()}
@@ -123,6 +186,19 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                     <span className="tgw-chat-row-team">{summary.teamName}</span>
                 )}
             </span>
+            {peekOpen && unread && createPortal(
+                <div className="tgw-unread-peek" role="tooltip" aria-label={`Unread messages in ${summary.title}`} style={{left: `${peekPosition.left}px`, top: `${peekPosition.top}px`}} onMouseEnter={keepPeekOpen} onMouseLeave={closePeekSoon}>
+                    <div className="tgw-unread-peek-title">Unread messages</div>
+                    {peekLoading && <div className="tgw-unread-peek-empty">Loading messages…</div>}
+                    {!peekLoading && peekPosts.length === 0 && <div className="tgw-unread-peek-empty">No message preview available</div>}
+                    {!peekLoading && peekPosts.map((post) => {
+                        const sender = profiles?.[post.user_id];
+                        const body = toPlainPreview(post.message || '') || attachmentSummary(post.metadata?.files) || 'Message';
+                        return <div className="tgw-unread-peek-message" key={post.id}><span className="tgw-unread-peek-sender">{post.user_id === myId ? 'You' : (sender ? displayName(sender).split(' ')[0] : 'Someone')}</span><span className="tgw-unread-peek-text"><EmojiText text={truncate(body, 100)}/></span></div>;
+                    })}
+                </div>,
+                document.body,
+            )}
         </button>
     );
 }

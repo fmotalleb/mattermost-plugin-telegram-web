@@ -120,6 +120,7 @@ const DM = ids.DM; const TOWN = ids.TOWN; const THIRD = 'user-third';
 const users = ${sub(users)};
 const channels = ${sub(channels)};
 const posts = ${sub(posts)};
+const stockExtraIds = [];
 const calls = []; const payloads = [];
 window.__calls = calls;
 window.__payloads = payloads;
@@ -451,6 +452,22 @@ class CDP {
 
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
+
+        console.log('\n== unread chat hover preview ==');
+        const unreadPreviewPoint = await cdp.eval(`(() => {
+            const row = Array.from(document.querySelectorAll('.tgw-chat-row-unread')).find((entry) => entry.textContent.includes('Alice'));
+            if (!row) return null;
+            const rect = row.getBoundingClientRect();
+            return {x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2)};
+        })()`);
+        ok(!!unreadPreviewPoint, 'an unread chat is available for the hover preview');
+        if (unreadPreviewPoint) {
+            await cdp.send('Input.dispatchMouseEvent', {type: 'mouseMoved', x: unreadPreviewPoint.x, y: unreadPreviewPoint.y});
+            await cdp.waitFor('!!document.querySelector(".tgw-unread-peek")', 5000, 'unread chat hover preview');
+            await cdp.waitFor('!!document.querySelector(".tgw-unread-peek-message")', 5000, 'unread messages in hover preview');
+            const peekText = await cdp.eval('document.querySelector(".tgw-unread-peek-message")?.textContent || ""');
+            ok(!!peekText.trim(), `hover preview shows message text (${peekText.trim()})`);
+        }
 
         // ---------------------------------------------------------------- 1. focus on chat open
         console.log('\\n== focus on chat open ==');
