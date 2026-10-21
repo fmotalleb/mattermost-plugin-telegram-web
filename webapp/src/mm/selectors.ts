@@ -255,6 +255,9 @@ export function getChatSummary(state: MMState, channelId: string): ChatSummary |
                 title = channel.display_name || channel.name;
                 subtitle = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`;
             }
+            if (channel.type !== 'D') {
+                avatarUrl = state.entities?.preferences?.myPreferences?.[`com.telegramweb.ui--channel-avatar-${channelId}`]?.value || undefined;
+            }
 
             return {
                 id: channel.id,

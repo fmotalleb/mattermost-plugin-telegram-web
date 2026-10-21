@@ -2244,6 +2244,45 @@ img.tgw-reaction-emoji {
     padding: 24px 16px 12px;
 }
 
+.tgw-info-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.tgw-info-avatar-edit {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 2px solid var(--tgw-sidebar);
+    border-radius: 50%;
+    color: #fff;
+    background: var(--tgw-accent);
+    cursor: pointer;
+}
+
+.tgw-info-avatar-edit:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.tgw-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .tgw-info-name {
     font-size: 18px;
     font-weight: 600;

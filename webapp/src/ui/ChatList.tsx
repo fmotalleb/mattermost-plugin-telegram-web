@@ -84,6 +84,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 userId={summary.avatarUserId}
                 name={summary.title}
                 colorKey={summary.type === 'D' ? summary.peerIds[0] : summary.id}
+                imageUrl={summary.avatarUrl}
                 size={54}
                 status={status}
                 showStatus={summary.type === 'D'}

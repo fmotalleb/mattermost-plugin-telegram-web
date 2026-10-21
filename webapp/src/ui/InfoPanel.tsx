@@ -1,10 +1,10 @@
 // Right hand "Info" panel: chat details, actions and the member list.
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {setChannelFavorite} from '../mm/favorites';
 import {getChatSummary, getMemberCount, getMyId, getPeersOfDirectChannel} from '../mm/selectors';
-import {useSelector} from '../mm/store';
+import {getStore, useSelector} from '../mm/store';
 import type {MMChannel, MMUser} from '../mm/types';
 import {displayName, memberCountLabel, statusLabel} from '../mm/utils';
 import {useTg} from './context';
@@ -22,6 +22,8 @@ export function InfoPanel() {
     const [memberIds, setMemberIds] = useState<string[]>([]);
     const [fetchedProfiles, setFetchedProfiles] = useState<Record<string, MMUser>>({});
     const [memberMenu, setMemberMenu] = useState<{x: number; y: number; items: MenuEntry[]} | null>(null);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [avatarSaving, setAvatarSaving] = useState(false);
     const channelMemberCount = useSelector((state) => (channel ? getMemberCount(state, channel.id) : 0));
 
     useEffect(() => {
@@ -101,6 +103,62 @@ export function InfoPanel() {
         }).catch(() => actions.toast('Could not change notifications', 'error'));
     };
 
+    const saveGroupAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.currentTarget.files?.[0];
+        event.currentTarget.value = '';
+        if (!file || !channel || channel.type === 'D') return;
+        if (!file.type.startsWith('image/')) {
+            actions.toast('Choose an image file', 'error');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            actions.toast('Image must be smaller than 10 MB', 'error');
+            return;
+        }
+        setAvatarSaving(true);
+        try {
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('Could not read image'));
+                reader.onload = () => {
+                    const image = new Image();
+                    image.onerror = () => reject(new Error('Could not decode image'));
+                    image.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 256;
+                        canvas.height = 256;
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            reject(new Error('Image processing is unavailable'));
+                            return;
+                        }
+                        const scale = Math.max(256 / image.width, 256 / image.height);
+                        const width = image.width * scale;
+                        const height = image.height * scale;
+                        context.drawImage(image, (256 - width) / 2, (256 - height) / 2, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.84));
+                    };
+                    image.src = String(reader.result);
+                };
+                reader.readAsDataURL(file);
+            });
+            const preference = {
+                category: 'com.telegramweb.ui',
+                name: `channel-avatar-${channel.id}`,
+                user_id: myId,
+                value: dataUrl,
+            };
+            await api.savePreferences([preference]);
+            // Keep the selected picture in the host Redux copy so all plugin avatars update now.
+            getStore()?.dispatch({type: 'RECEIVED_PREFERENCES', data: [preference]});
+            actions.toast('Group picture updated', 'success');
+        } catch {
+            actions.toast('Could not update the group picture', 'error');
+        } finally {
+            setAvatarSaving(false);
+        }
+    };
+
     const openMemberMenu = (event: React.MouseEvent, user: MMUser) => {
         event.preventDefault();
         const items: MenuEntry[] = [
@@ -134,14 +192,32 @@ export function InfoPanel() {
             </header>
 
             <div className="tgw-info-profile">
-                <Avatar
-                    userId={summary.avatarUserId}
-                    name={summary.title}
-                    colorKey={isDirect ? summary.peerIds[0] : channel.id}
-                    size={110}
-                    status={summary.status}
-                    showStatus={isDirect}
-                />
+                <div className="tgw-info-avatar-wrap">
+                    <Avatar
+                        userId={summary.avatarUserId}
+                        imageUrl={summary.avatarUrl}
+                        name={summary.title}
+                        colorKey={isDirect ? summary.peerIds[0] : channel.id}
+                        size={110}
+                        status={summary.status}
+                        showStatus={isDirect}
+                    />
+                    {!isDirect && (
+                        <>
+                            <input ref={avatarInputRef} className="tgw-visually-hidden" type="file" accept="image/*" onChange={saveGroupAvatar}/>
+                            <button
+                                type="button"
+                                className="tgw-info-avatar-edit"
+                                title="Change group picture"
+                                aria-label="Change group picture"
+                                disabled={avatarSaving}
+                                onClick={() => avatarInputRef.current?.click()}
+                            >
+                                <IconEdit size={16}/>
+                            </button>
+                        </>
+                    )}
+                </div>
                 <div className="tgw-info-name">{summary.title}</div>
                 <div className="tgw-info-sub">
                     {isDirect

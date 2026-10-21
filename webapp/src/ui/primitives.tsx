@@ -139,6 +139,7 @@ export interface AvatarProps {
     showStatus?: boolean;
     className?: string;
     savedMessages?: boolean;
+    imageUrl?: string;
 }
 
 function allowedToLoadAvatar(user?: MMUser): boolean {
@@ -148,7 +149,7 @@ function allowedToLoadAvatar(user?: MMUser): boolean {
     return user.delete_at === 0 || user.delete_at === undefined;
 }
 
-export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className, savedMessages}: AvatarProps) {
+export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className, savedMessages, imageUrl}: AvatarProps) {
     const cachedUser = useSelector((state) => (userId ? getUser(state, userId) : undefined));
     const user = profile || cachedUser;
     const siteURL = useSelector(getSiteURL);
@@ -157,8 +158,8 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
     // Mattermost only serves a picture for users whose `last_picture_update` is set (see
     // mattermost-redux's imageURLForUser); without this check every avatar would request the image
     // endpoint and 404 for users that never uploaded one.
-    const hasPicture = !!userId && allowedToLoadAvatar(user) && !!user?.last_picture_update && !failed;
-    const url = hasPicture ? `${siteURL}/api/v4/users/${userId}/image${user?.last_picture_update ? `?_=${user.last_picture_update}` : ''}` : '';
+    const hasPicture = !!imageUrl || (!!userId && allowedToLoadAvatar(user) && !!user?.last_picture_update && !failed);
+    const url = imageUrl || (hasPicture ? `${siteURL}/api/v4/users/${userId}/image${user?.last_picture_update ? `?_=${user.last_picture_update}` : ''}` : '');
 
     return (
         <span
