@@ -6,25 +6,6 @@ data and state the Mattermost web app already has. Nothing is imported from outs
 small optional server component only tracks Telegram-style message view counts, and a single
 button switches back to the stock UI.
 
-```
-┌──────────────────────────────────┬─────────────────────────────────────────────────────────┐
-│ ☰  Search                  ✎     │  Alice Anderson            ⌕  ⋯  ⓘ                      │
-├──────────────────────────────────┴─────────────────────────────────────────────────────────┤
-│ [ All ] [ Unread ] [ Groups ] [ Work stuff ] [ Contacts ]                                │
-├────────────────────────────────────────────────────────────────────────────────────────────┤
-│  (A) Alice Anderson         10:16 │  ┌────────────────────────────────────────┐            │
-│      Doing great, thanks 😄   (2) │  │ Hey! How are you?                      │            │
-│  (#) Town Square            10:21 │  └────────────────────────────────────────┘            │
-│      Mia: Deploy is done, …       │                    ┌───────────────────────────────┐   │
-│  (#) Work stuff / Town Square     │                    │ Doing great, thanks 😄     12 │   │
-│  (M) Design crew             9:02 │                    └───────────────────────────────┘   │
-│      Bob: shipping the mockups    │        ┌──────────────────────────────────────┐        │
-│  …                                │        │ **Deploy** is done  🎉 1  ↩ 2         │        │
-│                                   │        └──────────────────────────────────────┘        │
-│  (M) Mia Meyer  ●  online         │  ┌──────────────────────────────────────────────────┐  │
-└───────────────────────────────────┴──│ Message          😊  📎                 ➤          │──┘
-```
-
 **[Open the rendered preview →](docs/ui-preview.html)** — a static snapshot of the actual UI
 (generated from the real components and stylesheet by `npm run preview`), also available in the dark
 theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
