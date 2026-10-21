@@ -76,23 +76,22 @@ root.render(React.createElement(TelegramUI));
     ok(folderCount('Work stuff') === '13', `a custom folder sums its chats (${folderCount('Work stuff') || 'none'})`);
     ok(!folderBtn('Contacts')?.querySelector('.tgw-folder-badge'), 'tabs without unread chats carry no badge');
 
-    // The Unread folder's list follows that scope as well: direct messages and channels that
-    // mention me, so a group chat with ordinary unread traffic is never listed there.
-    console.log('== unread folder scope ==');
+    // Unread includes every chat, with DMs and mentions ahead of other unread conversations.
+    console.log('== unread folder ordering ==');
     const clickFolder = (label) => folderBtn(label)?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     clickFolder('Unread');
     await waitFor(() => (folderBtn('Unread')?.className || '').includes('tgw-folder-active'));
     const unreadRowTexts = () => Array.from(document.querySelectorAll('.tgw-chat-row')).map((row) => row.textContent || '');
     ok(unreadRowTexts().some((text) => text.includes('Alice Anderson')), 'a direct message is displayed in the Unread folder');
     ok(unreadRowTexts().some((text) => text.includes('Town Square')), 'a channel that mentions you is displayed in the Unread folder');
-    // Take Town Square's mention away: its 11 unread messages remain, but without a mention of me
-    // the channel must leave the folder and its tally — only the DM's 2 messages are left.
+    // Take Town Square's mention away: the chat remains in the folder because every chat is
+    // displayed, while the folder tally continues to count only DMs and mentions.
     const originalMembers = state.entities.channels.myMembers;
     state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: {...originalMembers[ids.TOWN], mention_count: 0}};
     notifyStoreChange();
     await waitFor(() => folderCount('Unread') === '2');
-    ok(folderCount('Unread') === '2', `a group chat without a mention is not counted (${folderCount('Unread') || 'none'})`);
-    ok(!unreadRowTexts().some((text) => text.includes('Town Square')), 'a group chat without a mention is not displayed in the Unread folder');
+    ok(folderCount('Unread') === '2', `a group chat without a mention does not change the priority unread tally (${folderCount('Unread') || 'none'})`);
+    ok(unreadRowTexts().some((text) => text.includes('Town Square')), 'a group chat without a mention remains displayed in the Unread folder');
     state.entities.channels.myMembers = originalMembers;
     notifyStoreChange();
     await waitFor(() => folderCount('Unread') === '3');
@@ -1002,9 +1001,9 @@ root.render(React.createElement(TelegramUI));
     notifyStoreChange();
     const allChatTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).map((el) => el.textContent.trim());
     await waitFor(() => allChatTitles()[0] === 'Town Square');
-    ok(allChatTitles()[0] === 'Town Square' && allChatTitles()[1]?.startsWith('Alice Anderson'), `favorite stays above the newer chat in All (${allChatTitles().join(',')})`);
+    ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square', `chats with messages stay above favorites in All (${allChatTitles().join(',')})`);
     const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
-    ok(allSectionTitles().join(',') === 'Favorites,Chats', `All separates favorite and regular chats (${allSectionTitles().join(',')})`);
+    ok(allSectionTitles().join(',') === 'Chats,Favorites', `All separates active chats and favorites (${allSectionTitles().join(',')})`);
     const favoriteHeading = Array.from(document.querySelectorAll('.tgw-section-heading')).find((heading) => heading.textContent.includes('Favorites'));
     const readBefore = payloads.length;
     favoriteHeading?.querySelector('button')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));

@@ -316,7 +316,11 @@ export function getAllChats(state: MMState): ChatSummary[] {
                     ids.push(channelId);
                 }
             });
-            return summarise(state, ids).sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite) || compareChats(a, b));
+            // Active chats stay above pinned favorites; favorites then stay above empty chats.
+            return summarise(state, ids).sort((a, b) => {
+                const tier = (chat: ChatSummary) => chat.lastPostAt ? (chat.isFavorite ? 1 : 0) : (chat.isFavorite ? 1 : 2);
+                return tier(a) - tier(b) || compareChats(a, b);
+            });
         },
     );
 }
@@ -501,13 +505,6 @@ function isPersonalUnread(chat: ChatSummary): boolean {
     return chat.type === 'D' || chat.type === 'G';
 }
 
-function belongsInUnreadFolder(chat: ChatSummary): boolean {
-    if (isPersonalUnread(chat)) {
-        return chat.unread > 0 || chat.manuallyUnread;
-    }
-    return chat.mentions > 0;
-}
-
 /** What a chat contributes to the Unread folder's tally: its DM messages, or its mentions. */
 function unreadFolderTally(chat: ChatSummary): number {
     if (isPersonalUnread(chat)) {
@@ -517,7 +514,20 @@ function unreadFolderTally(chat: ChatSummary): number {
 }
 
 export function getUnreadChats(state: MMState): ChatSummary[] {
-    return getAllChats(state).filter(belongsInUnreadFolder);
+    // Keep the folder comprehensive, but put personal/targeted unread traffic first, then
+    // other unread chats, followed by the remaining conversations.
+    return getAllChats(state).slice().sort((a, b) => {
+        const priority = (chat: ChatSummary) => {
+            if ((isPersonalUnread(chat) && (chat.unread > 0 || chat.manuallyUnread)) || chat.mentions > 0) {
+                return 0;
+            }
+            if (chat.unread > 0 || chat.manuallyUnread) {
+                return 1;
+            }
+            return 2;
+        };
+        return priority(a) - priority(b) || compareChats(a, b);
+    });
 }
 
 /** All channels of one team, used by the "add members"/"browse channels" pickers. */

@@ -115,20 +115,24 @@ export function MessageList(props: MessageListProps) {
     const rows = useMemo(() => groupPosts(posts, myId), [posts, myId]);
 
     const member = useSelector((state) => state.entities?.channels?.myMembers?.[channel.id]);
-    const unreadDividerPostId = useMemo(() => {
+    const firstUnreadPostId = useMemo(() => {
         if (!member || !posts.length) {
             return null;
         }
-        const firstUnread = posts.find((post) => post.create_at > (member.last_viewed_at || 0) && post.user_id !== myId);
-        if (!firstUnread) {
+        return posts.find((post) => post.create_at > (member.last_viewed_at || 0) && post.user_id !== myId)?.id || null;
+    }, [posts, member, myId]);
+    const unreadDividerPostId = useMemo(() => {
+        if (!firstUnreadPostId) {
             return null;
         }
+        const firstUnread = posts.find((post) => post.id === firstUnreadPostId);
+        if (!firstUnread) return null;
         // Only show the divider for messages that are not "brand new" (older than 2 minutes).
         if (Date.now() - firstUnread.create_at < 120_000) {
             return null;
         }
         return firstUnread.id;
-    }, [posts, member, myId]);
+    }, [posts, firstUnreadPostId]);
 
     // Scroll handling ---------------------------------------------------------------------------
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
@@ -157,7 +161,15 @@ export function MessageList(props: MessageListProps) {
 
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
-            scrollToBottom();
+            const firstUnread = firstUnreadPostId && element.querySelector(`[data-post-id="${firstUnreadPostId}"]`);
+            if (firstUnread) {
+                const target = firstUnread as HTMLElement;
+                element.scrollTop += target.getBoundingClientRect().top - element.getBoundingClientRect().top;
+                setAtBottom(false);
+                setUnseenBelow(0);
+            } else {
+                scrollToBottom();
+            }
         } else if (sentNewPost) {
             scrollToBottom();
         } else if (previousFirstId.current && firstId !== previousFirstId.current && heightGrew) {
@@ -166,14 +178,14 @@ export function MessageList(props: MessageListProps) {
             element.scrollTop += delta;
         } else if (atBottom) {
             scrollToBottom();
-        } else if (posts.length) {
+        } else if (posts.some((post) => !previousPostIds.current.has(post.id))) {
             setUnseenBelow((count) => count + 1);
         }
 
         previousHeight.current = element.scrollHeight;
         previousFirstId.current = firstId;
         previousPostIds.current = new Set(posts.map((post) => post.id));
-    }, [posts, channel.id, atBottom, myId, scrollToBottom]);
+    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId]);
 
     useEffect(() => {
         if (!highlightedPostId) {
@@ -279,7 +291,7 @@ export function MessageList(props: MessageListProps) {
             {!atBottom && (
                 <button type="button" className="tgw-scroll-bottom" onClick={() => scrollToBottom('smooth')} title="Scroll to latest messages">
                     <IconArrowDown size={22}/>
-                    {unseenBelow > 0 && <span className="tgw-scroll-bottom-count">{unseenBelow}</span>}
+                    {unseenBelow > 0 && <span className="tgw-scroll-bottom-count" aria-label="New messages"/>}
                 </button>
             )}
         </div>

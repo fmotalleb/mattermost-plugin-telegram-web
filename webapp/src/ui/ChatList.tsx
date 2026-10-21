@@ -156,6 +156,9 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
+    const sectionKey = (chat: ChatSummary) => chat.isFavorite ? 'favorites' : chat.lastPostAt ? 'active' : 'other';
+    const sectionLabel = (chat: ChatSummary) => chat.isFavorite ? 'Favorites' : chat.lastPostAt ? 'Chats' : 'Other chats';
+    const sectionChats = (chat: ChatSummary) => chats.filter((item) => sectionKey(item) === sectionKey(chat));
 
     // Warm up the sidebar previews for the rows the user actually looks at.
     useEffect(() => {
@@ -198,10 +201,8 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
             {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onMarkSectionRead?.(chats)}>Mark all as read</button></div>}
             {chats.map((chat, index) => (
                 <React.Fragment key={chat.id}>
-                    {groupFavorites && index === 0 && chat.isFavorite && <div className="tgw-section-heading"><span className="tgw-section-title">Favorites</span><button type="button" onClick={() => onMarkSectionRead?.(chats.filter((item) => item.isFavorite))}>Mark all as read</button></div>}
-                    {groupFavorites && index === 0 && !chat.isFavorite && <div className="tgw-section-heading"><span className="tgw-section-title">Chats</span><button type="button" onClick={() => onMarkSectionRead?.(chats)}>Mark all as read</button></div>}
-                    {groupFavorites && index > 0 && chats[index - 1].isFavorite && !chat.isFavorite && <div className="tgw-section-heading"><span className="tgw-section-title">Chats</span><button type="button" onClick={() => onMarkSectionRead?.(chats.filter((item) => !item.isFavorite))}>Mark all as read</button></div>}
-                    {index > 0 && (!groupFavorites || chats[index - 1].isFavorite === chat.isFavorite) && <div className="tgw-list-divider"/>}
+                    {groupFavorites && (index === 0 || sectionKey(chats[index - 1]) !== sectionKey(chat)) && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionLabel(chat)}</span><button type="button" onClick={() => onMarkSectionRead?.(sectionChats(chat))}>Mark all as read</button></div>}
+                    {index > 0 && (!groupFavorites || sectionKey(chats[index - 1]) === sectionKey(chat)) && <div className="tgw-list-divider"/>}
                     <ChatRow
                         summary={chat}
                         selected={chat.id === selectedChannelId}
