@@ -2640,11 +2640,13 @@ img.tgw-reaction-emoji {
 .tgw-menu {
     position: fixed;
     z-index: 900;
-    background: var(--tgw-bg-secondary);
+    background: var(--tgw-header-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
     color: var(--tgw-text);
-    border-radius: 8px;
-    box-shadow: var(--tgw-shadow-strong);
-    padding: 4px;
+    border-radius: 12px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .24);
+    padding: 6px;
     border: 1px solid var(--tgw-border);
     max-height: min(70vh, 480px);
     overflow-y: auto;
@@ -2668,6 +2670,54 @@ img.tgw-reaction-emoji {
 
 .tgw-menu-item:hover {
     background: var(--tgw-hover);
+}
+
+.tgw-menu-submenu-trigger {
+    text-align: left;
+}
+
+.tgw-menu-submenu-arrow {
+    color: var(--tgw-text-tertiary);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.tgw-menu-submenu-panel {
+    max-height: min(44vh, 300px);
+    overflow-y: auto;
+    margin: 2px 0 4px;
+    padding: 4px;
+    border: 1px solid var(--tgw-border);
+    border-radius: 10px;
+    background: var(--tgw-header-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .06);
+}
+
+.tgw-menu-submenu-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    color: var(--tgw-text);
+    font-size: 12px;
+}
+
+.tgw-menu-submenu-row + .tgw-menu-submenu-row:not(.tgw-menu-submenu-heading) {
+    border-top: 1px solid color-mix(in srgb, var(--tgw-border) 55%, transparent);
+}
+
+.tgw-menu-submenu-heading {
+    min-height: 28px;
+    color: var(--tgw-text-secondary);
+    font-weight: 700;
+}
+
+.tgw-menu-submenu-row .tgw-menu-item-icon {
+    flex: 0 0 auto;
 }
 
 /* Reactor rows in the post menu are informational: no hover, default cursor. */
@@ -3861,14 +3911,11 @@ body.tgw-root-active {
     background: rgba(24, 24, 26, 0.94);
 }
 
-.tgw-root.tgw-glassy .tgw-menu,
 .tgw-root.tgw-glassy .tgw-modal {
     background: rgba(255, 255, 255, 0.96);
 }
 
-.tgw-root.tgw-glassy.tgw-theme-dark .tgw-menu,
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-modal,
-.tgw-root.tgw-glassy.tgw-theme-midnight .tgw-menu,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-modal {
     background: rgba(28, 28, 30, 0.96);
 }

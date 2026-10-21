@@ -13,6 +13,7 @@ export interface MenuItem {
     danger?: boolean;
     checked?: boolean;
     disabled?: boolean;
+    heading?: boolean;
     /** Native tooltip shown on hover — the reactor rows use it for "full name · reaction time". */
     title?: string;
     onClick?: () => void;
@@ -35,11 +36,22 @@ export interface EmojiRowEntry {
     onPick: (name: string) => void;
 }
 
-export type MenuEntry = MenuItem | EmojiRowEntry | 'separator';
+export interface MenuSubmenuEntry {
+    key: string;
+    kind: 'submenu';
+    label: string;
+    items: Array<MenuItem | 'separator'>;
+}
+
+export type MenuEntry = MenuItem | EmojiRowEntry | MenuSubmenuEntry | 'separator';
 
 /** Runtime-checkable discriminator for the render below (MenuItem carries no `kind` field). */
-function isEmojiRow(item: MenuItem | EmojiRowEntry): item is EmojiRowEntry {
+function isEmojiRow(item: MenuItem | EmojiRowEntry | MenuSubmenuEntry): item is EmojiRowEntry {
     return typeof (item as EmojiRowEntry).kind === 'string' && (item as EmojiRowEntry).kind === 'emoji-row';
+}
+
+function isSubmenu(item: MenuItem | EmojiRowEntry | MenuSubmenuEntry): item is MenuSubmenuEntry {
+    return (item as MenuSubmenuEntry).kind === 'submenu';
 }
 
 export interface MenuProps {
@@ -59,6 +71,7 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
     // the click that is coming) can collapse the DOM selection in some browsers, so the row
     // copies this captured string. With nothing selected — the normal case — no row appears.
     const [selectedText] = useState(() => getSelectedText());
+    const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
 
     useLayoutEffect(() => {
         const element = ref.current;
@@ -154,6 +167,31 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                                     </button>
                                 );
                             })}
+                        </div>
+                    );
+                }
+                if (isSubmenu(item)) {
+                    return (
+                        <div key={item.key} className="tgw-menu-submenu">
+                            <button type="button" className="tgw-menu-item tgw-menu-submenu-trigger" role="menuitem" aria-expanded={openSubmenu === item.key} onClick={() => setOpenSubmenu((current) => current === item.key ? null : item.key)}>
+                                <span className="tgw-menu-item-label">{item.label}</span>
+                                <span className="tgw-menu-submenu-arrow" aria-hidden="true">›</span>
+                            </button>
+                            {openSubmenu === item.key && (
+                                <div className="tgw-menu-submenu-panel" role="menu">
+                                    {item.items.map((child, childIndex) => {
+                                        if (child === 'separator') {
+                                            return <div key={`submenu-sep-${childIndex}`} className="tgw-menu-separator"/>;
+                                        }
+                                        return (
+                                            <div key={child.key} className={`tgw-menu-submenu-row ${child.heading ? 'tgw-menu-submenu-heading' : ''}`} title={child.title}>
+                                                {child.icon && <span className="tgw-menu-item-icon">{child.icon}</span>}
+                                                <span className="tgw-menu-item-label">{child.label}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     );
                 }

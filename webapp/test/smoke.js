@@ -459,31 +459,25 @@ root.render(React.createElement(TelegramUI));
             await tick(30);
             p3row.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 120, clientY: 200}));
             await waitFor(() => document.querySelector('.tgw-menu'));
-            const items = Array.from(document.querySelectorAll('.tgw-menu-item'));
-            // Reactors are grouped: a bare emoji row heads each group and the people who picked
-            // it follow underneath. (The quick-reaction strip is not a .tgw-menu-item.)
-            const groupHeaders = items.filter((item) => item.querySelector('.tgw-reaction-emoji') && item.disabled);
-            ok(groupHeaders.length === 2, `two reaction groups rendered under their emoji (${groupHeaders.length})`);
-            const firstHeader = groupHeaders[0];
-            const secondHeader = groupHeaders[1];
-            let dividersBetween = 0;
-            let cursor = firstHeader ? firstHeader.nextElementSibling : null;
-            while (cursor && cursor !== secondHeader) {
-                if (cursor.classList.contains('tgw-menu-separator')) {
-                    dividersBetween += 1;
-                }
-                cursor = cursor.nextElementSibling;
-            }
-            ok(dividersBetween === 1, `a horizontal divider separates the reaction groups (${dividersBetween})`);
-            const tadaHeader = groupHeaders.find((item) => item.textContent.includes('🎉'));
+            ok(!document.querySelector('.tgw-menu-submenu-row'), 'reactor details are kept out of the main context menu');
+            const submenuTrigger = document.querySelector('.tgw-menu-submenu-trigger');
+            ok(!!submenuTrigger && submenuTrigger.textContent.includes('Reactions'), 'the context menu has a Reactions submenu');
+            submenuTrigger?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+            const panel = await waitFor(() => document.querySelector('.tgw-menu-submenu-panel'));
+            const groupHeaders = Array.from(panel.querySelectorAll('.tgw-menu-submenu-heading'));
+            ok(groupHeaders.length === 2, `the submenu shows two emoji groups (${groupHeaders.length})`);
+            const tadaHeader = groupHeaders.find((item) => item.querySelector('.tgw-reaction-emoji')?.textContent?.includes('🎉'));
             ok(!!tadaHeader, 'the tada reaction heads its own group');
             const reactor = tadaHeader?.nextElementSibling;
-            ok(!!reactor && reactor.classList.contains('tgw-menu-item'), 'the group is followed by the reactors who used it');
-            ok(!!reactor && (reactor.textContent || '').trim() === 'Alice', `the reactor row keeps just the first name (${reactor && (reactor.textContent || '').trim()})`);
+            ok(!!reactor && reactor.classList.contains('tgw-menu-submenu-row'), 'the group is followed by the people who used it');
+            ok(!!reactor && (reactor.textContent || '').includes('Alice Anderson'), `the reactor row shows the full name (${reactor && (reactor.textContent || '').trim()})`);
+            ok(!!reactor?.querySelector('img'), 'reactor rows include avatars like the seen list');
             const details = (reactor && reactor.getAttribute('title')) || '';
             ok(details.includes('Alice Anderson (alley)'), `hovering the name shows the full name (${details})`);
             ok(details.includes(' · ') && (details.includes('Today') || details.includes('Yesterday') || /\d{4}/.test(details)), 'hovering also shows when they reacted');
-            ok(!!reactor && reactor.disabled, 'reactor rows are informational (disabled)');
+            let dividers = 0;
+            panel.querySelectorAll('.tgw-menu-separator').forEach(() => dividers++);
+            ok(dividers === 1, `a horizontal divider separates the emoji groups (${dividers})`);
             dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
             await waitFor(() => !document.querySelector('.tgw-menu'));
         }

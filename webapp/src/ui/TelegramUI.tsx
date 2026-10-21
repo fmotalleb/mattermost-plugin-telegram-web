@@ -17,13 +17,14 @@ import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
 import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
-import type {MenuEntry} from './menu';
+import type {MenuEntry, MenuItem} from './menu';
 import {ReactionEmoji, filesOfPost} from './MessageList';
 import {SearchPanel} from './SearchPanel';
 import {Sidebar} from './Sidebar';
 import {ThreadPanel} from './ThreadPanel';
 import {TgContext} from './context';
 import type {TgActions, TgUIState} from './context';
+import {Avatar} from './primitives';
 
 interface Toast {
     id: number;
@@ -373,9 +374,9 @@ export function TelegramUI() {
                             y={contextMenu.y}
                             items={contextMenu.items}
                             onClose={() => setContextMenu(null)}
-                            // Reaction rows carry a name and a timestamp; the default 220px
-                            // would ellipsise them into uselessness.
-                            width={contextMenu.items.some((item) => item !== 'separator' && item.key.startsWith('reaction-')) ? 300 : 220}
+                            // The reaction submenu uses the wider seen-list rows with avatars,
+                            // full names, and timestamps.
+                            width={contextMenu.items.some((item) => item !== 'separator' && (item.key === 'reactions' || item.key.startsWith('reaction-'))) ? 280 : 220}
                         />
                     )}
                     {reactionPicker && (
@@ -483,9 +484,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
                 .catch(() => handlers.toast('Could not copy download URL', 'error')),
         });
     });
-    // Telegram's reactor list goes into the post menu grouped by emoji: one bare emoji row heads
-    // each group, then the people who used it. Rows keep just the first name — hovering one
-    // explains the rest: the full name and when that person reacted.
+    // Keep the context menu compact; open reactor names and times from its Reactions submenu.
     const reactions = getReactions(getBlock(post.channel_id), post.id)
         .slice()
         .sort((a, b) => b.create_at - a.create_at);
@@ -499,29 +498,29 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
                 groups.set(reaction.emoji_name, [reaction]);
             }
         });
-        items.push('separator');
+        const reactionItems: Array<MenuItem | 'separator'> = [];
         Array.from(groups.entries()).forEach(([emojiName, members], index) => {
-            // Horizontal divider between consecutive groups so 🙏 members never blur into 👍's.
             if (index > 0) {
-                items.push('separator');
+                reactionItems.push('separator');
             }
-            items.push({
+            reactionItems.push({
                 key: `reaction-group-${emojiName}`,
-                label: '',
+                label: `${members.length}`,
                 icon: <ReactionEmoji name={emojiName} customEmoji={customEmoji}/>,
-                disabled: true,
+                heading: true,
             });
             members.forEach((reaction) => {
                 const user = state.entities?.users?.profiles?.[reaction.user_id];
                 const full = displayName(user) || reaction.user_id;
-                items.push({
+                reactionItems.push({
                     key: `reaction-${reaction.user_id}-${emojiName}`,
-                    label: reaction.user_id === myId ? 'You' : full.split(' ')[0],
+                    label: reaction.user_id === myId ? `${full} (You)` : full,
+                    icon: <Avatar userId={reaction.user_id} name={full} size={24} status=""/>,
                     title: `${full} · ${formatDateSeparator(reaction.create_at, timeFormat)}, ${formatTime(reaction.create_at, timeFormat)}`,
-                    disabled: true,
                 });
             });
         });
+        items.push({key: 'reactions', kind: 'submenu', label: `Reactions · ${reactions.length}`, items: reactionItems});
     }
     if (post.reply_count > 0 || post.root_id) {
         items.push({key: 'thread', label: 'Open thread', onClick: () => handlers.thread(post)});
