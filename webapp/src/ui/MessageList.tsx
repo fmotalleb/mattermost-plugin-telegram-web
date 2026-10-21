@@ -66,6 +66,7 @@ export function MessageList(props: MessageListProps) {
     const previousFirstId = useRef<string | null>(null);
     const previousPostIds = useRef<Set<string>>(new Set());
     const lastChannelId = useRef<string>('');
+    const loadOlderIntent = useRef(false);
 
     const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
@@ -161,6 +162,7 @@ export function MessageList(props: MessageListProps) {
 
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
+            loadOlderIntent.current = false;
             // Every newly opened chat starts at its latest message, regardless of unread state.
             scrollToBottom();
         } else if (sentNewPost) {
@@ -214,7 +216,8 @@ export function MessageList(props: MessageListProps) {
         if (distanceFromBottom < 80) {
             setUnseenBelow(0);
         }
-        if (element.scrollTop < 240 && hasMoreOlder && !loadingOlder) {
+        if (element.scrollTop < 240 && hasMoreOlder && !loadingOlder && loadOlderIntent.current) {
+            loadOlderIntent.current = false;
             previousHeight.current = element.scrollHeight;
             loadOlder(channel.id);
         }
@@ -232,7 +235,16 @@ export function MessageList(props: MessageListProps) {
 
     return (
         <div className="tgw-messages-wrap">
-            <div className="tgw-messages" ref={listRef} onScroll={onScroll}>
+            <div
+                className="tgw-messages"
+                ref={listRef}
+                onScroll={onScroll}
+                onWheel={(event) => {
+                    if (event.deltaY < 0) {
+                        loadOlderIntent.current = true;
+                    }
+                }}
+            >
                 {hasMoreOlder && (
                     <div className="tgw-load-older">
                         {loadingOlder ? 'Loading…' : <button type="button" className="tgw-link-button" onClick={() => loadOlder(channel.id)}>Load earlier messages</button>}
