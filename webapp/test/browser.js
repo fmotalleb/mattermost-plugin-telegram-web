@@ -529,6 +529,25 @@ class CDP {
         })()`);
         ok(sentScroll.scrollHeight > sentScroll.clientHeight && sentScroll.scrollTop + sentScroll.clientHeight >= sentScroll.scrollHeight - 2,
             `sending from above scrolls to the new message (${JSON.stringify(sentScroll)})`);
+        console.log('\n== short chat bottom alignment ==');
+        const shortChatLayout = await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            const rows = Array.from(list.querySelectorAll('.tgw-msg-row'));
+            if (!rows.length) { return {available: false}; }
+            const children = Array.from(list.children).map((element) => ({element, display: element.style.display}));
+            const previousScrollTop = list.scrollTop;
+            const lastRow = rows[rows.length - 1];
+            children.forEach(({element}) => {
+                if (element !== lastRow) { element.style.display = 'none'; }
+            });
+            list.scrollTop = 0;
+            const gap = list.getBoundingClientRect().bottom - lastRow.getBoundingClientRect().bottom;
+            children.forEach(({element, display}) => { element.style.display = display; });
+            list.scrollTop = previousScrollTop;
+            return {available: true, gap, clientHeight: list.clientHeight};
+        })()`);
+        ok(shortChatLayout.available && shortChatLayout.gap >= -1 && shortChatLayout.gap < 48,
+            `a short message stack rests at the bottom (${JSON.stringify(shortChatLayout)})`);
         await cdp.eval(`(() => {
             const row = Array.from(document.querySelectorAll('.tgw-msg-out')).find((entry) => entry.textContent.includes(${JSON.stringify(marker)}));
             row.querySelector('button[title="More"]').click();
