@@ -394,6 +394,10 @@ export function getCachedPreview(channelId: string): MMPost | null {
     return null;
 }
 
+export function isPreviewLoading(channelId: string): boolean {
+    return loadingPreviews.has(channelId);
+}
+
 /**
  * Fetches the newest post of a channel for the sidebar preview when it is not cached yet.
  * Only one request per channel is in flight, and only if the channel actually has posts.
@@ -407,16 +411,18 @@ export async function prefetchPreview(channelId: string, lastPostAt: number): Pr
         return;
     }
     loadingPreviews.add(channelId);
+    emit();
     try {
         const result = await api.getPosts(channelId, 0, 1);
         const id = (result.order || [])[0];
         const post = id ? result.posts[id] : null;
         previews.set(channelId, {post: post || null, at: Date.now(), lastPostAt});
-        emit();
     } catch (err) {
         previews.set(channelId, {post: null, at: Date.now(), lastPostAt});
+    } finally {
+        loadingPreviews.delete(channelId);
+        emit();
     }
-    loadingPreviews.delete(channelId);
 }
 
 export function pendingCount(channelId: string): number {

@@ -4,7 +4,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
 import {reorderCategoryChannels} from '../mm/categories';
-import {getBlock, getCachedPreview, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
+import {getBlock, getCachedPreview, isPreviewLoading, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
 import {getMyId, getStatus} from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
 import {useSelector} from '../mm/store';
@@ -14,16 +14,19 @@ import {useTg} from './context';
 import {EmojiText} from './EmojiText';
 import {Avatar, Badge, IconMute, IconStar} from './primitives';
 
-function usePreview(channelId: string): MMPost | null {
+function usePreview(channelId: string): {post: MMPost | null; loading: boolean} {
     const [post, setPost] = useState<MMPost | null>(() => getCachedPreview(channelId));
+    const [loading, setLoading] = useState(() => isPreviewLoading(channelId));
     useEffect(() => {
         setPost(getCachedPreview(channelId));
+        setLoading(isPreviewLoading(channelId));
         return subscribePosts(() => {
             const next = getCachedPreview(channelId);
             setPost((current) => (current && next && current.id === next.id && current.update_at === next.update_at ? current : next));
+            setLoading(isPreviewLoading(channelId));
         });
     }, [channelId]);
-    return post;
+    return {post, loading};
 }
 
 function previewText(post: MMPost | null, isOwn: boolean, showAuthor: boolean, author: string): string {
@@ -61,7 +64,7 @@ export interface ChatRowProps {
 export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd}: ChatRowProps) {
     const {timeFormat, settings} = useTg();
     const myId = useSelector(getMyId);
-    const preview = usePreview(summary.id);
+    const {post: preview, loading: previewLoading} = usePreview(summary.id);
     const lastPost = preview || undefined;
     const author = useSelector((state) => (lastPost && lastPost.user_id !== myId ? state.entities?.users?.profiles?.[lastPost.user_id] : undefined));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
@@ -168,7 +171,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                     <span className="tgw-chat-row-preview">
                         {summary.lastPostAt || text ? (
                             settings.showPreviews ? (
-                                <span className={lastPost?._pending ? 'tgw-preview-pending' : ''}>{text ? <EmojiText text={text}/> : placeholderFor(summary)}</span>
+                                <span className={lastPost?._pending ? 'tgw-preview-pending' : ''}>{text ? <EmojiText text={text}/> : (previewLoading ? 'Loading…' : placeholderFor(summary))}</span>
                             ) : (
                                 placeholderFor(summary) || '\u00a0'
                             )
@@ -230,7 +233,7 @@ export interface ChatListProps {
     reorderable?: {categoryId: string} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = 12, groupAllChats = false, sectionTitle, onMarkSectionRead, reorderable = null}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, reorderable = null}: ChatListProps) {
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
