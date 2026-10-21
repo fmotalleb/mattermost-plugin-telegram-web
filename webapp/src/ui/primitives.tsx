@@ -38,6 +38,11 @@ const make = (path: string, opts: {filled?: boolean; viewBox?: string; fillRule?
 
 export const IconMenu = make('M3 6h18M3 12h18M3 18h18');
 export const IconSearch = make('M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z', {filled: true});
+export const IconMattermost = ({size = 24}: IconProps) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+        <path d="M12 2.25a9.75 9.75 0 1 0 9.75 9.75A9.76 9.76 0 0 0 12 2.25Zm0 2.1a7.65 7.65 0 0 1 7.62 7.05h-2.17a5.5 5.5 0 0 0-5.45-4.9Zm-2.1.3v2.2a5.5 5.5 0 0 0-3.17 8.7l-1.54 1.54A7.65 7.65 0 0 1 9.9 4.65Zm2.1 7.45 4.53 4.53A5.5 5.5 0 0 1 8.12 17.8l1.54-1.54a3.35 3.35 0 0 0 4.7-.17L12 13.73Z"/>
+    </svg>
+);
 export const IconNewChat = make('M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm-7 9h-2v2H9v-2H7V9h2V7h2v2h2Z', {filled: true});
 export const IconSend = make('M2.5 21 23 12 2.5 3v7l13 2-13 2v7Z', {filled: true});
 export const IconAttach = make('M16.5 6.5 8.6 14.4a2.5 2.5 0 1 0 3.5 3.5l8.6-8.6a4.5 4.5 0 1 0-6.4-6.4L5.5 11.7a6.5 6.5 0 1 0 9.2 9.2l7.3-7.3-1.4-1.4-7.3 7.3a4.5 4.5 0 0 1-6.4-6.4l8.9-8.9a2.5 2.5 0 0 1 3.5 3.5Z', {filled: true});

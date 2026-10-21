@@ -27,7 +27,7 @@ import {ChatList} from './ChatList';
 import {useTg} from './context';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconBell, IconMenu, IconMute, IconNewChat, IconSearch, IconSettings, IconUser} from './primitives';
+import {Avatar, IconBell, IconMenu, IconMattermost, IconMute, IconNewChat, IconSearch, IconSettings, IconUser, IconUsers} from './primitives';
 
 function SearchResults({term}: {term: string}) {
     const {actions, timeFormat} = useTg();
@@ -185,7 +185,6 @@ export function Sidebar() {
     const [menu, setMenu] = useState<{x: number; y: number; items: MenuEntry[]; align?: 'left' | 'right'} | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
-    const newChatButtonRef = useRef<HTMLButtonElement>(null);
     const userButtonRef = useRef<HTMLButtonElement>(null);
 
     const tab = tabs.find((entry) => entry.id === ui.activeTabId) || tabs[0];
@@ -235,7 +234,7 @@ export function Sidebar() {
         const items: MenuEntry[] = [
             {key: 'new-group', label: 'New Group', icon: <IconNewChat size={18}/>, onClick: () => actions.openModal('newGroup')},
             {key: 'new-channel', label: 'New Channel', icon: <IconUsersIcon/>, onClick: () => actions.openModal('newChannel')},
-            {key: 'contacts', label: 'Contacts', onClick: () => actions.setTab('__contacts')},
+            {key: 'contacts', label: 'Contacts', icon: <IconUsers size={18}/>, onClick: () => actions.setTab('__contacts')},
             'separator',
         ];
         if (teamItems.length > 1) {
@@ -252,19 +251,6 @@ export function Sidebar() {
             {key: 'disable', label: 'Switch to Mattermost UI', onClick: () => actions.disableUI()},
         );
         setMenu({...position, items});
-    };
-
-    const openNewChatMenu = () => {
-        const position = menuPositionFromElement(newChatButtonRef.current, 'right');
-        setMenu({
-            ...position,
-            align: 'right',
-            items: [
-                {key: 'chat', label: 'New Message', onClick: () => actions.openModal('newContact')},
-                {key: 'group', label: 'New Group', onClick: () => actions.openModal('newGroup')},
-                {key: 'channel', label: 'New Channel', onClick: () => actions.openModal('newChannel')},
-            ],
-        });
     };
 
     // Opens Mattermost's own profile settings. Some hosts expose openUserSettings but do not open
@@ -427,8 +413,8 @@ export function Sidebar() {
                         </button>
                     )}
                 </div>
-                <button type="button" className="tgw-icon-button" ref={newChatButtonRef} onClick={openNewChatMenu} title="New chat">
-                    <IconNewChat size={24}/>
+                <button type="button" className="tgw-icon-button" onClick={actions.disableUI} title="Switch to Mattermost UI" aria-label="Switch to Mattermost UI">
+                    <IconMattermost size={22}/>
                 </button>
             </header>
 
