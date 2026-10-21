@@ -161,15 +161,8 @@ export function MessageList(props: MessageListProps) {
 
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
-            const firstUnread = firstUnreadPostId && element.querySelector(`[data-post-id="${firstUnreadPostId}"]`);
-            if (firstUnread) {
-                const target = firstUnread as HTMLElement;
-                element.scrollTop += target.getBoundingClientRect().top - element.getBoundingClientRect().top;
-                setAtBottom(false);
-                setUnseenBelow(0);
-            } else {
-                scrollToBottom();
-            }
+            // Every newly opened chat starts at its latest message, regardless of unread state.
+            scrollToBottom();
         } else if (sentNewPost) {
             scrollToBottom();
         } else if (previousFirstId.current && firstId !== previousFirstId.current && heightGrew) {

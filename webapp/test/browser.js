@@ -473,6 +473,12 @@ class CDP {
             // Long enough for both simulated host focus grabs (0ms, 60ms after the route push)
             // to have happened and our composer to have settled.
             await sleep(700);
+            const chatScroll = await cdp.eval(`(() => {
+                const list = document.querySelector('.tgw-messages');
+                return {scrollTop: list.scrollTop, clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
+            })()`);
+            ok(chatScroll.scrollTop + chatScroll.clientHeight >= chatScroll.scrollHeight - 2,
+                `opening a chat starts at its latest messages (${JSON.stringify(chatScroll)})`);
             const focused = await cdp.eval(`(() => {
                 const active = document.activeElement;
                 const composer = document.querySelector('.tgw-composer textarea');
