@@ -21,6 +21,7 @@ const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings, getSettings} = require('../src/mm/settings');
 const {handleSocketEvent} = require('../src/mm/socket');
 const {api} = require('../src/mm/api');
+const {searchChats} = require('../src/mm/selectors');
 const {startStockUIViewTracking} = require('../src/mm/stock-views');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 
@@ -58,6 +59,8 @@ root.render(React.createElement(TelegramUI));
     ok(body.includes('Town Square'), 'public group listed');
     ok(body.includes('Work stuff'), 'custom Mattermost category exposed as a folder');
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
+    ok(searchChats(state, 'Direct').every((chat) => chat.title !== 'Direct message'),
+        'searching Direct does not return DMs with the generic fallback title');
 
     // Each folder tab carries its unread message total. All sums everything (DM 4-2=2 + Town
     // Square 12-1=11 = 13); Unread lists only conversations that have unread messages.

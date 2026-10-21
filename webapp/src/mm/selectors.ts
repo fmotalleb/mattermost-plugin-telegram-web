@@ -497,7 +497,14 @@ export function searchChats(state: MMState, term: string): ChatSummary[] {
         }
         // Search visible chat names only. Internal channel names contain user IDs and used to
         // make generic terms produce misleading results unrelated to the displayed title.
-        return all.filter((chat) => chat.title.toLowerCase().includes(lower)).slice(0, 40);
+        return all.filter((chat) => {
+            // A missing peer user is shown with a generic fallback title. Treating that
+            // placeholder as searchable makes a query like "Direct" return every unnamed DM.
+            if (chat.type === 'D' && chat.title === 'Direct message') {
+                return false;
+            }
+            return chat.title.toLowerCase().includes(lower);
+        }).slice(0, 40);
     });
 }
 
