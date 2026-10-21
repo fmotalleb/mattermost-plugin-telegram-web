@@ -3423,10 +3423,14 @@ body.tgw-root-active {
     z-index: 8;
     right: 0;
     bottom: calc(100% + 7px);
-    width: max-content;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: min(260px, calc(100vw - 24px));
     min-width: 176px;
-    max-width: 260px;
+    max-width: calc(100vw - 24px);
     padding: 8px;
+    overflow: hidden;
     border: 1px solid var(--tgw-border);
     border-radius: 10px;
     background: var(--tgw-bg-secondary);
@@ -3434,11 +3438,43 @@ body.tgw-root-active {
     color: var(--tgw-text);
 }
 
+.tgw-msg-viewers-below {
+    top: calc(100% + 7px);
+    bottom: auto;
+}
+
 .tgw-msg-viewers-title {
+    flex: none;
     padding: 2px 4px 6px;
     color: var(--tgw-text-secondary);
     font-size: 12px;
     font-weight: 600;
+}
+
+.tgw-msg-viewers-search {
+    flex: none;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 5px;
+    padding: 6px 8px;
+    border: 1px solid var(--tgw-border);
+    border-radius: 7px;
+    outline: none;
+    background: var(--tgw-bg);
+    color: var(--tgw-text);
+    font: inherit;
+    font-size: 12px;
+}
+
+.tgw-msg-viewers-search:focus {
+    border-color: var(--tgw-accent);
+}
+
+.tgw-msg-viewers-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .tgw-msg-viewer {

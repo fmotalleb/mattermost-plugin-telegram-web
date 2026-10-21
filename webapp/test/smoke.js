@@ -894,6 +894,14 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => document.querySelector('.tgw-msg-viewers'));
         ok((document.querySelector('.tgw-msg-viewers')?.textContent || '').includes('Alice Anderson'), 'channel tally opens the names of people who saw the post');
         ok(!!document.querySelector('.tgw-msg-viewer time[datetime]'), 'viewer list shows when each person saw the post');
+        const viewerSearch = document.querySelector('.tgw-msg-viewers-search');
+        ok(!!viewerSearch, 'viewer popup includes a search field');
+        viewerSearch.value = 'nobody';
+        viewerSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-msg-viewers-empty')?.textContent === 'No matching viewers');
+        viewerSearch.value = 'alice';
+        viewerSearch.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await waitFor(() => (document.querySelector('.tgw-msg-viewers-list')?.textContent || '').includes('Alice Anderson'));
 
         // Channels/groups refresh that tally every five seconds — never at the direct-chat
         // one-second cadence. The mount fetch has landed (the eye is on screen), so what

@@ -356,15 +356,47 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
     // receipt (Telegram counts "somebody else looked at it", not "I am looking at it").
     const otherViewCount = views ? Math.max(0, views.count - (views.seen ? 1 : 0)) : 0;
     const rowRef = useRef<HTMLDivElement | null>(null);
+    const viewersWrapRef = useRef<HTMLSpanElement | null>(null);
     const [showViewers, setShowViewers] = useState(false);
     const [viewers, setViewers] = useState<Array<{user: MMUser; viewedAt: number}>>([]);
     const [viewersLoading, setViewersLoading] = useState(false);
+    const [viewerSearch, setViewerSearch] = useState('');
+    const [viewersPlacement, setViewersPlacement] = useState<'above' | 'below'>('above');
+    const [viewersMaxHeight, setViewersMaxHeight] = useState(360);
+
+    const positionViewers = useCallback(() => {
+        const element = viewersWrapRef.current;
+        if (!element) {
+            return;
+        }
+        const rect = element.getBoundingClientRect();
+        const above = Math.max(0, rect.top - 12);
+        const below = Math.max(0, window.innerHeight - rect.bottom - 12);
+        const placeBelow = below > above;
+        const room = placeBelow ? below : above;
+        setViewersPlacement(placeBelow ? 'below' : 'above');
+        setViewersMaxHeight(Math.max(0, Math.min(360, window.innerHeight - 24, room)));
+    }, []);
+
+    useLayoutEffect(() => {
+        if (!showViewers) {
+            return undefined;
+        }
+        positionViewers();
+        window.addEventListener('resize', positionViewers);
+        document.addEventListener('scroll', positionViewers, true);
+        return () => {
+            window.removeEventListener('resize', positionViewers);
+            document.removeEventListener('scroll', positionViewers, true);
+        };
+    }, [showViewers, positionViewers]);
 
     const toggleViewers = useCallback(() => {
         if (showViewers) {
             setShowViewers(false);
             return;
         }
+        setViewerSearch('');
         setShowViewers(true);
         if (viewers.length || viewersLoading) {
             return;
@@ -372,6 +404,10 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
         setViewersLoading(true);
         getPostViewers(post.id).then(setViewers).catch(() => setViewers([])).finally(() => setViewersLoading(false));
     }, [post.id, showViewers, viewers.length, viewersLoading]);
+
+    const matchingViewers = viewers
+        .filter((entry) => entry.user.id !== myId)
+        .filter(({user}) => !viewerSearch.trim() || `${displayName(user)} ${user.username || ''}`.toLowerCase().includes(viewerSearch.trim().toLowerCase()));
 
     // View tracking: fetch the stored counts and report this post as seen once it is actually
     // on screen. jsdom (tests) has no IntersectionObserver — mounted counts as visible there.
@@ -489,23 +525,39 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         "they saw it", and a number next to every bubble is noise. The view
                         tracking itself keeps running everywhere: receipts depend on it. */}
                     {otherViewCount > 0 && channel.type !== 'D' && (
-                        <span className="tgw-msg-views-wrap">
+                        <span className="tgw-msg-views-wrap" ref={viewersWrapRef}>
                             <button type="button" className="tgw-msg-views" onClick={toggleViewers} title="See who viewed this post" aria-expanded={showViewers}>
                             <IconEye size={14}/>
                             {otherViewCount}
                             </button>
                             {showViewers && (
-                                <div className="tgw-msg-viewers" role="dialog" aria-label="Post viewers">
+                                <div
+                                    className={`tgw-msg-viewers ${viewersPlacement === 'below' ? 'tgw-msg-viewers-below' : ''}`}
+                                    role="dialog"
+                                    aria-label="Post viewers"
+                                    style={{maxHeight: `${viewersMaxHeight}px`}}
+                                >
                                     <div className="tgw-msg-viewers-title">Seen by</div>
-                                    {viewersLoading && <div className="tgw-msg-viewers-empty">Loading…</div>}
-                                    {!viewersLoading && viewers.length === 0 && <div className="tgw-msg-viewers-empty">No viewer details available</div>}
-                                    {viewers.filter((entry) => entry.user.id !== myId).map(({user, viewedAt}) => (
-                                        <div className="tgw-msg-viewer" key={user.id}>
-                                            <Avatar userId={user.id} name={displayName(user)} size={24} status=""/>
-                                            <span>{displayName(user) || user.username}</span>
-                                            {viewedAt > 0 && <time dateTime={new Date(viewedAt).toISOString()}>{formatDateSeparator(viewedAt, timeFormat)} {formatTime(viewedAt, timeFormat)}</time>}
-                                        </div>
-                                    ))}
+                                    <input
+                                        className="tgw-msg-viewers-search"
+                                        type="search"
+                                        aria-label="Search viewers"
+                                        placeholder="Search people"
+                                        value={viewerSearch}
+                                        onChange={(event) => setViewerSearch(event.currentTarget.value)}
+                                    />
+                                    <div className="tgw-msg-viewers-list">
+                                        {viewersLoading && <div className="tgw-msg-viewers-empty">Loading…</div>}
+                                        {!viewersLoading && viewers.length === 0 && <div className="tgw-msg-viewers-empty">No viewer details available</div>}
+                                        {!viewersLoading && viewers.length > 0 && matchingViewers.length === 0 && <div className="tgw-msg-viewers-empty">No matching viewers</div>}
+                                        {matchingViewers.map(({user, viewedAt}) => (
+                                            <div className="tgw-msg-viewer" key={user.id}>
+                                                <Avatar userId={user.id} name={displayName(user)} size={24} status=""/>
+                                                <span>{displayName(user) || user.username}</span>
+                                                {viewedAt > 0 && <time dateTime={new Date(viewedAt).toISOString()}>{formatDateSeparator(viewedAt, timeFormat)} {formatTime(viewedAt, timeFormat)}</time>}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </span>
