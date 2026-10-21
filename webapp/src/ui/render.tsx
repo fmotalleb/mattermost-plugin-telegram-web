@@ -28,6 +28,44 @@ export interface MessageBodyProps {
     postId?: string;
     mentionKeys?: Array<{key: string; caseSensitive?: boolean}>;
     className?: string;
+    onTaskToggle?: (index: number, checked: boolean) => void;
+}
+
+function markdownTaskStates(message: string): boolean[] {
+    const states: boolean[] = [];
+    const taskLine = /^\s*[-*+]\s+\[([ xX])\]\s+/gm;
+    let match: RegExpExecArray | null;
+    while ((match = taskLine.exec(message))) {
+        states.push(match[1].toLowerCase() === 'x');
+    }
+    return states;
+}
+
+function wireTaskCheckboxes(node: React.ReactNode, states: boolean[], onToggle?: MessageBodyProps['onTaskToggle']): React.ReactNode {
+    let index = 0;
+    const visit = (child: React.ReactNode): React.ReactNode => {
+        if (Array.isArray(child)) {
+            return child.map(visit);
+        }
+        if (!React.isValidElement(child)) {
+            return child;
+        }
+        const props: any = child.props || {};
+        if (child.type === 'input' && props.type === 'checkbox' && index < states.length) {
+            const taskIndex = index++;
+            return React.cloneElement(child as React.ReactElement<any>, {
+                checked: states[taskIndex],
+                disabled: !onToggle,
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => onToggle?.(taskIndex, event.currentTarget.checked),
+                'aria-label': states[taskIndex] ? 'Mark task incomplete' : 'Mark task complete',
+            });
+        }
+        if (props.children !== undefined) {
+            return React.cloneElement(child as React.ReactElement<any>, undefined, visit(props.children));
+        }
+        return child;
+    };
+    return visit(node);
 }
 
 class BodyBoundary extends React.Component<{fallback: React.ReactNode; children: React.ReactNode}, {failed: boolean}> {
@@ -88,7 +126,7 @@ function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (mess
     });
 }
 
-export function MessageBody({message, postId, mentionKeys, className}: MessageBodyProps) {
+export function MessageBody({message, postId, mentionKeys, className, onTaskToggle}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
     const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
     const fallback = <span className={className} dir="auto" onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
@@ -131,6 +169,7 @@ export function MessageBody({message, postId, mentionKeys, className}: MessageBo
         // the fallback renderer uses, applied to the whole rendered tree; linkify first so the
         // bare-domain links it creates pass through the emoji walk untouched.
         rendered = wrapEmojiNodes(linkifyNodes(rendered));
+        rendered = wireTaskCheckboxes(rendered, markdownTaskStates(message), onTaskToggle);
     } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[telegram-web-ui] post formatting failed, using the fallback renderer', error);

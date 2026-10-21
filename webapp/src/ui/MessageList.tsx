@@ -440,6 +440,21 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                     postId={post.id}
                     mentionKeys={mentionKeys}
                     className="tgw-message-text"
+                    onTaskToggle={post.user_id === myId && !post._pending && !post._failed ? (index, checked) => {
+                        const taskLine = /(^|\n)(\s*[-*+]\s+\[)( |x|X)(\]\s+)/gm;
+                        let current = 0;
+                        const updated = (post.message || '').replace(taskLine, (match, prefix, before, state, after) => {
+                            if (current++ !== index) {
+                                return match;
+                            }
+                            return `${prefix}${before}${checked ? 'x' : ' '}${after}`;
+                        });
+                        if (updated !== post.message) {
+                            api.patchPost(post.id, {message: updated}).catch((error: any) => {
+                                actions.toast(error?.message || 'Could not update the task', 'error');
+                            });
+                        }
+                    } : undefined}
                 />
                 <PostAttachments attachments={post.props?.attachments}/>
                 {files.length > 0 && (
