@@ -1193,6 +1193,13 @@ root.render(React.createElement(TelegramUI));
         await tick(60);
         ok(document.body.innerHTML.includes('Contacts'), 'global search renders contact results');
         ok(document.body.innerHTML.includes('Alice Anderson (alley)'), 'search results label people as First Last (nickname)');
+        const contactsHeading = Array.from(document.querySelectorAll('.tgw-search-results .tgw-section-title')).find((el) => el.textContent.trim() === 'Contacts');
+        const contactRow = contactsHeading?.nextElementSibling?.querySelector('.tgw-chat-row');
+        contactRow?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 60, clientY: 60}));
+        await waitFor(() => !!document.querySelector('.tgw-menu'));
+        ok(Array.from(document.querySelectorAll('.tgw-menu-item')).some((el) => el.textContent.trim() === 'Mark as read' || el.textContent.trim() === 'Mark as unread'), 'searched contact with a DM opens its chat context menu');
+        dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        await waitFor(() => !document.querySelector('.tgw-menu'));
 
         // Wide all-messages search: Enter in the search box opens the full results panel.
         valueSetter.call(searchInput, 'Deploy');

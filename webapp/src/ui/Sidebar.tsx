@@ -96,6 +96,7 @@ function SearchResults({term, onContextMenu}: {term: string; onContextMenu: (eve
                         chats={chats}
                         selectedChannelId=""
                         onSelect={(id) => actions.openChat(id)}
+                        onContextMenu={onContextMenu}
                         prefetchLimit={6}
                     />
                 </>
@@ -143,6 +144,14 @@ function SearchResults({term, onContextMenu}: {term: string; onContextMenu: (eve
                                 key={hit.post.id}
                                 className="tgw-chat-row tgw-message-hit"
                                 onClick={() => actions.openChat(hit.channelId, {postId: hit.post.id})}
+                                onContextMenu={(event) => {
+                                    const summary = getChatSummary(getState(), hit.channelId);
+                                    if (summary) {
+                                        onContextMenu(event, summary);
+                                    } else {
+                                        event.preventDefault();
+                                    }
+                                }}
                             >
                                 <span className="tgw-chat-row-body">
                                     <span className="tgw-chat-row-top">
