@@ -257,6 +257,12 @@ export function Sidebar() {
         }
         items.push(
             {key: 'settings', label: 'Settings', icon: <IconSettings size={18}/>, onClick: () => actions.openModal('settings')},
+            ...(me?.roles?.split(/\s+/).includes('system_admin') ? [{
+                key: 'server-settings',
+                label: 'Server settings',
+                icon: <IconSettings size={18}/>,
+                onClick: () => window.location.assign(`${(window as any).basename || ''}/admin_console`),
+            }] : []),
             {key: 'disable', label: 'Switch to Mattermost UI', onClick: () => actions.disableUI()},
         );
         setMenu({...position, items});

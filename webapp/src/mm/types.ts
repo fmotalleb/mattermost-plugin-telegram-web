@@ -5,6 +5,7 @@
 export interface MMUser {
     id: string;
     username: string;
+    roles?: string;
     first_name?: string;
     last_name?: string;
     nickname?: string;
