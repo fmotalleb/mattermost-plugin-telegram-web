@@ -7,6 +7,7 @@ import {
     getChatSummary,
     getContacts,
     getCurrentTeamId,
+    getDirectChannelForUser,
     getMyId,
     getTabChats,
     getTabUnreadCounts,
@@ -29,7 +30,7 @@ import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
 import {Avatar, IconBell, IconMenu, IconMattermost, IconMute, IconNewChat, IconSearch, IconSettings, IconUser, IconUsers} from './primitives';
 
-function SearchResults({term}: {term: string}) {
+function SearchResults({term, onContextMenu}: {term: string; onContextMenu: (event: React.MouseEvent, summary: ChatSummary) => void}) {
     const {actions, timeFormat} = useTg();
     const chats = useSelector((state) => searchChats(state, term));
     const contacts = useSelector((state) => searchContactCandidates(state, term, 12));
@@ -109,6 +110,14 @@ function SearchResults({term}: {term: string}) {
                                 key={user.id}
                                 className="tgw-chat-row"
                                 onClick={() => actions.openModal('newContact', {userId: user.id})}
+                                onContextMenu={(event) => {
+                                    event.preventDefault();
+                                    const channel = getDirectChannelForUser(getState(), user.id);
+                                    const summary = channel && getChatSummary(getState(), channel.id);
+                                    if (summary) {
+                                        onContextMenu(event, summary);
+                                    }
+                                }}
                             >
                                 <Avatar userId={user.id} name={displayName(user)} size={54} status={getStatusOf(user.id)} showStatus/>
                                 <span className="tgw-chat-row-body">
@@ -493,7 +502,7 @@ export function Sidebar() {
 
             <div className="tgw-sidebar-body">
                 {isSearching ? (
-                    <SearchResults term={ui.search}/>
+                    <SearchResults term={ui.search} onContextMenu={contextMenuForChat}/>
                 ) : tab?.kind === 'contacts' ? (
                     <>
                         <div className="tgw-section-title">Contacts — {contacts.length}</div>
