@@ -98,6 +98,18 @@ class BodyBoundary extends React.Component<{fallback: React.ReactNode; children:
  */
 function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (message: string, kind?: 'info' | 'error' | 'success') => void) {
     const target = event.target as HTMLElement;
+    const link = target.closest('a[href]') as HTMLAnchorElement | null;
+    if (link && event.currentTarget.contains(link)) {
+        event.preventDefault();
+        event.stopPropagation();
+        copyToClipboard(link.href).then(() => {
+            toast?.('URL copied', 'success');
+        }).catch(() => {
+            toast?.('Could not copy URL', 'error');
+        });
+        return;
+    }
+
     const code = target.closest('code');
     if (!code || !event.currentTarget.contains(code)) {
         return;
