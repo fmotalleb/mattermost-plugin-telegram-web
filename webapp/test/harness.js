@@ -262,7 +262,7 @@ global.fetch = async (url, options = {}) => {
     // counts, mirroring server/plugin.go.
     if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/views')) {
         if (options.method === 'POST') {
-            const ids = (post && Array.isArray(post.post_ids) ? post.post_ids : []);
+            const ids = (post && Array.isArray(post.post_ids) ? post.post_ids : []).slice(0, 100);
             ids.forEach((id) => {
                 if (!viewTracking.has(id)) {
                     viewTracking.set(id, new Set());
@@ -272,7 +272,7 @@ global.fetch = async (url, options = {}) => {
             return json({recorded: ids.length});
         }
         if (options.method === 'GET') {
-            const ids = (parsed.searchParams.get('post_ids') || '').split(',').filter(Boolean);
+            const ids = (parsed.searchParams.get('post_ids') || '').split(',').filter(Boolean).slice(0, 100);
             const counts = {};
             const seenByMe = {};
             ids.forEach((id) => {

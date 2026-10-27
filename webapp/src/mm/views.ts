@@ -9,6 +9,9 @@ import {useSyncExternalStore} from 'react';
 import {APIError, api} from './api';
 import type {MMUser} from './types';
 
+// The plugin endpoint deliberately caps each request to protect the host database.
+const MAX_POST_IDS_PER_REQUEST = 100;
+
 export interface ViewStats {
     count: number;
     seen: boolean;
@@ -100,8 +103,8 @@ function scheduleFetch(): void {
     }
     fetchTimer = setTimeout(() => {
         fetchTimer = null;
-        const ids = Array.from(pendingFetch);
-        pendingFetch.clear();
+        const ids = Array.from(pendingFetch).slice(0, MAX_POST_IDS_PER_REQUEST);
+        ids.forEach((id) => pendingFetch.delete(id));
         if (ids.length === 0) {
             return;
         }
@@ -112,6 +115,9 @@ function scheduleFetch(): void {
                     viewsDisabled = true;
                 }
             });
+        if (pendingFetch.size > 0) {
+            scheduleFetch();
+        }
     }, 150);
 }
 
@@ -140,8 +146,8 @@ export function markPostsSeen(postIds: string[]): void {
 
 function flushReport(): void {
     reportTimer = null;
-    const ids = Array.from(pendingReport);
-    pendingReport.clear();
+    const ids = Array.from(pendingReport).slice(0, MAX_POST_IDS_PER_REQUEST);
+    ids.forEach((id) => pendingReport.delete(id));
     if (ids.length === 0) {
         return;
     }
@@ -155,6 +161,9 @@ function flushReport(): void {
                 viewsDisabled = true;
             }
         });
+    if (pendingReport.size > 0) {
+        reportTimer = setTimeout(flushReport, 800);
+    }
 }
 
 function bumpOwnViews(postIds: string[]): void {
