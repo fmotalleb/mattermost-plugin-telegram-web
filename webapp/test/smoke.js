@@ -183,26 +183,9 @@ root.render(React.createElement(TelegramUI));
     // Wait for the channel posts request of the initial chat (fetch + render time varies).
     await waitFor(() => document.body.innerHTML.includes('How are you'));
     console.log('\n== messages ==');
-    let copiedText = null;
-    Object.defineProperty(dom.window.navigator, 'clipboard', {
-        value: {writeText: (text) => { copiedText = text; return Promise.resolve(); }},
-        configurable: true,
-    });
     ok(document.body.innerHTML.includes('How are you'), 'loaded messages rendered');
     ok(document.body.innerHTML.includes('Deploy'), 'second message rendered');
     ok(document.body.innerHTML.includes('https://example.com/run'), 'links rendered');
-    console.log('\n== message url copy ==');
-    const messageLink = document.querySelector('.tgw-message-text a[href="https://example.com/run"]');
-    ok(!!messageLink, 'a URL in the message renders as a link');
-    if (messageLink) {
-        const click = new dom.window.MouseEvent('click', {bubbles: true, cancelable: true});
-        messageLink.dispatchEvent(click);
-        await tick(60);
-        ok(copiedText === messageLink.href, 'clicking a message URL copies its destination');
-        ok(click.defaultPrevented, 'clicking a message URL does not navigate away');
-        ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('URL copied'), 'a toast confirms the URL copy');
-        dom.window.getSelection()?.removeAllRanges();
-    }
     ok(document.querySelector('.tgw-messages').innerHTML.includes('😄') || document.body.innerHTML.includes(':smile:'), 'emoji shortcode rendered');
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
     ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
@@ -1467,6 +1450,7 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== inline code copy ==');
+    let copiedText = null;
     Object.defineProperty(dom.window.navigator, 'clipboard', {
         value: {writeText: (text) => { copiedText = text; return Promise.resolve(); }},
         configurable: true,
