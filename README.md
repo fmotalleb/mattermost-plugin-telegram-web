@@ -10,6 +10,11 @@ button switches back to the stock UI.
 (generated from the real components and stylesheet by `npm run preview`), also available in the dark
 theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 
+<p align="center">
+  <img src="docs/ui-preview.png" alt="Telegram Web UI light theme preview" width="49%">
+  <img src="docs/ui-preview-dark.png" alt="Telegram Web UI dark theme preview" width="49%">
+</p>
+
 ## Compatibility
 
 | Item | Value |
