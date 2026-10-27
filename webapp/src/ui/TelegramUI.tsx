@@ -295,7 +295,7 @@ export function TelegramUI() {
                         .then((direct) => openChat(direct.id))
                         .catch(() => toast('Could not open the conversation', 'error'));
                 },
-            });
+            }, target.url);
             setContextMenu({x: target.x, y: target.y, items: menuItems});
         },
         openReactionPicker: (post, x, y) => setReactionPicker({post, x, y}),
@@ -457,7 +457,7 @@ const QUICK_REACTIONS = [
     {name: 'muscle', char: '💪'},
 ];
 
-function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): MenuEntry[] {
+function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers, url?: string): MenuEntry[] {
     if (!post) {
         return [];
     }
@@ -492,6 +492,16 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers): M
         },
         {key: 'unread', label: 'Mark as unread', onClick: () => handlers.markUnread(post)},
     ];
+    if (url) {
+        const copyTextIndex = items.findIndex((item) => item !== 'separator' && item.key === 'copy');
+        items.splice(copyTextIndex + 1, 0, {
+            key: 'copy-url',
+            label: 'Copy URL',
+            onClick: () => copyToClipboard(url)
+                .then(() => handlers.toast('URL copied', 'success'))
+                .catch(() => handlers.toast('Could not copy URL', 'error')),
+        });
+    }
     filesOfPost(post).forEach((file) => {
         items.splice(items.findIndex((item) => item !== 'separator' && item.key === 'unread'), 0, {
             key: `copy-download-${file.id}`,

@@ -477,7 +477,14 @@ export function ChatView() {
                     highlightedPostId={ui.highlightedPostId}
                     onContextMenu={(event, post) => {
                         event.preventDefault();
-                        actions.openContextMenu({post, x: event.clientX, y: event.clientY});
+                        const target = event.target as Element;
+                        const link = target.closest('a[href]') as HTMLAnchorElement | null;
+                        actions.openContextMenu({
+                            post,
+                            url: link && event.currentTarget.contains(link) ? link.href : undefined,
+                            x: event.clientX,
+                            y: event.clientY,
+                        });
                     }}
                     onReact={(post, emojiName, coords) => {
                         if (!emojiName) {

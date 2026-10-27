@@ -23,6 +23,7 @@ const {handleSocketEvent} = require('../src/mm/socket');
 const {api} = require('../src/mm/api');
 const {searchChats} = require('../src/mm/selectors');
 const {startStockUIViewTracking} = require('../src/mm/stock-views');
+const {ensureViewStats, getViewStats} = require('../src/mm/views');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 
 setStore(store);
@@ -186,6 +187,17 @@ root.render(React.createElement(TelegramUI));
     ok(document.body.innerHTML.includes('How are you'), 'loaded messages rendered');
     ok(document.body.innerHTML.includes('Deploy'), 'second message rendered');
     ok(document.body.innerHTML.includes('https://example.com/run'), 'links rendered');
+    const clickedMessageLink = document.querySelector('.tgw-message-text a[href="https://example.com/run"]');
+    let clickedURLCopy = null;
+    Object.defineProperty(dom.window.navigator, 'clipboard', {
+        configurable: true,
+        value: {writeText: (text) => { clickedURLCopy = text; return Promise.resolve(); }},
+    });
+    const linkClick = new dom.window.MouseEvent('click', {bubbles: true, cancelable: true});
+    clickedMessageLink?.dispatchEvent(linkClick);
+    await tick(30);
+    ok(!linkClick.defaultPrevented, 'clicking a message URL keeps normal link behavior');
+    ok(clickedURLCopy === null, 'clicking a message URL does not copy it');
     ok(document.querySelector('.tgw-messages').innerHTML.includes('😄') || document.body.innerHTML.includes(':smile:'), 'emoji shortcode rendered');
     ok(calls.some((call) => call.includes('/channels/channel-dm/posts')), 'messages were fetched through the REST API');
     ok(calls.some((call) => call.includes('/channels/members/user-me/view')), 'channel marked as read');
@@ -235,6 +247,22 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 3000);
     ok(calls.some((call) => call.startsWith('POST /plugins/com.telegramweb.ui/api/v1/views')), 'visible posts reported as seen to the plugin API');
     ok(calls.some((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views')), 'view counts fetched from the plugin API');
+
+    console.log('\n== view stats batch limit ==');
+    {
+        const batchIds = Array.from({length: 125}, (_, index) => `batch-view-${index}`);
+        batchIds.forEach((id) => viewTracking.set(id, new Set([ids.ME, ids.OTHER])));
+        const start = calls.length;
+        ensureViewStats(batchIds);
+        await waitFor(() => getViewStats(batchIds[124])?.count === 2, 3000);
+        const requests = calls.slice(start).filter((call) => call.startsWith('GET /plugins/com.telegramweb.ui/api/v1/views'));
+        const fetchedIds = new Set(requests.flatMap((call) => {
+            const query = call.split('?')[1] || '';
+            return new URLSearchParams(query).get('post_ids')?.split(',') || [];
+        }));
+        ok(fetchedIds.size === batchIds.length, `view stats fetch drains batches beyond the server limit (${fetchedIds.size}/${batchIds.length})`);
+        ok(requests.every((call) => (new URLSearchParams(call.split('?')[1] || '').get('post_ids') || '').split(',').length <= 100), 'each view stats request stays within the server limit');
+    }
 
     console.log('\n== reply ==');
     const replyButton = Array.from(document.querySelectorAll('.tgw-msg-toolbar button[title="Reply"]'))[0];
@@ -595,6 +623,25 @@ root.render(React.createElement(TelegramUI));
             }
             selection.removeAllRanges();
         }
+    }
+
+    console.log('\n== copy message URL from its context menu ==');
+    {
+        const p3row = document.querySelector('[data-post-id="p3"]');
+        const link = p3row?.querySelector('.tgw-message-text a[href="https://example.com/run"]');
+        ok(!!link, 'linked URL is available in the message');
+        const copied = [];
+        Object.defineProperty(dom.window.navigator, 'clipboard', {
+            configurable: true,
+            value: {writeText: (text) => { copied.push(text); return Promise.resolve(); }},
+        });
+        link?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 140, clientY: 210}));
+        await waitFor(() => document.querySelector('.tgw-menu'));
+        const copyURL = Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.trim() === 'Copy URL');
+        ok(!!copyURL, 'the link context menu offers Copy URL');
+        copyURL?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => Array.from(document.querySelectorAll('.tgw-toast')).some((item) => item.textContent.includes('URL copied')));
+        ok(copied[0] === link?.href, 'Copy URL copies the link destination');
     }
 
     console.log('\n== forwarding and download URLs ==');

@@ -18,6 +18,8 @@ export interface ConfirmDialog {
 
 export interface ContextTarget {
     post?: MMPost;
+    /** The link under the pointer when opening a message's context menu. */
+    url?: string;
     chat?: string;
     user?: MMUser;
     channel?: MMChannel;
