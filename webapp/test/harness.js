@@ -549,12 +549,20 @@ const state = {
         files: {files: {}},
     },
     views: {},
+    storage: {storage: {}},
 };
 
 const listeners = new Set();
 const store = {
     getState: () => state,
     dispatch: (action) => {
+        if (action?.type === 'SET_GLOBAL_ITEM' && action.data?.name) {
+            state.storage = {
+                ...state.storage,
+                storage: {...(state.storage?.storage || {}), [action.data.name]: action.data.value},
+            };
+            listeners.forEach((listener) => listener());
+        }
         if (action?.type === 'LEAVE_CHANNEL' && action.data?.id) {
             const {id} = action.data;
             const myMembers = {...state.entities.channels.myMembers};

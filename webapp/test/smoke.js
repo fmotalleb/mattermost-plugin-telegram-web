@@ -924,9 +924,21 @@ root.render(React.createElement(TelegramUI));
     const townRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!townRow, 'town square row found');
     if (townRow) {
+        store.dispatch({type: 'SET_GLOBAL_ITEM', data: {
+            name: `draft_${ids.TOWN}`,
+            value: {message: 'saved Town Square draft', fileInfos: [], uploadsInProgress: [], channelId: ids.TOWN, rootId: '', createAt: 1, updateAt: 1, metadata: {}},
+            timestamp: new Date(),
+        }});
         townRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await tick(60);
         ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square', 'clicking a chat opens it');
+        ok(document.querySelector('.tgw-composer textarea')?.value === 'saved Town Square draft', 'opening a chat loads its Mattermost draft into the composer');
+        const draftInput = document.querySelector('.tgw-composer textarea');
+        if (draftInput) {
+            draftInput.value = '';
+            draftInput.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        }
+        await tick(50);
         ok(calls.some((call) => call.includes('/channels/channel-town/posts')), 'posts of the opened chat requested');
         ok(dom.window.__historyPushes.includes('/demo/channels/town-square'), 'opening a chat pushes its Mattermost URL');
         ok(document.activeElement === document.querySelector('.tgw-composer textarea'), 'composer input focused after switching chats');
