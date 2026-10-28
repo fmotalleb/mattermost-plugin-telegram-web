@@ -46,11 +46,13 @@ interface PendingFile {
 export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
     const {ui, actions, me} = useTg();
     const [message, setMessage] = useState(() => getComposerDraft(channel.id)?.message || '');
+    const storedDraftMessage = useSelector((state) => state.storage?.storage?.[`draft_${channel.id}`]?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const draftChannelRef = useRef(channel.id);
     const skipDraftSaveRef = useRef(true);
+    const messageTouchedRef = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
     const recording = voice.status === 'recording';
@@ -66,19 +68,31 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
             api.sendTyping(userId, channel.id, threadRootRef.current).catch(() => undefined);
         }
     }, 3000));
+    const setComposerMessage = (next: string | ((current: string) => string)) => {
+        messageTouchedRef.current = true;
+        setMessage(next);
+    };
 
     // Use Mattermost's channel-scoped storage key so switching chats parks the draft in its
     // original conversation and returning to that chat restores it.
     useEffect(() => {
-        if (draftChannelRef.current === channel.id) {
+        if (draftChannelRef.current !== channel.id) {
+            const previousChannelId = draftChannelRef.current;
+            saveComposerDraft(previousChannelId, message, '', true);
+            draftChannelRef.current = channel.id;
+            messageTouchedRef.current = false;
+            skipDraftSaveRef.current = true;
+            setMessage(storedDraftMessage);
             return;
         }
-        const previousChannelId = draftChannelRef.current;
-        saveComposerDraft(previousChannelId, message, '', true);
-        draftChannelRef.current = channel.id;
-        skipDraftSaveRef.current = true;
-        setMessage(getComposerDraft(channel.id)?.message || '');
-    }, [channel.id]);
+
+        // Mattermost may hydrate server drafts after this composer has mounted. Load those
+        // updates while the input is untouched, but never replace text the user is editing.
+        if (!messageTouchedRef.current && storedDraftMessage && message !== storedDraftMessage) {
+            skipDraftSaveRef.current = true;
+            setMessage(storedDraftMessage);
+        }
+    }, [channel.id, storedDraftMessage]);
 
     useEffect(() => {
         if (skipDraftSaveRef.current) {
@@ -92,7 +106,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
 
     useEffect(() => {
         if (editing) {
-            setMessage(editing.message || '');
+            setComposerMessage(editing.message || '');
             textareaRef.current?.focus();
         }
     }, [editing]);
@@ -147,7 +161,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     }, [channel.id, voice]);
 
     const reset = () => {
-        setMessage('');
+        setComposerMessage('');
         setFiles([]);
         if (!editing) {
             clearComposerDraft(channel.id);
@@ -168,7 +182,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         const end = element.selectionEnd;
         const selection = message.slice(start, end) || placeholderText;
         const next = `${message.slice(0, start)}${prefix}${selection}${suffix}${message.slice(end)}`;
-        setMessage(next);
+        setComposerMessage(next);
         requestAnimationFrame(() => {
             element.focus();
             element.setSelectionRange(start + prefix.length, start + prefix.length + selection.length);
@@ -247,7 +261,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
             // Put the draft back, but only if nothing new was typed while the request was out.
             const element = textareaRef.current;
             if (element && !element.value.trim() && !filesRef.current.length) {
-                setMessage(wasEditing ? (wasEditing.message || '') : trimmed);
+                setComposerMessage(wasEditing ? (wasEditing.message || '') : trimmed);
                 setFiles(ready);
             }
             actions.toast(error?.message || (wasEditing ? 'Could not save the changes' : 'Could not send the message'), 'error');
@@ -445,7 +459,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                         rows={1}
                         spellCheck={false}
                         onChange={(event) => {
-                            setMessage(event.target.value);
+                            setComposerMessage(event.target.value);
                             autoGrow(event.target);
                             typingRef.current();
                         }}
@@ -501,13 +515,13 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                         if (element) {
                             const start = element.selectionStart ?? message.length;
                             const next = `${message.slice(0, start)}${text}${message.slice(element.selectionEnd ?? start)}`;
-                            setMessage(next);
+                            setComposerMessage(next);
                             requestAnimationFrame(() => {
                                 element.focus();
                                 element.setSelectionRange(start + text.length, start + text.length);
                             });
                         } else {
-                            setMessage((current) => `${current}${text}`);
+                            setComposerMessage((current) => `${current}${text}`);
                         }
                     }}
                 />
