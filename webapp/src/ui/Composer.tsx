@@ -9,7 +9,8 @@ import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
 import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
-import {getState, useSelector} from '../mm/store';
+import {useSelector} from '../mm/store';
+import {clearComposerDraft, getComposerDraft, saveComposerDraft} from '../mm/drafts';
 import {useVoiceRecorder} from './voice';
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
@@ -44,10 +45,12 @@ interface PendingFile {
 
 export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
     const {ui, actions, me} = useTg();
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(() => getComposerDraft(channel.id)?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const draftChannelRef = useRef(channel.id);
+    const skipDraftSaveRef = useRef(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
     const recording = voice.status === 'recording';
@@ -63,6 +66,29 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
             api.sendTyping(userId, channel.id, threadRootRef.current).catch(() => undefined);
         }
     }, 3000));
+
+    // Use Mattermost's channel-scoped storage key so switching chats parks the draft in its
+    // original conversation and returning to that chat restores it.
+    useEffect(() => {
+        if (draftChannelRef.current === channel.id) {
+            return;
+        }
+        const previousChannelId = draftChannelRef.current;
+        saveComposerDraft(previousChannelId, message, '', true);
+        draftChannelRef.current = channel.id;
+        skipDraftSaveRef.current = true;
+        setMessage(getComposerDraft(channel.id)?.message || '');
+    }, [channel.id]);
+
+    useEffect(() => {
+        if (skipDraftSaveRef.current) {
+            skipDraftSaveRef.current = false;
+            return;
+        }
+        if (!editing && draftChannelRef.current === channel.id) {
+            saveComposerDraft(channel.id, message);
+        }
+    }, [channel.id, editing, message]);
 
     useEffect(() => {
         if (editing) {
@@ -123,6 +149,9 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
     const reset = () => {
         setMessage('');
         setFiles([]);
+        if (!editing) {
+            clearComposerDraft(channel.id);
+        }
     };
 
     // Mirror of the files state for the send-failure path: the closure of an in-flight send

@@ -153,6 +153,7 @@ export interface MMPreference {
 }
 
 export interface MMState {
+    storage?: {storage?: Record<string, any>};
     entities: {
         general: {config?: Record<string, any>; license?: Record<string, any>; serverVersion?: string; deviceId?: string};
         users: {
