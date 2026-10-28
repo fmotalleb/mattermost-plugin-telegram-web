@@ -68,6 +68,7 @@ export function MessageList(props: MessageListProps) {
     const previousPostIds = useRef<Set<string>>(new Set());
     const lastChannelId = useRef<string>('');
     const loadOlderIntent = useRef(false);
+    const scrollAnchor = useRef<{element: Element; top: number} | null>(null);
 
     const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
@@ -137,6 +138,19 @@ export function MessageList(props: MessageListProps) {
     }, [posts, firstUnreadPostId]);
 
     // Scroll handling ---------------------------------------------------------------------------
+    const rememberScrollAnchor = useCallback(() => {
+        const element = listRef.current;
+        if (!element) {
+            scrollAnchor.current = null;
+            return;
+        }
+        const top = element.getBoundingClientRect().top;
+        // Anchor the next row when the viewport starts partway through a message, so an image
+        // expanding in that message also preserves the position of the messages below it.
+        const anchor = Array.from(element.children).find((child) => child.getBoundingClientRect().top >= top);
+        scrollAnchor.current = anchor ? {element: anchor, top: anchor.getBoundingClientRect().top - top} : null;
+    }, []);
+
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
         const element = listRef.current;
         if (!element) {
@@ -182,7 +196,8 @@ export function MessageList(props: MessageListProps) {
         previousHeight.current = element.scrollHeight;
         previousFirstId.current = firstId;
         previousPostIds.current = new Set(posts.map((post) => post.id));
-    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId]);
+        rememberScrollAnchor();
+    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId, rememberScrollAnchor]);
 
     // Images, rich content and the composer can settle after the posts have rendered. Their
     // size changes do not change `posts`, so the effect above cannot keep an open chat pinned.
@@ -192,14 +207,26 @@ export function MessageList(props: MessageListProps) {
             return undefined;
         }
         const observer = new ResizeObserver(() => {
-            if (followBottom.current && element.scrollHeight - element.scrollTop - element.clientHeight > 1) {
-                scrollToBottom();
+            if (followBottom.current) {
+                if (element.scrollHeight - element.scrollTop - element.clientHeight > 1) {
+                    scrollToBottom();
+                }
+            } else {
+                const anchor = scrollAnchor.current;
+                if (anchor && element.contains(anchor.element)) {
+                    // Use the remaining displacement rather than adding scrollHeight's delta:
+                    // browsers may already have compensated some/all of it via scroll anchoring.
+                    const top = anchor.element.getBoundingClientRect().top - element.getBoundingClientRect().top;
+                    element.scrollTop += top - anchor.top;
+                }
             }
+            previousHeight.current = element.scrollHeight;
+            rememberScrollAnchor();
         });
         observer.observe(element);
         Array.from(element.children).forEach((child) => observer.observe(child));
         return () => observer.disconnect();
-    }, [channel.id, posts, loading, loadingOlder, hasMoreOlder, typingIds.length, unreadDividerPostId, scrollToBottom]);
+    }, [channel.id, posts, loading, loadingOlder, hasMoreOlder, typingIds.length, unreadDividerPostId, scrollToBottom, rememberScrollAnchor]);
 
     useEffect(() => {
         if (!highlightedPostId) {
@@ -231,6 +258,7 @@ export function MessageList(props: MessageListProps) {
         if (!element) {
             return;
         }
+        rememberScrollAnchor();
         const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
         followBottom.current = distanceFromBottom < 80;
         setAtBottom(distanceFromBottom < 80);

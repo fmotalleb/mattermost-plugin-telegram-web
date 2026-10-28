@@ -483,6 +483,58 @@ class CDP {
         ok(lateLayout.scrolledUpTop === 0,
             `late message growth preserves a deliberately scrolled-up position (${JSON.stringify(lateLayout)})`);
 
+        console.log('\n== image loading scroll compensation ==');
+        for (const anchoring of ['none', 'auto']) {
+            const imageScroll = await cdp.eval(`(async () => {
+                const settle = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const list = document.querySelector('.tgw-messages');
+                const rows = Array.from(list.querySelectorAll('.tgw-msg-row'));
+                const firstRow = rows[0];
+                const lastRow = rows[rows.length - 1];
+                list.style.height = '120px';
+                list.style.flex = 'none';
+                list.style.overflowAnchor = ${JSON.stringify(anchoring)};
+                lastRow.style.paddingBottom = '1400px';
+                const images = [firstRow, firstRow, lastRow].map((row) => {
+                    const img = document.createElement('img');
+                    img.style.cssText = 'display:block;width:240px;height:auto';
+                    row.querySelector('.tgw-bubble').appendChild(img);
+                    return img;
+                });
+                list.scrollTop += firstRow.getBoundingClientRect().bottom - list.getBoundingClientRect().top + 24;
+                await settle();
+                const beforeTop = list.scrollTop;
+                const beforeHeight = list.scrollHeight;
+                const beforeAnchor = lastRow.getBoundingClientRect().top;
+                const src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="180"></svg>');
+                images[0].src = src;
+                images[1].src = src;
+                await Promise.all(images.slice(0, 2).map((img) => img.decode()));
+                await settle();
+                const growth = list.scrollHeight - beforeHeight;
+                const scrollDelta = list.scrollTop - beforeTop;
+                const anchorDelta = lastRow.getBoundingClientRect().top - beforeAnchor;
+                const beforeBelow = list.scrollTop;
+                const beforeBelowHeight = list.scrollHeight;
+                images[2].src = src;
+                await images[2].decode();
+                await settle();
+                const belowDelta = list.scrollTop - beforeBelow;
+                const belowGrowth = list.scrollHeight - beforeBelowHeight;
+                images.forEach((img) => img.remove());
+                lastRow.style.paddingBottom = '';
+                list.style.height = '';
+                list.style.flex = '';
+                list.style.overflowAnchor = '';
+                await settle();
+                return {growth, scrollDelta, anchorDelta, belowDelta, belowGrowth};
+            })()`);
+            ok(imageScroll.growth >= 300 && Math.abs(imageScroll.scrollDelta - imageScroll.growth) <= 2 && Math.abs(imageScroll.anchorDelta) <= 2,
+                `loaded images above the viewport scroll by their added height (overflow-anchor: ${anchoring}, ${JSON.stringify(imageScroll)})`);
+            ok(imageScroll.belowGrowth >= 100 && Math.abs(imageScroll.belowDelta) <= 2,
+                `loaded images below the viewport preserve the reading position (overflow-anchor: ${anchoring}, ${JSON.stringify(imageScroll)})`);
+        }
+
         console.log('\n== unread chat hover preview ==');
         const unreadPreviewPoint = await cdp.eval(`(() => {
             const row = Array.from(document.querySelectorAll('.tgw-chat-row-unread')).find((entry) => entry.textContent.includes('Alice'));
