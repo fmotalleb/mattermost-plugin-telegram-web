@@ -64,7 +64,8 @@ export interface ChatRowProps {
 }
 
 export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd, peerUser: resolvedPeer, peerUnavailable}: ChatRowProps) {
-    const {timeFormat, settings} = useTg();
+    const {timeFormat, settings, actions} = useTg();
+    const draft = useSelector((state) => state.storage?.storage?.[`draft_${summary.id}`]?.message || '');
     const myId = useSelector(getMyId);
     const {post: preview, loading: previewLoading} = usePreview(summary.id);
     const lastPost = preview || undefined;
@@ -144,6 +145,14 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
             className={`tgw-chat-row ${selected ? 'tgw-chat-row-active' : ''} ${unread ? 'tgw-chat-row-unread' : ''} ${peerInactive || peerUnavailable ? 'tgw-chat-row-inactive-peer' : ''} ${dragState === 'source' ? 'tgw-chat-row-dragging' : ''} ${dragState === 'over' ? 'tgw-chat-row-dragover' : ''}`}
             onMouseEnter={openPeek}
             onMouseLeave={closePeekSoon}
+            onMouseDown={(event) => { if (event.button === 1) event.preventDefault(); }}
+            onAuxClick={(event) => {
+                if (event.button === 1) {
+                    event.preventDefault();
+                    setPeekOpen(false);
+                    actions.openQuickChat(summary.id);
+                }
+            }}
             onClick={() => onSelect(summary.id)}
             onContextMenu={(event) => onContextMenu?.(event, summary)}
             onDragStart={() => onDragStart?.()}
@@ -176,7 +185,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 </span>
                 <span className="tgw-chat-row-bottom">
                     <span className="tgw-chat-row-preview">
-                        {summary.lastPostAt || text ? (
+                        {draft ? <span className="tgw-draft-preview"><strong>Draft: </strong>{draft}</span> : summary.lastPostAt || text ? (
                             settings.showPreviews ? (
                                 <span className={lastPost?._pending ? 'tgw-preview-pending' : ''}>{text ? <EmojiText text={text}/> : (previewLoading ? 'Loading…' : placeholderFor(summary))}</span>
                             ) : (

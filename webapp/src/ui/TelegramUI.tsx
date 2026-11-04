@@ -11,6 +11,7 @@ import {getSettings, subscribeSettings} from '../mm/settings';
 import {copyToClipboard, displayName, formatDateSeparator, formatTime, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
+import {QuickChat} from './QuickChat';
 import {ChatView} from './ChatView';
 import {ConfirmModal, ImageViewer, Modals} from './Modals';
 import {EmojiPicker} from './EmojiPicker';
@@ -213,6 +214,7 @@ export function TelegramUI() {
     const actions: TgActions = useMemo(() => ({
         setUI,
         openChat,
+        openQuickChat: (channelId) => setUI({quickChatId: channelId}),
         openUserChat: (userId) => {
             if (!me?.id || !userId) {
                 return;
@@ -381,6 +383,7 @@ export function TelegramUI() {
                         {ui.infoOpen && !ui.threadRootId && <InfoPanel/>}
                         {ui.filesOpen && !ui.threadRootId && <SharedFilesPanel/>}
                     </div>
+                    {ui.quickChatId && <QuickChat key={ui.quickChatId} channelId={ui.quickChatId}/>}
                     <Modals/>
                     <ConfirmModal/>
                     <ImageViewer/>

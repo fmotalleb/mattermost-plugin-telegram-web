@@ -28,6 +28,7 @@ export interface ContextTarget {
 }
 
 export interface TgUIState {
+    quickChatId?: string;
     selectedChannelId: string;
     /** Bumped by openChat(), so the composer can grab the input even when the same chat is re-opened. */
     chatSeq: number;
@@ -55,6 +56,7 @@ export interface TgUIState {
 export interface TgActions {
     setUI: (patch: Partial<TgUIState>) => void;
     openChat: (channelId: string, opts?: {keepSearch?: boolean; postId?: string}) => void;
+    openQuickChat: (channelId: string) => void;
     openUserChat: (userId: string) => void;
     backToList: () => void;
     openModal: (modal: ModalKind, payload?: any) => void;

@@ -35,6 +35,7 @@ const GROUP_WINDOW_MS = 5 * 60 * 1000;
 const GROUP_REFRESH_MS = 5000;
 
 export interface MessageListProps {
+    quick?: boolean;
     channel: MMChannel;
     posts: MMPost[];
     loading: boolean;
@@ -321,6 +322,7 @@ export function MessageList(props: MessageListProps) {
                             <div className="tgw-unread-divider"><span>Unread messages</span></div>
                         )}
                         <MessageRow
+                            quick={props.quick}
                             post={post}
                             meta={meta}
                             isGroup={isGroup}
@@ -378,6 +380,7 @@ function groupPosts(posts: MMPost[], myId: string): Array<{post: MMPost; meta: R
 }
 
 interface MessageRowProps {
+    quick?: boolean;
     post: MMPost;
     meta: RowMeta;
     isGroup: boolean;
@@ -389,7 +392,7 @@ interface MessageRowProps {
     onOpenThread: (post: MMPost) => void;
 }
 
-function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, onReact, onToggleReaction, onOpenThread}: MessageRowProps) {
+function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, onContextMenu, onReact, onToggleReaction, onOpenThread}: MessageRowProps) {
     const {timeFormat, actions, me, settings} = useTg();
     // Compact mode narrows .tgw-msg-avatar to 28px; rendering the regular 40px avatar there
     // overflows the slot and lets the bubble paint over the face.
@@ -582,6 +585,7 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                                 key={group.emoji_name}
                                 className={`tgw-reaction ${group.mine ? 'tgw-reaction-mine' : ''}`}
                                 title={group.users.join(', ')}
+                                disabled={quick}
                                 onClick={() => onToggleReaction(post, group.reaction)}
                             >
                                 <ReactionEmoji name={group.emoji_name} customEmoji={customEmoji}/>
@@ -642,14 +646,14 @@ function MessageRow({post, meta, isGroup, channel, highlighted, onContextMenu, o
                         </span>
                     )}
                 </div>
-                {post.reply_count > 0 && (
+                {!quick && post.reply_count > 0 && (
                     <button type="button" className="tgw-thread-link" onClick={() => onOpenThread(post)}>
                         {post.reply_count} {post.reply_count === 1 ? 'reply' : 'replies'}
                     </button>
                 )}
             </div>
 
-            <div className="tgw-msg-toolbar">
+            <div className="tgw-msg-toolbar" hidden={quick}>
                 <button type="button" title="Add reaction" onClick={(event) => onReact(post, '', {x: event.clientX, y: event.clientY})}>
                     <IconEmoji size={18}/>
                 </button>

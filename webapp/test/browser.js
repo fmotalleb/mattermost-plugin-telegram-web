@@ -453,6 +453,46 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        console.log('\n== quick chat modal ==');
+        await cdp.eval(`(() => {
+            window.__quickPrevious = document.activeElement;
+            window.__quickURL = location.href;
+            window.__quickMain = document.querySelector('.tgw-shell .tgw-chat-header-title').textContent;
+            const row = document.querySelector('.tgw-chat-row');
+            row.dispatchEvent(new MouseEvent('mousedown', {button: 1, bubbles: true, cancelable: true}));
+            row.dispatchEvent(new MouseEvent('auxclick', {button: 1, bubbles: true, cancelable: true}));
+        })()`);
+        await cdp.waitFor('!!document.querySelector(".tgw-quick-dialog textarea")', 8000, 'quick chat composer');
+        const quickLayout = await cdp.eval(`(() => {
+            const dialog = document.querySelector('.tgw-quick-dialog');
+            const rect = dialog.getBoundingClientRect();
+            return {centered: Math.abs(rect.x + rect.width / 2 - innerWidth / 2) < 2 && Math.abs(rect.y + rect.height / 2 - innerHeight / 2) < 2,
+                bounded: rect.width <= 760 && rect.height <= innerHeight * .8 + 1,
+                blur: getComputedStyle(document.querySelector('.tgw-quick-backdrop')).backdropFilter,
+                focus: document.activeElement === dialog.querySelector('textarea'), inert: document.querySelector('.tgw-shell').inert,
+                route: location.href === window.__quickURL && document.querySelector('.tgw-shell .tgw-chat-header-title').textContent === window.__quickMain};
+        })()`);
+        fs.writeFileSync('/tmp/tgw-quick-chat.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+        ok(quickLayout.centered && quickLayout.bounded, 'quick chat is centered and bounded');
+        ok(quickLayout.blur.includes('10px'), 'quick chat backdrop blurs by 10px');
+        ok(await cdp.eval(`(() => {const button = document.querySelector('.tgw-quick-close'); const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));})()`), 'close button is above the chat header');
+        ok(quickLayout.focus && quickLayout.inert && quickLayout.route, 'quick chat focuses composer and preserves main chat');
+        await cdp.eval(`(() => {
+            const buttons = Array.from(document.querySelector('.tgw-quick-dialog').querySelectorAll('button:not(:disabled), textarea, input, a[href], [tabindex="0"]')).filter(x => x.getClientRects().length);
+            buttons[buttons.length - 1].focus();
+        })()`);
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        ok(await cdp.eval('document.querySelector(".tgw-quick-dialog").contains(document.activeElement)'), 'Tab stays in quick chat');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 420, height: 700, deviceScaleFactor: 1, mobile: false});
+        await sleep(100);
+        ok(await cdp.eval(`(() => {const r = document.querySelector('.tgw-quick-dialog').getBoundingClientRect(); return r.left >= 16 && r.right <= innerWidth - 16 && r.bottom <= innerHeight - 16;})()`), 'quick chat fits a narrow viewport');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.waitFor('!document.querySelector(".tgw-quick-dialog")', 3000, 'quick chat closes');
+        ok(await cdp.eval('!document.querySelector(".tgw-shell").inert'), 'closing quick chat releases background');
+
         console.log('\n== late chat layout ==');
         await cdp.waitFor('document.querySelectorAll(".tgw-messages .tgw-msg-row").length > 0', 8000, 'initial chat messages');
         const lateLayout = await cdp.eval(`(async () => {

@@ -44,7 +44,7 @@ function minimalSummary(channel: MMChannel, peerId?: string, peer?: MMUser) {
     };
 }
 
-export function ChatView() {
+export function ChatView({quick = false}: {quick?: boolean}) {
     const {ui, actions, timeFormat, me, isMobile, channel} = useTg();
     const channelId = ui.selectedChannelId;
     const storeSummary = useSelector((state) => (channelId ? getChatSummary(state, channelId) : undefined));
@@ -71,7 +71,7 @@ export function ChatView() {
         avatarUserId: peerId,
         peerIds: [peerId],
     } : baseSummary;
-    const {posts, loading, loadingOlder, hasMoreOlder} = useChannelPosts(channelId);
+    const {posts, block, loading, loadingOlder, hasMoreOlder} = useChannelPosts(channelId);
     const typingIds = useSelector((state) => (channelId ? getTypingUserIds(state, channelId) : []));
     const teamName = useSelector((state) => (channel ? state.entities?.teams?.teams?.[channel.team_id]?.name : ''));
     const [inChatSearch, setInChatSearch] = useState('');
@@ -375,14 +375,14 @@ export function ChatView() {
         : memberCountLabel(channel.type === 'G' ? summary.peerIds.length || summary.memberCount : summary.memberCount));
 
     return (
-        <section className="tgw-chat">
+        <section className={`tgw-chat ${quick ? 'tgw-chat-quick' : ''}`}>
             <header className="tgw-chat-header">
-                {isMobile && (
+                {isMobile && !quick && (
                     <button type="button" className="tgw-icon-button tgw-back-button" onClick={actions.backToList} title="Back">
                         <IconBack size={22}/>
                     </button>
                 )}
-                <button type="button" className="tgw-chat-header-main" onClick={() => actions.setUI({infoOpen: true})}>
+                <button type="button" className="tgw-chat-header-main" onClick={() => !quick && actions.setUI({infoOpen: true})}>
                     <Avatar
                         userId={summary.avatarUserId}
                         profile={peer}
@@ -468,7 +468,9 @@ export function ChatView() {
             )}
 
             <div className="tgw-chat-body">
+                {quick && block?.error && <div role="alert">Could not load messages. <button type="button" onClick={() => loadChannel(channelId, {force: true})}>Retry</button></div>}
                 <MessageList
+                    quick={quick}
                     channel={channel}
                     posts={posts}
                     loading={loading}
@@ -497,6 +499,7 @@ export function ChatView() {
                     onOpenThread={(post) => actions.setUI({threadRootId: post.root_id || post.id})}
                 />
                 <Composer
+                    quick={quick}
                     channel={channel}
                     replyTo={ui.replyTo}
                     editing={ui.editing}

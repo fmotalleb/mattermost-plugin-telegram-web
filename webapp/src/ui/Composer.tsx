@@ -23,6 +23,7 @@ function autoGrow(element: HTMLTextAreaElement | null) {
 }
 
 export interface ComposerProps {
+    quick?: boolean;
     channel: MMChannel;
     replyTo: MMPost | null;
     editing: MMPost | null;
@@ -43,16 +44,13 @@ interface PendingFile {
     voice?: {durationMs: number; levels: number[]};
 }
 
-export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
+export function Composer({quick = false, channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
     const {ui, actions, me} = useTg();
     const [message, setMessage] = useState(() => getComposerDraft(channel.id)?.message || '');
     const storedDraftMessage = useSelector((state) => state.storage?.storage?.[`draft_${channel.id}`]?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const draftChannelRef = useRef(channel.id);
-    const skipDraftSaveRef = useRef(true);
-    const messageTouchedRef = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
     const recording = voice.status === 'recording';
@@ -68,41 +66,22 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
             api.sendTyping(userId, channel.id, threadRootRef.current).catch(() => undefined);
         }
     }, 3000));
+    const messageRef = useRef(message);
+    messageRef.current = message;
     const setComposerMessage = (next: string | ((current: string) => string)) => {
-        messageTouchedRef.current = true;
-        setMessage(next);
+        const value = typeof next === 'function' ? next(messageRef.current) : next;
+        messageRef.current = value;
+        setMessage(value);
+        if (!editing) saveComposerDraft(channel.id, value);
     };
 
-    // Use Mattermost's channel-scoped storage key so switching chats parks the draft in its
-    // original conversation and returning to that chat restores it.
+    // Both chat surfaces observe the same Mattermost draft, including clears.
     useEffect(() => {
-        if (draftChannelRef.current !== channel.id) {
-            const previousChannelId = draftChannelRef.current;
-            saveComposerDraft(previousChannelId, message, '', true);
-            draftChannelRef.current = channel.id;
-            messageTouchedRef.current = false;
-            skipDraftSaveRef.current = true;
-            setMessage(storedDraftMessage);
-            return;
-        }
-
-        // Mattermost may hydrate server drafts after this composer has mounted. Load those
-        // updates while the input is untouched, but never replace text the user is editing.
-        if (!messageTouchedRef.current && storedDraftMessage && message !== storedDraftMessage) {
-            skipDraftSaveRef.current = true;
+        if (!editing) {
+            messageRef.current = storedDraftMessage;
             setMessage(storedDraftMessage);
         }
-    }, [channel.id, storedDraftMessage]);
-
-    useEffect(() => {
-        if (skipDraftSaveRef.current) {
-            skipDraftSaveRef.current = false;
-            return;
-        }
-        if (!editing && draftChannelRef.current === channel.id) {
-            saveComposerDraft(channel.id, message);
-        }
-    }, [channel.id, editing, message]);
+    }, [channel.id, storedDraftMessage, editing]);
 
     useEffect(() => {
         if (editing) {
@@ -260,6 +239,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         } catch (error: any) {
             // Put the draft back, but only if nothing new was typed while the request was out.
             const element = textareaRef.current;
+            if (!wasEditing && !getComposerDraft(channel.id)?.message) saveComposerDraft(channel.id, trimmed);
             if (element && !element.value.trim() && !filesRef.current.length) {
                 setComposerMessage(wasEditing ? (wasEditing.message || '') : trimmed);
                 setFiles(ready);
@@ -281,7 +261,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
         // Up arrow in an empty, non-editing box opens the last message of mine for editing —
         // the same shortcut Mattermost has. Only the newest editable post counts: root or
         // reply, never a pending/failed optimistic bubble or a system post.
-        if (event.key === 'ArrowUp' && !message && !files.length && !editing) {
+        if (!quick && event.key === 'ArrowUp' && !message && !files.length && !editing) {
             const caretAtStart = event.currentTarget.selectionStart === 0 && event.currentTarget.selectionEnd === 0;
             if (caretAtStart) {
                 const block = getBlock(channel.id);
@@ -439,7 +419,7 @@ export function Composer({channel, replyTo, editing, rootId, onCancelReply, onCa
                             event.target.value = '';
                         }}
                     />
-                    {voice.supported && !editing && (
+                    {!quick && voice.supported && !editing && (
                         <button
                             type="button"
                             className="tgw-composer-icon"

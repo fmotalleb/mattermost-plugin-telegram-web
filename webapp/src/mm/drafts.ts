@@ -28,7 +28,7 @@ export function getComposerDraft(channelId: string, rootId = ''): ComposerDraft 
 }
 
 /** Dispatches the same Redux actions Mattermost uses to keep its local draft storage up to date. */
-export function saveComposerDraft(channelId: string, message: string, rootId = '', show = false) {
+export function saveComposerDraft(channelId: string, message: string, rootId = '', show = true) {
     const key = draftKey(channelId, rootId);
     const current = getComposerDraft(channelId, rootId);
     const now = Date.now();
