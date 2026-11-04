@@ -255,13 +255,26 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
     const profiles = useSelector((state) => state.entities?.users?.profiles || {});
+    const draftStorage = useSelector((state) => state.storage?.storage || {});
     const [fetchedPeers, setFetchedPeers] = useState<Record<string, MMUser>>({});
     const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
     const requestedPeers = useRef(new Set<string>());
     const isUnread = (chat: ChatSummary) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread;
+    const hasDraft = (chat: ChatSummary) => {
+        const item = draftStorage[`draft_${chat.id}`];
+        const draft = item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item;
+        return !!draft?.message?.trim();
+    };
+    const favoriteChats = chats.filter((chat) => chat.isFavorite);
+    const favoriteIds = new Set(favoriteChats.map((chat) => chat.id));
+    const draftChats = chats.filter((chat) => !favoriteIds.has(chat.id) && hasDraft(chat));
+    const groupedIds = new Set([...favoriteIds, ...draftChats.map((chat) => chat.id)]);
+    const remainingChats = chats.filter((chat) => !groupedIds.has(chat.id));
     const allSections = [
-        {key: 'unread', label: 'Unread', chats: chats.filter(isUnread)},
-        {key: 'chats', label: 'Chats', chats: chats.filter((chat) => !isUnread(chat))},
+        {key: 'favorites', label: 'Favorites', chats: favoriteChats},
+        {key: 'drafts', label: 'Drafts', chats: draftChats},
+        {key: 'unread', label: 'Unread', chats: remainingChats.filter(isUnread)},
+        {key: 'chats', label: 'Chats', chats: remainingChats.filter((chat) => !isUnread(chat))},
     ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.
