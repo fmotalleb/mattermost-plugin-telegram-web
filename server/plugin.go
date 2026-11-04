@@ -50,24 +50,33 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 		case http.MethodGet:
 			p.handleViewStats(w, r)
 		default:
-			w.Header().Set("Allow", "GET, POST")
+			if !setResponseHeader(w, "Allow", "GET, POST") {
+				return
+			}
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	case strings.HasSuffix(path, channelSearchPath):
 		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
+			if !setResponseHeader(w, "Allow", http.MethodPost) {
+				return
+			}
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 		p.handleChannelSearch(w, r)
 	case strings.HasSuffix(path, forwardPath):
 		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
+			if !setResponseHeader(w, "Allow", http.MethodPost) {
+				return
+			}
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 		p.handleForward(w, r)
 	default:
+		if w.Header() == nil {
+			return
+		}
 		http.NotFound(w, r)
 	}
 }
@@ -355,13 +364,29 @@ func (p *Plugin) ph(n int) string {
 	return "?"
 }
 
+// Mattermost's RPC response writer can return nil when its Header RPC fails (for
+// example, after the request connection closes). Abandon that response rather than
+// panicking in Header.Set and taking down the entire plugin process.
+func setResponseHeader(w http.ResponseWriter, key, value string) bool {
+	header := w.Header()
+	if header == nil {
+		return false
+	}
+	header.Set(key, value)
+	return true
+}
+
 func writeJSON(w http.ResponseWriter, payload any) {
-	w.Header().Set("Content-Type", "application/json")
+	if !setResponseHeader(w, "Content-Type", "application/json") {
+		return
+	}
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
+	if !setResponseHeader(w, "Content-Type", "application/json") {
+		return
+	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 }

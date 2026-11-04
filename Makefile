@@ -65,7 +65,7 @@ test-bundle: bundle
 	cd $(WEBAPP_DIR) && node test/bundle.js
 
 test-server:
-	cd $(SERVER_DIR) && go vet ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null .
+	cd $(SERVER_DIR) && go test ./... && go vet ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null .
 
 # --------------------------------------------------------------------------- package
 
