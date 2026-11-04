@@ -179,6 +179,11 @@ export class MattermostAPI {
         return this.request<MMServerDraft[]>(`/users/me/teams/${encodeURIComponent(teamId)}/drafts`);
     }
 
+    deleteDraft(channelId: string, rootId = ''): Promise<any> {
+        const path = `/users/me/channels/${encodeURIComponent(channelId)}/drafts`;
+        return this.request(`${path}${rootId ? `/${encodeURIComponent(rootId)}` : ''}`, {method: 'DELETE'});
+    }
+
     getUsersByIds(ids: string[]): Promise<MMUser[]> {
         return this.request<MMUser[]>('/users/ids', {method: 'POST', body: ids});
     }

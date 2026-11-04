@@ -246,11 +246,13 @@ export interface ChatListProps {
     groupAllChats?: boolean;
     sectionTitle?: string;
     onMarkSectionRead?: (chats: ChatSummary[]) => void;
+    sectionActionLabel?: string;
+    onRemoveAllDrafts?: () => void;
     /** When set, rows can be dragged to reorder this Mattermost category (Mattermost-style). */
     reorderable?: {categoryId: string} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, reorderable = null}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, sectionActionLabel, onRemoveAllDrafts, reorderable = null}: ChatListProps) {
     const {actions} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
@@ -356,7 +358,7 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
 
     return (
         <div className="tgw-chat-list" role="list">
-            {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onMarkSectionRead?.(chats)}>Mark all as read</button></div>}
+            {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onRemoveAllDrafts ? onRemoveAllDrafts() : onMarkSectionRead?.(chats)}>{sectionActionLabel || 'Mark all as read'}</button></div>}
             {groupAllChats ? allSections.map((section) => (
                 <React.Fragment key={section.key}>
                     <div className="tgw-section-heading"><span className="tgw-section-title">{section.label}</span><button type="button" onClick={() => onMarkSectionRead?.(section.chats)}>Mark all as read</button></div>

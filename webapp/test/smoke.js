@@ -71,6 +71,13 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => (folderBtn('Drafts')?.className || '').includes('tgw-folder-active'));
     ok(Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).some((el) => el.textContent.includes('Town Square')),
         'Drafts tab lists the channel returned by Mattermost');
+    const draftRow = Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
+    draftRow?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 60, clientY: 60}));
+    await waitFor(() => document.querySelector('.tgw-menu'));
+    const draftMenuLabels = Array.from(document.querySelectorAll('.tgw-menu-item')).map((item) => item.textContent.trim());
+    ok(draftMenuLabels.indexOf('Delete draft') === draftMenuLabels.indexOf('Add to favorites') + 1,
+        'chat context menu places Delete draft directly below Add to favorites');
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
     folderBtn('All')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
 
@@ -1616,6 +1623,16 @@ root.render(React.createElement(TelegramUI));
     ok((document.querySelector('.tgw-toasts')?.textContent || '').includes('Profile settings are not available in this Mattermost version'),
         'a host without either entry point gets a clear message');
     dom.window.WebappUtils.openUserSettings = realOpenUserSettings;
+
+    const draftsTab = Array.from(document.querySelectorAll('.tgw-folder')).find((button) => button.textContent.startsWith('Drafts'));
+    draftsTab?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => (draftsTab?.className || '').includes('tgw-folder-active'));
+    const removeAllDraftsButton = Array.from(document.querySelectorAll('.tgw-section-heading button')).find((button) => button.textContent === 'Remove all drafts');
+    ok(!!removeAllDraftsButton, 'Drafts tab offers Remove all drafts');
+    removeAllDraftsButton?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => calls.includes('DELETE /users/me/channels/channel-town/drafts'));
+    await waitFor(() => !Array.from(document.querySelectorAll('.tgw-folder')).some((button) => button.textContent.startsWith('Drafts')));
+    ok(calls.includes('DELETE /users/me/channels/channel-town/drafts'), 'Remove all drafts deletes drafts through Mattermost API');
 
     console.log('\n== stock UI view tracking ==');
     // A user on the stock Mattermost UI never scrolls our message list: opening a channel there

@@ -332,6 +332,11 @@ global.fetch = async (url, options = {}) => {
     if (/^\/users\/me\/teams\/[^/]+\/drafts$/.test(p)) {
         return json(serverDrafts);
     }
+    if (options.method === 'DELETE' && /^\/users\/me\/channels\/[^/]+\/drafts(?:\/[^/]+)?$/.test(p)) {
+        const [, channelId, rootId = ''] = p.match(/^\/users\/me\/channels\/([^/]+)\/drafts(?:\/([^/]+))?$/) || [];
+        serverDrafts = serverDrafts.filter((draft) => draft.channel_id !== channelId || (draft.root_id || '') !== rootId);
+        return json({channel_id: channelId, root_id: rootId});
+    }
     // Sidebar-category reorder (PUT /users/{user_id}/teams/{team_id}/channels/categories): the
     // server echoes the updated categories back as an array.
     if (options.method === 'PUT' && /^\/users\/[^/]+\/teams\/[^/]+\/channels\/categories$/.test(p)) {

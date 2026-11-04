@@ -25,6 +25,7 @@ import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from
 import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
+import {clearComposerDraft} from '../mm/drafts';
 import {updateSettings} from '../mm/settings';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
@@ -263,6 +264,16 @@ export function Sidebar() {
         actions.toast(failed ? `Could not mark ${failed} chats as read` : 'Chats marked as read', failed ? 'error' : 'success');
     };
 
+    const removeDraftEntries = async (entries: MMServerDraft[]) => {
+        const results = await Promise.allSettled(entries.map((draft) => api.deleteDraft(draft.channel_id, draft.root_id || '')));
+        const removed = entries.filter((_, index) => results[index].status === 'fulfilled');
+        removed.forEach((draft) => clearComposerDraft(draft.channel_id, draft.root_id || ''));
+        const removedKeys = new Set(removed.map((draft) => `${draft.channel_id}:${draft.root_id || ''}`));
+        setServerDrafts((current) => current.filter((draft) => !removedKeys.has(`${draft.channel_id}:${draft.root_id || ''}`)));
+        const failed = results.length - removed.length;
+        actions.toast(failed ? `Could not remove ${failed} drafts` : (entries.length === 1 ? 'Draft removed' : 'Drafts removed'), failed ? 'error' : 'success');
+    };
+
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -421,6 +432,14 @@ export function Sidebar() {
                     });
                 },
             },
+            ...(serverDrafts.some((draft) => draft.channel_id === summary.id && !draft.root_id) ? [{
+                key: 'delete-draft',
+                label: 'Delete draft',
+                onClick: () => {
+                    const draft = serverDrafts.find((entry) => entry.channel_id === summary.id && !entry.root_id);
+                    if (draft) void removeDraftEntries([draft]);
+                },
+            } as MenuEntry] : []),
             {
                 key: 'mute',
                 label: summary.muted ? 'Unmute' : 'Mute',
@@ -592,6 +611,8 @@ export function Sidebar() {
                         chats={visibleChats}
                         sectionTitle={tab?.kind !== 'all' ? tab?.label : undefined}
                         onMarkSectionRead={markSectionRead}
+                        sectionActionLabel={tab?.kind === 'drafts' ? 'Remove all drafts' : undefined}
+                        onRemoveAllDrafts={tab?.kind === 'drafts' ? () => removeDraftEntries(serverDrafts) : undefined}
                         selectedChannelId={ui.selectedChannelId}
                         onSelect={(id) => actions.openChat(id)}
                         onContextMenu={contextMenuForChat}
