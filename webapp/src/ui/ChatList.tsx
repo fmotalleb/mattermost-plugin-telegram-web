@@ -267,7 +267,7 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     };
     const favoriteChats = chats.filter((chat) => chat.isFavorite);
     const favoriteIds = new Set(favoriteChats.map((chat) => chat.id));
-    const draftChats = chats.filter((chat) => !favoriteIds.has(chat.id) && hasDraft(chat));
+    const draftChats = chats.filter(hasDraft);
     const groupedIds = new Set([...favoriteIds, ...draftChats.map((chat) => chat.id)]);
     const remainingChats = chats.filter((chat) => !groupedIds.has(chat.id));
     const allSections = [
