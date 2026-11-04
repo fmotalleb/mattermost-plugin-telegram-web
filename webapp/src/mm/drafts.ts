@@ -35,6 +35,20 @@ export function selectComposerDraft(state: MMState, channelId: string, rootId = 
     return item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item;
 }
 
+/** Mattermost's native draft list is built from stored `draft_<channelId>` items. */
+export function selectChannelDrafts(state: MMState): ComposerDraft[] {
+    const storage = state.storage?.storage || {};
+    return Object.keys(storage).filter((key) => key.startsWith(CHANNEL_DRAFT_PREFIX)).map((key) => {
+        const item = storage[key];
+        const draft = item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item;
+        if (!draft || (!draft.message?.trim() && !(draft.fileInfos || draft.file_infos || []).length)) {
+            return undefined;
+        }
+        const channelId = draft.channelId || draft.channel_id || key.slice(CHANNEL_DRAFT_PREFIX.length);
+        return {...draft, channelId, rootId: '', updateAt: draft.updateAt || draft.update_at || item.timestamp?.getTime?.() || 0} as ComposerDraft;
+    }).filter(Boolean) as ComposerDraft[];
+}
+
 /** Dispatches the same Redux actions Mattermost uses to keep its local draft storage up to date. */
 export function saveComposerDraft(channelId: string, message: string, rootId = '', show = true) {
     const key = draftKey(channelId, rootId);

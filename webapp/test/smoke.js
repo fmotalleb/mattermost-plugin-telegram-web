@@ -1633,6 +1633,14 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => calls.includes('DELETE /users/me/channels/channel-town/drafts'));
     await waitFor(() => !Array.from(document.querySelectorAll('.tgw-folder')).some((button) => button.textContent.startsWith('Drafts')));
     ok(calls.includes('DELETE /users/me/channels/channel-town/drafts'), 'Remove all drafts deletes drafts through Mattermost API');
+    state.storage.storage = {
+        ...state.storage.storage,
+        [`draft_${ids.DM}`]: {value: {channelId: ids.DM, message: 'new local draft', updateAt: Date.now()}},
+    };
+    notifyStoreChange();
+    await waitFor(() => Array.from(document.querySelectorAll('.tgw-folder')).some((button) => button.textContent.startsWith('Drafts')));
+    ok(Array.from(document.querySelectorAll('.tgw-folder')).some((button) => button.textContent.startsWith('Drafts')),
+        'a newly stored Mattermost draft immediately restores the Drafts tab');
 
     console.log('\n== stock UI view tracking ==');
     // A user on the stock Mattermost UI never scrolls our message list: opening a channel there

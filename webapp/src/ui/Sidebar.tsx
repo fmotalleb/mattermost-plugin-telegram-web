@@ -25,7 +25,7 @@ import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from
 import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
-import {clearComposerDraft} from '../mm/drafts';
+import {clearComposerDraft, selectChannelDrafts} from '../mm/drafts';
 import {updateSettings} from '../mm/settings';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
@@ -205,6 +205,20 @@ export function Sidebar() {
     const currentTeamId = useSelector(getCurrentTeamId);
     const draftStorage = useSelector((state) => state.storage?.storage);
     const [serverDrafts, setServerDrafts] = useState<MMServerDraft[]>([]);
+    const localDrafts = useMemo(() => selectChannelDrafts({storage: {storage: draftStorage}} as any).map((draft) => ({
+        channel_id: draft.channelId,
+        root_id: draft.rootId || '',
+        message: draft.message,
+        create_at: draft.createAt,
+        update_at: draft.updateAt,
+        file_ids: (draft.fileInfos || []).map((file) => file.id),
+    })), [draftStorage]);
+    const draftEntries = useMemo(() => {
+        const byKey = new Map<string, MMServerDraft>();
+        serverDrafts.forEach((draft) => byKey.set(`${draft.channel_id}:${draft.root_id || ''}`, draft));
+        localDrafts.forEach((draft) => byKey.set(`${draft.channel_id}:${draft.root_id || ''}`, {...byKey.get(`${draft.channel_id}:${draft.root_id || ''}`), ...draft}));
+        return Array.from(byKey.values()).sort((a, b) => (b.update_at || b.create_at || 0) - (a.update_at || a.create_at || 0));
+    }, [serverDrafts, localDrafts]);
     const [menu, setMenu] = useState<{x: number; y: number; items: MenuEntry[]; align?: 'left' | 'right'} | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -234,25 +248,25 @@ export function Sidebar() {
 
     const folderTabs = useMemo(() => {
         const result = tabs.slice();
-        if (serverDrafts.length) {
+        if (draftEntries.length) {
             const favoriteIndex = result.findIndex((entry) => entry.kind === 'category' && entry.type === 'favorites');
             result.splice(favoriteIndex < 0 ? 2 : favoriteIndex + 1, 0, {
                 id: '__drafts', label: 'Drafts', kind: 'drafts', sortOrder: 2,
             } as ChatTab);
         }
         return result;
-    }, [tabs, serverDrafts]);
+    }, [tabs, draftEntries]);
     const tab = folderTabs.find((entry) => entry.id === ui.activeTabId) || folderTabs[0];
     const draftChats = useMemo(() => {
-        const ids = Array.from(new Set(serverDrafts.map((draft) => draft.channel_id).filter(Boolean)));
+        const ids = Array.from(new Set(draftEntries.map((draft) => draft.channel_id).filter(Boolean)));
         return ids.map((id) => getChatSummary(getState(), id)).filter(Boolean) as ChatSummary[];
-    }, [serverDrafts, chats]);
+    }, [draftEntries, chats]);
     const visibleChats = tab?.kind === 'drafts' ? draftChats : chats;
     const isSearching = ui.search.trim().length > 0;
 
     useEffect(() => {
-        if (ui.activeTabId === '__drafts' && !serverDrafts.length) actions.setTab('__all');
-    }, [ui.activeTabId, serverDrafts, actions]);
+        if (ui.activeTabId === '__drafts' && !draftEntries.length) actions.setTab('__all');
+    }, [ui.activeTabId, draftEntries, actions]);
 
     const markSectionRead = async (sectionChats: ChatSummary[]) => {
         const unread = sectionChats.filter((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
@@ -265,7 +279,10 @@ export function Sidebar() {
     };
 
     const removeDraftEntries = async (entries: MMServerDraft[]) => {
-        const results = await Promise.allSettled(entries.map((draft) => api.deleteDraft(draft.channel_id, draft.root_id || '')));
+        const serverKeys = new Set(serverDrafts.map((draft) => `${draft.channel_id}:${draft.root_id || ''}`));
+        const results = await Promise.allSettled(entries.map((draft) => serverKeys.has(`${draft.channel_id}:${draft.root_id || ''}`)
+            ? api.deleteDraft(draft.channel_id, draft.root_id || '')
+            : Promise.resolve()));
         const removed = entries.filter((_, index) => results[index].status === 'fulfilled');
         removed.forEach((draft) => clearComposerDraft(draft.channel_id, draft.root_id || ''));
         const removedKeys = new Set(removed.map((draft) => `${draft.channel_id}:${draft.root_id || ''}`));
@@ -432,11 +449,11 @@ export function Sidebar() {
                     });
                 },
             },
-            ...(serverDrafts.some((draft) => draft.channel_id === summary.id && !draft.root_id) ? [{
+            ...(draftEntries.some((draft) => draft.channel_id === summary.id && !draft.root_id) ? [{
                 key: 'delete-draft',
                 label: 'Delete draft',
                 onClick: () => {
-                    const draft = serverDrafts.find((entry) => entry.channel_id === summary.id && !entry.root_id);
+                    const draft = draftEntries.find((entry) => entry.channel_id === summary.id && !entry.root_id);
                     if (draft) void removeDraftEntries([draft]);
                 },
             } as MenuEntry] : []),
@@ -612,7 +629,7 @@ export function Sidebar() {
                         sectionTitle={tab?.kind !== 'all' ? tab?.label : undefined}
                         onMarkSectionRead={markSectionRead}
                         sectionActionLabel={tab?.kind === 'drafts' ? 'Remove all drafts' : undefined}
-                        onRemoveAllDrafts={tab?.kind === 'drafts' ? () => removeDraftEntries(serverDrafts) : undefined}
+                        onRemoveAllDrafts={tab?.kind === 'drafts' ? () => removeDraftEntries(draftEntries) : undefined}
                         selectedChannelId={ui.selectedChannelId}
                         onSelect={(id) => actions.openChat(id)}
                         onContextMenu={contextMenuForChat}
