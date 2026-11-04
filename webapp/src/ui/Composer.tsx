@@ -10,7 +10,7 @@ import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {useSelector} from '../mm/store';
-import {clearComposerDraft, getComposerDraft, saveComposerDraft} from '../mm/drafts';
+import {clearComposerDraft, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
 import {useVoiceRecorder} from './voice';
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
@@ -47,7 +47,7 @@ interface PendingFile {
 export function Composer({quick = false, channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
     const {ui, actions, me} = useTg();
     const [message, setMessage] = useState(() => getComposerDraft(channel.id)?.message || '');
-    const storedDraftMessage = useSelector((state) => state.storage?.storage?.[`draft_${channel.id}`]?.message || '');
+    const storedDraftMessage = useSelector((state) => selectComposerDraft(state, channel.id)?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);

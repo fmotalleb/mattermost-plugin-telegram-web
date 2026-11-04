@@ -3,6 +3,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
+import {selectComposerDraft} from '../mm/drafts';
 import {reorderCategoryChannels} from '../mm/categories';
 import {getBlock, getCachedPreview, isPreviewLoading, prefetchPreview, subscribe as subscribePosts} from '../mm/posts';
 import {getMyId, getStatus} from '../mm/selectors';
@@ -65,7 +66,7 @@ export interface ChatRowProps {
 
 export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd, peerUser: resolvedPeer, peerUnavailable}: ChatRowProps) {
     const {timeFormat, settings, actions} = useTg();
-    const draft = useSelector((state) => state.storage?.storage?.[`draft_${summary.id}`]?.message || '');
+    const draft = useSelector((state) => selectComposerDraft(state, summary.id)?.message || '');
     const myId = useSelector(getMyId);
     const {post: preview, loading: previewLoading} = usePreview(summary.id);
     const lastPost = preview || undefined;

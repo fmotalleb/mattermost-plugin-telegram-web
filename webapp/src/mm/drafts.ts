@@ -2,7 +2,7 @@
 // keys channel drafts as `draft_<channelId>` and thread drafts as `comment_draft_<rootId>`.
 
 import {getState, getStore} from './store';
-import type {MMFileInfo} from './types';
+import type {MMFileInfo, MMState} from './types';
 
 const CHANNEL_DRAFT_PREFIX = 'draft_';
 const COMMENT_DRAFT_PREFIX = 'comment_draft_';
@@ -24,7 +24,15 @@ export function draftKey(channelId: string, rootId = ''): string {
 }
 
 export function getComposerDraft(channelId: string, rootId = ''): ComposerDraft | undefined {
-    return getState().storage?.storage?.[draftKey(channelId, rootId)];
+    return selectComposerDraft(getState(), channelId, rootId);
+}
+
+/** Mattermost's storage reducer wraps global items in {value, timestamp}. */
+export function selectComposerDraft(state: MMState, channelId: string, rootId = ''): ComposerDraft | undefined {
+    const item = state.storage?.storage?.[draftKey(channelId, rootId)];
+    // Accept unwrapped entries from older integrations as well. An empty wrapped
+    // value is a cleared draft and must not fall back to stale content.
+    return item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item;
 }
 
 /** Dispatches the same Redux actions Mattermost uses to keep its local draft storage up to date. */

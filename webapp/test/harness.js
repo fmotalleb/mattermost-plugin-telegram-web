@@ -559,7 +559,7 @@ const store = {
         if (action?.type === 'SET_GLOBAL_ITEM' && action.data?.name) {
             state.storage = {
                 ...state.storage,
-                storage: {...(state.storage?.storage || {}), [action.data.name]: action.data.value},
+                storage: {...(state.storage?.storage || {}), [action.data.name]: {value: action.data.value, timestamp: action.data.timestamp}},
             };
             listeners.forEach((listener) => listener());
         }
