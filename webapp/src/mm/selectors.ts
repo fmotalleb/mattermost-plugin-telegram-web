@@ -322,7 +322,9 @@ export function getAllChats(state: MMState): ChatSummary[] {
                     ids.push(channelId);
                 }
             });
-            return sortChatsByPriority(summarise(state, ids), true);
+            // The All folder is one chronological conversation list. Favorites remain marked
+            // with their star, but do not get a separate priority tier here.
+            return summarise(state, ids).sort(compareChats);
         },
     );
 }
