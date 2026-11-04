@@ -13,7 +13,7 @@
 const {
     dom, React, ReactDOM: ReactDOMClient, container, calls, payloads,
     store, state, posts, ids, tick, ok, fail, report, notifyStoreChange, holdPosts, viewTracking,
-    pushStockPost,
+    pushStockPost, setServerDrafts,
 } = require('./harness');
 
 // --------------------------------------------------------------------------- mount
@@ -29,6 +29,7 @@ const {TelegramUI} = require('../src/ui/TelegramUI');
 setStore(store);
 initSettings();
 updateSettings({mode: 'on', theme: 'light'});
+setServerDrafts([{channel_id: 'channel-town', message: 'unsent draft', update_at: Date.now()}]);
 
 // Waits until a condition holds, so assertions do not depend on how long a render takes.
 // Returns the first truthy value the predicate produced, so it can also hand back the found node.
@@ -62,11 +63,19 @@ root.render(React.createElement(TelegramUI));
     ok(body.includes('Mia Meyer'), 'user panel shows the current user');
     ok(searchChats(state, 'Direct').every((chat) => chat.title !== 'Direct message'),
         'searching Direct does not return DMs with the generic fallback title');
+    const folderBtn = (label) => Array.from(document.querySelectorAll('.tgw-folder'))
+        .find((btn) => (btn.textContent || '').startsWith(label));
+    await waitFor(() => folderBtn('Drafts'));
+    ok(!!folderBtn('Drafts'), 'Mattermost drafts API adds a Drafts folder after Favorites');
+    folderBtn('Drafts')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => (folderBtn('Drafts')?.className || '').includes('tgw-folder-active'));
+    ok(Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row-title')).some((el) => el.textContent.includes('Town Square')),
+        'Drafts tab lists the channel returned by Mattermost');
+    folderBtn('All')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
 
     // Each folder tab carries its unread message total. All sums everything (DM 4-2=2 + Town
     // Square 12-1=11 = 13); Unread lists only conversations that have unread messages.
-    const folderBtn = (label) => Array.from(document.querySelectorAll('.tgw-folder'))
-        .find((btn) => (btn.textContent || '').startsWith(label));
     const folderCount = (label) => {
         const badge = folderBtn(label)?.querySelector('.tgw-folder-badge');
         return badge ? badge.textContent : '';
@@ -129,7 +138,7 @@ root.render(React.createElement(TelegramUI));
         await tick(30);
         ok(groupsTabBtn.classList.contains('tgw-folder-dragover'), 'the drop target folder highlights');
         groupsTabBtn.dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
-        const expectedTabOrder = 'All,Unread,Work stuff,Groups,Direct Messages,Contacts';
+        const expectedTabOrder = 'All,Unread,Drafts,Work stuff,Groups,Direct Messages,Contacts';
         await waitFor(() => folderLabels().join(',') === expectedTabOrder);
         const reordered = folderLabels().join(',');
         ok(reordered === expectedTabOrder,
@@ -1099,8 +1108,9 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => allChatTitles()[0]?.startsWith('Alice Anderson'));
     ok(allChatTitles()[0]?.startsWith('Alice Anderson') && allChatTitles()[1] === 'Town Square' && allChatTitles().length === 2, `All sorts favorites with other chats by latest message (${allChatTitles().join(',')})`);
     const allSectionTitles = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-section-title')).map((el) => el.textContent.trim());
-    ok(allSectionTitles().includes('Unread') && allSectionTitles().every((title) => title === 'Unread' || title === 'Chats'), `All groups chats only under Unread and Chats (${allSectionTitles().join(',')})`);
+    ok(allSectionTitles().includes('Unread messages') && allSectionTitles().every((title) => title === 'Unread messages' || title === 'All messages'), `All groups chats only under Unread messages and All messages (${allSectionTitles().join(',')})`);
     ok(!allSectionTitles().includes('Favorites'), 'All does not show a separate Favorites section');
+    await waitFor(() => !!document.querySelector('.tgw-chat-row-star'));
     ok(!!document.querySelector('.tgw-chat-row-star'), 'seeding the favorite preference lights up the star on the row');
     const favRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Town Square'));
     ok(!!favRow, 'town square row found for the favorites check');

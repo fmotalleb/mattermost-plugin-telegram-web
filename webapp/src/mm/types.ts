@@ -111,6 +111,15 @@ export interface MMReaction {
     create_at: number;
 }
 
+export interface MMServerDraft {
+    channel_id: string;
+    root_id?: string;
+    message?: string;
+    create_at?: number;
+    update_at?: number;
+    file_ids?: string[];
+}
+
 export interface MMFileInfo {
     id: string;
     user_id: string;

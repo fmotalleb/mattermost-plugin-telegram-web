@@ -345,7 +345,7 @@ export function getChatsForIds(state: MMState, channelIds: string[]): ChatSummar
 export interface ChatTab {
     id: string;
     label: string;
-    kind: 'all' | 'unread' | 'category' | 'contacts';
+    kind: 'all' | 'unread' | 'category' | 'contacts' | 'drafts';
     type?: MMChannelCategory['type'];
     sortOrder: number;
 }

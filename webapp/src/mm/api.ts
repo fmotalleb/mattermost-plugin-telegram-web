@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMUser} from './types';
+import type {MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
 
 declare const window: any;
@@ -173,6 +173,10 @@ export class MattermostAPI {
 
     getMe(): Promise<MMUser> {
         return this.request<MMUser>('/users/me');
+    }
+
+    getDrafts(teamId: string): Promise<MMServerDraft[]> {
+        return this.request<MMServerDraft[]>(`/users/me/teams/${encodeURIComponent(teamId)}/drafts`);
     }
 
     getUsersByIds(ids: string[]): Promise<MMUser[]> {

@@ -16,9 +16,11 @@ import {
     searchContactCandidates,
 } from '../mm/selectors';
 import type {ChatSummary} from '../mm/selectors';
+import type {ChatTab} from '../mm/selectors';
 import {getStatus, getTeams as teamsSelector, getUser} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMPost} from '../mm/types';
+import type {MMServerDraft} from '../mm/types';
 import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
@@ -200,13 +202,56 @@ export function Sidebar() {
     const myStatus = useSelector((state) => getStatus(state, myId));
     const teams = useSelector(teamsSelector);
     const currentTeamId = useSelector(getCurrentTeamId);
+    const draftStorage = useSelector((state) => state.storage?.storage);
+    const [serverDrafts, setServerDrafts] = useState<MMServerDraft[]>([]);
     const [menu, setMenu] = useState<{x: number; y: number; items: MenuEntry[]; align?: 'left' | 'right'} | null>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const userButtonRef = useRef<HTMLButtonElement>(null);
 
-    const tab = tabs.find((entry) => entry.id === ui.activeTabId) || tabs[0];
+    useEffect(() => {
+        let cancelled = false;
+        if (!currentTeamId) {
+            setServerDrafts([]);
+            return undefined;
+        }
+        const timer = setTimeout(() => {
+            api.getDrafts(currentTeamId).then((drafts) => {
+                if (!cancelled) {
+                    const ordered = Array.isArray(drafts) ? drafts.slice().sort((a, b) => (b.update_at || b.create_at || 0) - (a.update_at || a.create_at || 0)) : [];
+                    setServerDrafts(ordered);
+                }
+            }).catch(() => {
+                if (!cancelled) setServerDrafts([]);
+            });
+        }, 250);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [currentTeamId, draftStorage]);
+
+    const folderTabs = useMemo(() => {
+        const result = tabs.slice();
+        if (serverDrafts.length) {
+            const favoriteIndex = result.findIndex((entry) => entry.kind === 'category' && entry.type === 'favorites');
+            result.splice(favoriteIndex < 0 ? 2 : favoriteIndex + 1, 0, {
+                id: '__drafts', label: 'Drafts', kind: 'drafts', sortOrder: 2,
+            } as ChatTab);
+        }
+        return result;
+    }, [tabs, serverDrafts]);
+    const tab = folderTabs.find((entry) => entry.id === ui.activeTabId) || folderTabs[0];
+    const draftChats = useMemo(() => {
+        const ids = Array.from(new Set(serverDrafts.map((draft) => draft.channel_id).filter(Boolean)));
+        return ids.map((id) => getChatSummary(getState(), id)).filter(Boolean) as ChatSummary[];
+    }, [serverDrafts, chats]);
+    const visibleChats = tab?.kind === 'drafts' ? draftChats : chats;
     const isSearching = ui.search.trim().length > 0;
+
+    useEffect(() => {
+        if (ui.activeTabId === '__drafts' && !serverDrafts.length) actions.setTab('__all');
+    }, [ui.activeTabId, serverDrafts, actions]);
 
     const markSectionRead = async (sectionChats: ChatSummary[]) => {
         const unread = sectionChats.filter((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
@@ -442,9 +487,9 @@ export function Sidebar() {
                 </button>
             </header>
 
-            {!isSearching && settings.folderTabs && tabs.length > 1 && (
+            {!isSearching && settings.folderTabs && folderTabs.length > 1 && (
                 <nav className="tgw-folders">
-                    {tabs.map((entry) => {
+                    {folderTabs.map((entry) => {
                         const unread = tabUnread[entry.id] || 0;
                         const tabChats = settings.quietUnreadCounts ? getTabChats(getState(), entry.id) : [];
                         const priorityUnread = tabChats.reduce((sum, chat) => sum + (chat.type === 'D' ? chat.unread : chat.mentions), 0);
@@ -491,7 +536,7 @@ export function Sidebar() {
                                     if (!isCategory || !dragged || dragged === entry.id) {
                                         return;
                                     }
-                                    const categoryIds = tabs.filter((tab) => tab.kind === 'category').map((tab) => tab.id);
+                                    const categoryIds = folderTabs.filter((tab) => tab.kind === 'category').map((tab) => tab.id);
                                     const without = categoryIds.filter((id) => id !== dragged);
                                     const at = without.indexOf(entry.id);
                                     without.splice(at === -1 ? without.length : at, 0, dragged);
@@ -544,7 +589,7 @@ export function Sidebar() {
                     </>
                 ) : (
                     <ChatList
-                        chats={chats}
+                        chats={visibleChats}
                         sectionTitle={tab?.kind !== 'all' ? tab?.label : undefined}
                         onMarkSectionRead={markSectionRead}
                         selectedChannelId={ui.selectedChannelId}
