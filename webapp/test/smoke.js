@@ -416,12 +416,13 @@ root.render(React.createElement(TelegramUI));
         document.body.appendChild(probe);
         const probeRoot = ReactDOMClient.createRoot(probe);
         probeRoot.render(React.createElement('span', null,
-            renderFallback('go to google.com or openai.com now (see https://x.io/y) mail bob@WAY.com')));
+            renderFallback('go to google.com or openai.com now (see https://x.io/y) mail bob@WAY.com and kmp-api-access.dornica.chat')));
         await tick(40);
         const links = Array.from(probe.querySelectorAll('a')).map((a) => `${a.textContent}→${a.getAttribute('href')}`);
         ok(links.includes('google.com→https://google.com'), `bare google.com linked without a scheme (${links.join(', ')})`);
         ok(links.includes('openai.com→https://openai.com'), 'bare openai.com linked');
         ok(links.includes('https://x.io/y→https://x.io/y'), 'an explicit https URL keeps working');
+        ok(links.includes('kmp-api-access.dornica.chat→https://kmp-api-access.dornica.chat'), 'the full .chat domain is linked without truncation');
         ok(!links.includes('bob@WAY.com→https://WAY.com'), 'an email address is not linkified as a bare domain');
         ok(!probe.querySelectorAll('a').length || probe.textContent.includes('bob@WAY.com'), 'the address stays visible as text');
         probeRoot.unmount();

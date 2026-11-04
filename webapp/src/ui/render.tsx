@@ -391,7 +391,7 @@ export function isolateLatinRuns(node: React.ReactNode): React.ReactNode {
  * nodes: both renderers only linked explicit http(s) URLs, so typed domains stayed plain. The
  * curated TLD list keeps words like version.js or file.name from turning into links.
  */
-const AUTOLINK_PATTERN = /(?:https?:\/\/[^\s<>()]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
+const AUTOLINK_PATTERN = /(?:https?:\/\/[^\s<>()]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|chat|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
 
 function linkifyText(text: string): React.ReactNode[] {
     const re = new RegExp(AUTOLINK_PATTERN.source, 'gi');
