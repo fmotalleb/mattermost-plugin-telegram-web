@@ -4059,3 +4059,4 @@ body.tgw-root-active {
 .tgw-root .tgw-quick-close { position: absolute; right: 14px; top: 14px; z-index: 5; }
 .tgw-root .tgw-quick-loading { padding: 70px 24px; background: var(--tgw-bg); height: 100%; }
 .tgw-root .tgw-draft-preview strong { color: var(--tgw-accent); font-weight: 500; }
+.tgw-root .tgw-chat-row-active .tgw-draft-preview strong { color: rgba(255, 255, 255, 0.95); }
