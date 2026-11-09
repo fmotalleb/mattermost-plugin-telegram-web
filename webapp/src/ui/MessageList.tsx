@@ -315,7 +315,9 @@ export function MessageList(props: MessageListProps) {
                     <React.Fragment key={post.id}>
                         {meta.startOfDay && (
                             <div className="tgw-date-separator">
-                                <span>{formatDateSeparator(post.create_at, timeFormat)}</span>
+                                <RelativeTimeTooltip timestamp={post.create_at} className="tgw-date-label">
+                                    {formatDateSeparator(post.create_at, timeFormat)}
+                                </RelativeTimeTooltip>
                             </div>
                         )}
                         {unreadDividerPostId === post.id && (
@@ -602,7 +604,9 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
                 <div className="tgw-msg-meta">
                     {post.edit_at > 0 && <span className="tgw-msg-edited" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
                     {post.is_pinned && <span className="tgw-msg-edited">pinned</span>}
-                    <span className="tgw-msg-time">{formatMessageStamp(post.create_at, timeFormat)}</span>
+                    <RelativeTimeTooltip timestamp={post.create_at} className="tgw-msg-time">
+                        {formatMessageStamp(post.create_at, timeFormat)}
+                    </RelativeTimeTooltip>
                     {/* Telegram shows view tallies on group/channel-style chats only — in a
                         direct message the read receipt (the double check below) already says
                         "they saw it", and a number next to every bubble is noise. The view
@@ -706,6 +710,26 @@ function replyAuthorName(post: MMPost, myId: string): string {
     const state = getState();
     const user = state.entities?.users?.profiles?.[post.user_id];
     return user ? displayName(user) : 'User';
+}
+
+/** Computes relative age only after hover, keeping the cost out of large message-list renders. */
+function RelativeTimeTooltip({timestamp, className, children}: {timestamp: number; className: string; children: React.ReactNode}) {
+    const [relativeAge, setRelativeAge] = useState('');
+    const loadRelativeAge = useCallback(() => {
+        if (relativeAge) {
+            return;
+        }
+        const elapsed = Math.max(0, Date.now() - timestamp);
+        const minutes = Math.floor(elapsed / 60_000);
+        const hours = Math.floor(elapsed / 3_600_000);
+        const days = Math.floor(elapsed / 86_400_000);
+        const age = minutes < 1 ? 'just now'
+            : minutes < 60 ? `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+                : hours < 24 ? `${hours} hour${hours === 1 ? '' : 's'} ago`
+                    : `${days} day${days === 1 ? '' : 's'} ago`;
+        setRelativeAge(age);
+    }, [relativeAge, timestamp]);
+    return <span className={`${className} tgw-relative-time`} data-tooltip={relativeAge || undefined} onMouseEnter={loadRelativeAge}>{children}</span>;
 }
 
 function systemText(post: MMPost): string {

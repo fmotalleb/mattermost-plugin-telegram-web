@@ -3558,6 +3558,30 @@ body.tgw-root-active {
     white-space: nowrap;
 }
 
+.tgw-relative-time {
+    position: relative;
+    cursor: help;
+}
+
+.tgw-relative-time[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    z-index: 30;
+    left: 50%;
+    bottom: calc(100% + 7px);
+    transform: translateX(-50%);
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: var(--tgw-tooltip-bg, #202124);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
 /* Telegram-style view tally under the bubble (filled eye + count). */
 .tgw-msg-views {
     display: inline-flex;
