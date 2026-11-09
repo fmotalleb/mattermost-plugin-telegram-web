@@ -399,9 +399,20 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
     const avatarSize = settings.compactMode ? 28 : 40;
     const author = useSelector((state) => state.entities?.users?.profiles?.[post.user_id]);
     const systemUsername = post.props?.username || post.props?.removedUsername;
-    const systemUser = useSelector((state) => systemUsername
-        ? Object.values(state.entities?.users?.profiles || {}).find((user) => user.username === systemUsername)
-        : undefined);
+    const systemUser = useSelector((state) => {
+        const profiles = state.entities?.users?.profiles || {};
+        // For add-to-channel system posts, username is the actor (the person who
+        // invited), while addedUserId identifies the person who joined.
+        if (post.type === 'system_add_to_channel' && post.props?.addedUserId) {
+            return profiles[post.props.addedUserId];
+        }
+        return systemUsername
+            ? Object.values(profiles).find((user) => user.username === systemUsername)
+            : undefined;
+    });
+    const systemDisplayName = post.type === 'system_add_to_channel'
+        ? systemUser?.username || post.message
+        : systemUsername;
     const customEmoji = useSelector(getCustomEmoji);
     // The reaction cache lives outside the Mattermost store and mutates in place, so a plain
     // selector never sees the change: subscribe to the cache itself instead.
@@ -509,8 +520,8 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
     if (isSystem) {
         return (
             <div className="tgw-system-post" data-post-id={post.id}>
-                {systemUser && systemUsername
-                    ? <span><button type="button" className="tgw-system-user-link" onClick={() => actions.openUserChat(systemUser.id)}>{systemUsername}</button>{post.props?.removedUsername ? ' left' : ' joined'}</span>
+                {systemUser && systemDisplayName
+                    ? <span><button type="button" className="tgw-system-user-link" onClick={() => actions.openUserChat(systemUser.id)}>{systemDisplayName}</button>{post.props?.removedUsername ? ' left' : ' joined'}</span>
                     : <span>{toPlainPreview(post.message) || systemText(post)}</span>}
             </div>
         );
