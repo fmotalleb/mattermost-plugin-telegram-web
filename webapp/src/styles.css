@@ -1677,13 +1677,6 @@ img.tgw-reaction-emoji {
     cursor: pointer;
 }
 
-.tgw-typing {
-    align-self: flex-start;
-    margin: 8px 4px 2px 52px;
-    font-size: 13px;
-    color: var(--tgw-text-secondary);
-}
-
 .tgw-bottom-anchor {
     height: 1px;
 }

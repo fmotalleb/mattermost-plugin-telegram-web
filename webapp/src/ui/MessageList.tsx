@@ -4,7 +4,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {api} from '../mm/api';
 import {emojiChar} from '../mm/emoji';
 import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
-import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat, getTypingUserIds} from '../mm/selectors';
+import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
 import {ensureViewStats, getPostViewers, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
@@ -70,9 +70,6 @@ export function MessageList(props: MessageListProps) {
     const lastChannelId = useRef<string>('');
     const loadOlderIntent = useRef(false);
     const scrollAnchor = useRef<{element: Element; top: number} | null>(null);
-
-    const typingIds = useSelector((state) => getTypingUserIds(state, channel.id));
-    const profiles = useSelector((state) => state.entities?.users?.profiles);
 
     // The view-stat refresh policy (receipts and tallies both come from the plugin's view API):
     //   direct chats — a receipt only moves when the other side opens the message, so the list
@@ -227,7 +224,7 @@ export function MessageList(props: MessageListProps) {
         observer.observe(element);
         Array.from(element.children).forEach((child) => observer.observe(child));
         return () => observer.disconnect();
-    }, [channel.id, posts, loading, loadingOlder, hasMoreOlder, typingIds.length, unreadDividerPostId, scrollToBottom, rememberScrollAnchor]);
+    }, [channel.id, posts, loading, loadingOlder, hasMoreOlder, unreadDividerPostId, scrollToBottom, rememberScrollAnchor]);
 
     useEffect(() => {
         if (!highlightedPostId) {
@@ -337,12 +334,6 @@ export function MessageList(props: MessageListProps) {
                         />
                     </React.Fragment>
                 ))}
-                {typingIds.length > 0 && (
-                    <div className="tgw-typing">
-                        {typingIds.slice(0, 3).map((id) => (profiles?.[id] ? displayName(profiles[id]) : 'Someone')).join(', ')}
-                        {` ${typingIds.length === 1 ? 'is' : 'are'} typing…`}
-                    </div>
-                )}
                 <div ref={bottomRef} className="tgw-bottom-anchor"/>
             </div>
 
