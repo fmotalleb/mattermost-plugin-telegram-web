@@ -24,6 +24,7 @@ const (
 	// this is not subject to a server's search-result cap.
 	channelSearchPath = "/api/v1/channel-search"
 	forwardPath       = "/api/v1/forward"
+	unmuteChannelPath = "/api/v1/channel-unmute"
 
 	maxPostIDsPerRequest  = 100
 	channelSearchPageSize = 100
@@ -43,6 +44,15 @@ func (p *Plugin) OnActivate() error {
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	switch {
+	case strings.HasSuffix(path, unmuteChannelPath):
+		if r.Method != http.MethodPost {
+			if !setResponseHeader(w, "Allow", http.MethodPost) {
+				return
+			}
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		p.handleUnmuteChannel(w, r)
 	case strings.HasSuffix(path, viewsPath):
 		switch r.Method {
 		case http.MethodPost:

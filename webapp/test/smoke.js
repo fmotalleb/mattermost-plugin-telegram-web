@@ -949,6 +949,36 @@ root.render(React.createElement(TelegramUI));
         townRow.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await tick(60);
         ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Town Square', 'clicking a chat opens it');
+        // Bulk unmute is an explicit, confirmed system-admin action.
+        const click = (node) => node?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        const bulkUnmuteItem = () => Array.from(document.querySelectorAll('.tgw-menu-item')).find((node) => node.textContent.trim() === 'Unmute for everyone');
+        click(document.querySelector('.tgw-chat-header [title="More"]'));
+        await tick(30);
+        ok(!bulkUnmuteItem(), 'ordinary members do not see Unmute for everyone');
+        document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        const originalMe = state.entities.users.profiles[ids.ME];
+        state.entities.users.profiles[ids.ME] = {...originalMe, roles: 'system_user system_admin'};
+        notifyStoreChange();
+        await tick(40);
+        const originalUnmute = api.unmuteChannelForEveryone;
+        const unmuteCalls = [];
+        api.unmuteChannelForEveryone = async (id) => { unmuteCalls.push(id); return {updated: 201, failed: 0}; };
+        click(document.querySelector('.tgw-chat-header [title="More"]'));
+        await tick(30);
+        ok(!!bulkUnmuteItem(), 'system admins see Unmute for everyone on a channel');
+        click(bulkUnmuteItem());
+        await tick(30);
+        ok(document.body.textContent.includes('Members can mute the channel again afterward.'), 'bulk unmute explains its scope before confirmation');
+        ok(unmuteCalls.length === 0, 'opening confirmation does not change member settings');
+        click(Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === 'Unmute everyone'));
+        await tick(50);
+        ok(unmuteCalls.length === 1 && unmuteCalls[0] === ids.TOWN, 'confirming bulk unmute targets the selected channel');
+        ok(document.querySelector('.tgw-toasts')?.textContent.includes('Channel unmuted for 201 members'), 'bulk unmute reports the server result');
+        api.unmuteChannelForEveryone = originalUnmute;
+        state.entities.users.profiles[ids.ME] = originalMe;
+        notifyStoreChange();
+        await tick(40);
+
         ok(document.querySelector('.tgw-composer textarea')?.value === 'saved Town Square draft', 'opening a chat loads its Mattermost draft into the composer');
         const draftInput = document.querySelector('.tgw-composer textarea');
         if (draftInput) {

@@ -75,6 +75,10 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   scroll-to-latest pill.
 * **Per-chat actions** — mute/unmute, add to favorites (Mattermost favorite category), mark as read,
   copy channel link, channel/contact info panel with members and shared files, leave channel.
+* **Unmute a channel for everyone** — system admins can choose **More → Unmute for everyone**
+  in a public or private channel. After confirmation, the server resets all current members to
+  default desktop/push notifications and all-message unread indicators. Members can mute again;
+  this does not enforce a policy for future members. Requires the plugin's server component.
 * **Composer** — attachment tray, emoji picker, reply bar, `Enter` sends, `Shift+Enter` adds a line,
   optimistic "sending…" bubble that is reconciled with the server response.
 * **Create** — *New Message* (opens/creates a DM), *New Group* (group message), *New Channel*, plus

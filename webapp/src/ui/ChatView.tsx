@@ -324,6 +324,26 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                     }).catch(() => actions.toast('Could not change notifications', 'error'));
                 },
             },
+            ...((channel.type === 'O' || channel.type === 'P') && me?.roles?.split(/\s+/).includes('system_admin') ? [{
+                key: 'unmute-everyone',
+                label: 'Unmute for everyone',
+                icon: <IconBell size={18}/>,
+                onClick: () => actions.askConfirm({
+                    title: `Unmute ${summary.title} for everyone?`,
+                    body: 'Reset mute settings for all current channel members to their default desktop and push notifications, and show unread indicators for all messages. Members can mute the channel again afterward.',
+                    confirmLabel: 'Unmute everyone',
+                    onConfirm: async () => {
+                        try {
+                            const result = await api.unmuteChannelForEveryone(channel.id);
+                            actions.toast(result.failed
+                                ? `Unmuted for ${result.updated} members; ${result.failed} could not be updated. Try again.`
+                                : `Channel unmuted for ${result.updated} members`, result.failed ? 'error' : 'success');
+                        } catch (error: any) {
+                            actions.toast(error.message || 'Could not unmute the channel for everyone', 'error');
+                        }
+                    },
+                }),
+            }] : []),
             ...(!quick ? [{
                 key: 'read',
                 label: 'Mark as read',

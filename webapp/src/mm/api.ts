@@ -281,6 +281,10 @@ export class MattermostAPI {
         return this.request(`/channels/${channelId}/members/${userId}/notify_props`, {method: 'PUT', body: props});
     }
 
+    unmuteChannelForEveryone(channelId: string): Promise<{updated: number; failed: number}> {
+        return this.pluginRequest('/api/v1/channel-unmute', {method: 'POST', body: {channel_id: channelId}});
+    }
+
     /**
      * View a channel as the current user (clears its unread badge).
      * The route is POST /channels/members/{user_id}/view - the channel id travels in the body,

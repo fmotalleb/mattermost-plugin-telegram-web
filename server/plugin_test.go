@@ -25,7 +25,7 @@ func TestDisconnectedResponse(t *testing.T) {
 	writeJSON(w, map[string]int{"count": 1})
 	writeError(w, http.StatusInternalServerError, "unavailable")
 
-	for _, path := range []string{viewsPath, channelSearchPath, forwardPath, "/unknown"} {
+	for _, path := range []string{viewsPath, channelSearchPath, forwardPath, unmuteChannelPath, "/unknown"} {
 		t.Run(path, func(t *testing.T) {
 			p := &Plugin{}
 			w := disconnectedResponseWriter{testing: t}
@@ -63,7 +63,7 @@ func TestJSONResponses(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{viewsPath, channelSearchPath, forwardPath} {
+	for _, path := range []string{viewsPath, channelSearchPath, forwardPath, unmuteChannelPath} {
 		w := httptest.NewRecorder()
 		(&Plugin{}).ServeHTTP(nil, w, httptest.NewRequest(http.MethodDelete, path, nil))
 		if w.Code != http.StatusMethodNotAllowed || w.Header().Get("Allow") == "" {
