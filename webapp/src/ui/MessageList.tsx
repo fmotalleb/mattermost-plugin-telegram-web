@@ -56,7 +56,7 @@ interface RowMeta {
 }
 
 export function MessageList(props: MessageListProps) {
-    const {channel, posts, loading, loadingOlder, hasMoreOlder, highlightedPostId, onContextMenu, onReact, onToggleReaction, onOpenThread} = props;
+    const {channel, posts, loading, loadingOlder, hasMoreOlder, highlightedPostId, onContextMenu, onReact, onToggleReaction, onOpenThread, quick = false} = props;
     const {ui, actions, timeFormat, settings, me} = useTg();
     const myId = me?.id || '';
     const listRef = useRef<HTMLDivElement>(null);
@@ -487,6 +487,9 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
             return undefined;
         }
         ensureViewStats([post.id]);
+        if (quick) {
+            return undefined;
+        }
         const element = rowRef.current;
         if (!element || typeof IntersectionObserver === 'undefined') {
             markPostVisible(post.id);
@@ -500,7 +503,7 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
         }, {threshold: 0.6});
         observer.observe(element);
         return () => observer.disconnect();
-    }, [post.id, isSystem]);
+    }, [post.id, isSystem, quick]);
 
     if (isSystem) {
         return (

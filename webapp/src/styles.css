@@ -2930,6 +2930,28 @@ img.tgw-reaction-emoji {
     min-height: 0;
 }
 
+.tgw-picker-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.tgw-picker-bulk-action {
+    padding: 3px 0;
+    border: 0;
+    color: var(--tgw-accent);
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.tgw-picker-bulk-action:disabled {
+    color: var(--tgw-text-tertiary);
+    cursor: default;
+    opacity: .65;
+}
+
 .tgw-picker-list {
     max-height: 320px;
     overflow-y: auto;

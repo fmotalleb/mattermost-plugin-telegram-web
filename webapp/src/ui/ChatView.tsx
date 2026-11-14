@@ -13,7 +13,7 @@ import {useTg} from './context';
 import {MessageList} from './MessageList';
 import {Menu, menuPositionFromElement} from './menu';
 import type {MenuEntry} from './menu';
-import {Avatar, IconBack, IconBell, IconClose, IconFile, IconLink, IconMore, IconMute, IconSearch, IconStar, IconUsers, IconCheck} from './primitives';
+import {Avatar, IconBack, IconBell, IconClose, IconFile, IconLink, IconMore, IconMute, IconSearch, IconStar, IconUsers} from './primitives';
 
 const IN_CHAT_SEARCH_PAGE_SIZE = 100;
 
@@ -93,9 +93,11 @@ export function ChatView({quick = false}: {quick?: boolean}) {
     useEffect(() => {
         if (channelId) {
             loadChannel(channelId);
-            api.viewChannel(channelId).catch(() => undefined);
+            if (!quick) {
+                api.viewChannel(channelId).catch(() => undefined);
+            }
         }
-    }, [channelId]);
+    }, [channelId, quick]);
 
     // Mattermost's indexed post search can be capped. Prefer the plugin endpoint that walks the
     // complete retained history; installations without the server component fall back to walking
@@ -252,13 +254,15 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                 }
                 receivePost(merged);
             }
-            api.viewChannel(channel.id).catch(() => undefined);
+            if (!quick) {
+                api.viewChannel(channel.id).catch(() => undefined);
+            }
         } catch (error: any) {
             markFailed(channel.id, optimistic.id);
             // Rethrow so the composer can restore the draft; it also owns the toast.
             throw error;
         }
-    }, [channel, me]);
+    }, [channel, me, quick]);
 
     // Toggling is always about *my* participation in an emoji, never about the reaction object
     // the chip happened to hand us - that one may belong to whoever reacted first.
@@ -320,12 +324,11 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                     }).catch(() => actions.toast('Could not change notifications', 'error'));
                 },
             },
-            {
+            ...(!quick ? [{
                 key: 'read',
                 label: 'Mark as read',
-                icon: <IconCheck size={16}/>,
                 onClick: () => api.viewChannel(channel.id).catch(() => undefined),
-            },
+            }] : []),
             'separator',
             {
                 key: 'permalink',

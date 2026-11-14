@@ -46,15 +46,18 @@ export function ModalShell({title, children, footer, width = 460, onClose}: {tit
 function MemberPicker({selected, onChange, exclude, placeholder}: {selected: string[]; onChange: (ids: string[]) => void; exclude?: string[]; placeholder?: string}) {
     const [term, setTerm] = useState('');
     const contacts = useSelector(getContacts);
-    const filtered = useMemo(() => {
+    const matches = useMemo(() => {
         const excluded = new Set(exclude || []);
         const list = contacts.filter((user) => !excluded.has(user.id));
         if (!term.trim()) {
-            return list.slice(0, 120);
+            return list;
         }
         const lower = term.toLowerCase();
-        return list.filter((user) => displayName(user).toLowerCase().includes(lower) || (user.username || '').includes(lower));
+        return list.filter((user) => displayName(user).toLowerCase().includes(lower) || (user.username || '').toLowerCase().includes(lower));
     }, [contacts, term, exclude]);
+    const filtered = matches.slice(0, 120);
+    const matchingIds = matches.map((user) => user.id);
+    const allMatchingSelected = matchingIds.length > 0 && matchingIds.every((id) => selected.includes(id));
 
     const toggle = (userId: string) => {
         onChange(selected.includes(userId) ? selected.filter((id) => id !== userId) : [...selected, userId]);
@@ -82,6 +85,10 @@ function MemberPicker({selected, onChange, exclude, placeholder}: {selected: str
                     })}
                 </div>
             )}
+            <div className="tgw-picker-bulk-actions">
+                <button type="button" className="tgw-picker-bulk-action" disabled={!matchingIds.length || allMatchingSelected} onClick={() => onChange(Array.from(new Set([...selected, ...matchingIds])))}>Select all{matches.length > 120 ? ` (${matches.length})` : ''}</button>
+                <button type="button" className="tgw-picker-bulk-action" disabled={!matchingIds.some((id) => selected.includes(id))} onClick={() => onChange(selected.filter((id) => !matchingIds.includes(id)))}>Deselect all</button>
+            </div>
             <div className="tgw-picker-list">
                 {filtered.map((user) => (
                     <button
@@ -98,7 +105,7 @@ function MemberPicker({selected, onChange, exclude, placeholder}: {selected: str
                         <span className="tgw-picker-check">{selected.includes(user.id) ? '✓' : ''}</span>
                     </button>
                 ))}
-                {!filtered.length && <div className="tgw-empty-list"><div className="tgw-empty-title">Nobody found</div></div>}
+                {!matches.length && <div className="tgw-empty-list"><div className="tgw-empty-title">Nobody found</div></div>}
             </div>
         </div>
     );
