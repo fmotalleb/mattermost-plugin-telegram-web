@@ -4131,3 +4131,5 @@ body.tgw-root-active {
 .tgw-root .tgw-scheduled-failed { color: #c62828; }
 .tgw-root.tgw-theme-dark .tgw-scheduled-failed, .tgw-root.tgw-theme-midnight .tgw-scheduled-failed { color: #ff8a80; }
 .tgw-root .tgw-scheduled-content { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.tgw-root .tgw-scheduled-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }

@@ -9,7 +9,8 @@ function localDateTime(timestamp: number) {
     return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:${part(date.getMinutes())}`;
 }
 
-export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy, canSend, onSchedule}: {
+export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy, canSend, onSchedule, restoreSchedule}: {
+    restoreSchedule?: {id: string; scheduledAt: number};
     urgent: boolean; onUrgent: (value: boolean) => void; priorityDisabled: boolean;
     disabled: boolean; busy: boolean; canSend: boolean; onSchedule: (timestamp: number) => Promise<boolean>;
 }) {
@@ -25,6 +26,12 @@ export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy,
     const scheduleButton = useRef<HTMLButtonElement>(null);
     const dateInput = useRef<HTMLInputElement>(null);
     const openQueue = () => { setOpen(false); scheduleButton.current?.focus(); if (channel) actions.openModal('scheduledMessages', {channelId: channel.id}); };
+    useEffect(() => {
+        if (!restoreSchedule) return;
+        setWhen(localDateTime(restoreSchedule.scheduledAt));
+        setError('');
+        setOpen(true);
+    }, [restoreSchedule]);
     useEffect(() => {
         if (disabled) setOpen(false);
     }, [disabled]);
@@ -45,7 +52,7 @@ export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy,
             aria-label={count ? `Schedule send, ${countLabel}` : 'Schedule send'} aria-expanded={open}
             onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); openQueue(); }}
             onKeyDown={(event) => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); openQueue(); } }}
-            disabled={disabled || busy} onClick={() => { setWhen(localDateTime(Date.now() + 3600000)); setError(''); setOpen(!open); }}><IconClock size={16}/><span>Schedule</span>{count > 0 && <span className={`tgw-schedule-count ${failedCount ? 'tgw-schedule-count-error' : ''}`} aria-hidden="true">{count > 99 ? '99+' : count}</span>}</button>
+            disabled={disabled || busy} onClick={() => { setWhen(restoreSchedule ? when || localDateTime(restoreSchedule.scheduledAt) : localDateTime(Date.now() + 3600000)); setError(''); setOpen(!open); }}><IconClock size={16}/><span>Schedule</span>{count > 0 && <span className={`tgw-schedule-count ${failedCount ? 'tgw-schedule-count-error' : ''}`} aria-hidden="true">{count > 99 ? '99+' : count}</span>}</button>
         {open && !disabled && <div className="tgw-schedule-panel" role="group" aria-label="Schedule message"
             onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
             <label>Send at<input ref={dateInput} aria-label="Scheduled send time" type="datetime-local" value={when} min={localDateTime(Date.now() + 60000)}
@@ -57,7 +64,7 @@ export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy,
                 <button type="button" disabled={busy || !canSend} onClick={async () => {
                     const timestamp = new Date(when).getTime();
                     if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { setError('Choose a time in the future'); return; }
-                    if (await onSchedule(timestamp)) close();
+                    if (await onSchedule(timestamp)) { close(); setWhen(''); }
                 }}>{busy ? 'Scheduling…' : 'Schedule message'}</button>
             </div>
         </div>}

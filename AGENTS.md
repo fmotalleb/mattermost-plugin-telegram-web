@@ -20,7 +20,7 @@ Minimum toolchains: Node 24+, Go 1.26 (see `server/go.mod`). There is no linter 
 - **No `mattermost-redux` dependency.** The data layer is `webapp/src/mm/` (store bridge, selectors, REST `api.ts`, socket, post cache). It reads the Redux store the host passes to `initialize(registry, store)` and calls the REST API with session cookie + CSRF. New data access belongs there.
 - Entry point: `webapp/src/index.tsx` registers via `window.registerPlugin(PLUGIN_ID, …)`. UI lives in `webapp/src/ui/`; all styling is one file, `webapp/src/styles.css`, scoped under `.tgw-root` and inlined into the bundle by style-loader.
 - Per-user settings are a Mattermost user preference under key `com.telegramweb.ui--settings` (`src/mm/settings.ts`), not plugin KV. Server-side defaults come from `plugin.json → settings_schema` via client config.
-- Go server (`server/`) provides Telegram view counts (`tg_webui_user_view_tracking`), channel actions, and plugin-owned scheduled messages (`/api/v1/scheduled-posts`). Schedules persist in plugin KV, not Mattermost's licensed scheduled-posts store; a cluster-coordinated worker checks every 10 seconds and stops on deactivation. Only linux-amd64/arm64 ship.
+- Go server (`server/`) provides Telegram view counts (`tg_webui_user_view_tracking`), channel actions, and plugin-owned scheduled messages (`/api/v1/scheduled-posts`). Schedules persist in plugin KV, not Mattermost's licensed scheduled-posts store; a cluster-coordinated worker checks every 30 seconds and stops on deactivation. Only linux-amd64/arm64 ship.
 - `tsconfig.json` has `strict: false` and `noImplicitAny: false` — match the existing loose style; do not "fix" it as part of unrelated changes.
 
 ## Testing

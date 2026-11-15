@@ -2,7 +2,7 @@
 // quick chat and queue modal. Pending requests cannot overwrite a newly scheduled message.
 import {useEffect, useState} from 'react';
 import {api} from './api';
-import {subscribeScheduledPostCreated} from './scheduled-events';
+import {subscribeScheduledPostCreated, subscribeScheduledPostRemoved} from './scheduled-events';
 import {useSelector} from './store';
 import type {MMScheduledPost} from './types';
 
@@ -62,7 +62,14 @@ export function useScheduledPosts(channelId?: string) {
                 emit(current);
                 void load(current, channelId!, userId, true);
             });
-            current.stop = () => { clearInterval(timer); window.removeEventListener('focus', refresh); unsubscribe(); };
+            const unsubscribeRemoved = subscribeScheduledPostRemoved((post) => {
+                if (post.channel_id !== channelId || (post.user_id && post.user_id !== userId)) return;
+                current.revision++;
+                current.state = {...current.state, posts: current.state.posts.filter((item) => item.id !== post.id), error: ''};
+                emit(current);
+                void load(current, channelId!, userId, true);
+            });
+            current.stop = () => { clearInterval(timer); window.removeEventListener('focus', refresh); unsubscribe(); unsubscribeRemoved(); };
         }
         void load(current, channelId!, userId);
         return () => {

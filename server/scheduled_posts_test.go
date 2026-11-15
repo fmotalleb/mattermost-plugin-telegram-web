@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ const scheduleFileID = "cccccccccccccccccccccccccc"
 const scheduleRootID = "dddddddddddddddddddddddddd"
 
 type schedulingAPI struct {
+	beforeClaim func()
 	plugin.API
 	data             map[string][]byte
 	history          []*model.Post
@@ -46,6 +48,31 @@ func (a *schedulingAPI) KVSet(key string, data []byte) *model.AppError {
 	}
 	a.data[key] = append([]byte(nil), data...)
 	return nil
+}
+func (a *schedulingAPI) KVCompareAndSet(key string, old, next []byte) (bool, *model.AppError) {
+	if a.beforeClaim != nil {
+		hook := a.beforeClaim
+		a.beforeClaim = nil
+		hook()
+	}
+	if a.failSave {
+		return false, &model.AppError{StatusCode: 500}
+	}
+	if !bytes.Equal(a.data[key], old) {
+		return false, nil
+	}
+	a.data[key] = append([]byte(nil), next...)
+	return true, nil
+}
+func (a *schedulingAPI) KVCompareAndDelete(key string, old []byte) (bool, *model.AppError) {
+	if a.failDelete {
+		return false, &model.AppError{StatusCode: 500}
+	}
+	if !bytes.Equal(a.data[key], old) {
+		return false, nil
+	}
+	delete(a.data, key)
+	return true, nil
 }
 func (a *schedulingAPI) KVGet(key string) ([]byte, *model.AppError) { return a.data[key], nil }
 func (a *schedulingAPI) KVDelete(key string) *model.AppError {
@@ -332,5 +359,76 @@ func TestScheduledListPrivacyAndPaging(t *testing.T) {
 	p.runScheduledPosts()
 	if len(api.creates) != 205 || len(api.data) != 0 {
 		t.Fatalf("paging skipped jobs while deleting: creates=%d pending=%d", len(api.creates), len(api.data))
+	}
+}
+
+func TestCancelScheduledPost(t *testing.T) {
+	for _, tc := range []struct {
+		name, user string
+		started    bool
+		fail       bool
+		want       int
+	}{
+		{"owner", scheduleUserID, false, false, 200},
+		{"anonymous", "", false, false, 401},
+		{"another user", model.NewId(), false, false, 404},
+		{"delivering", scheduleUserID, true, false, 409},
+		{"storage error", scheduleUserID, false, true, 500},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &schedulingAPI{data: map[string][]byte{}, allowed: true, failDelete: tc.fail}
+			p := &Plugin{}
+			p.SetAPI(a)
+			job := &scheduledPost{ID: model.NewId(), UserID: scheduleUserID, ChannelID: scheduleChannelID, Message: "cancel me", ScheduledAt: model.GetMillis() - 1}
+			if tc.started {
+				job.StartedAt = model.GetMillis()
+			}
+			if err := p.saveScheduledPost(job); err != nil {
+				t.Fatal(err)
+			}
+			snapshot := *job
+			req := httptest.NewRequest(http.MethodDelete, schedulePath+"/"+job.ID, nil)
+			req.Header.Set("Mattermost-User-Id", tc.user)
+			out := httptest.NewRecorder()
+			p.ServeHTTP(nil, out, req)
+			if out.Code != tc.want {
+				t.Fatalf("status %d: %s", out.Code, out.Body.String())
+			}
+			if tc.want == 200 {
+				p.deliverScheduledPost(&snapshot, model.GetMillis())
+				if len(a.creates) != 0 || len(a.data) != 0 {
+					t.Fatal("cancelled schedule was resurrected by stale worker snapshot")
+				}
+				var removed scheduledPost
+				if err := json.Unmarshal(out.Body.Bytes(), &removed); err != nil || removed.Message != job.Message {
+					t.Fatal("missing removed message for edit hydration")
+				}
+			} else if len(a.data) != 1 {
+				t.Fatal("unsuccessful cancellation lost schedule")
+			}
+		})
+	}
+}
+
+func TestCancellationWinsDeliveryClaim(t *testing.T) {
+	a := &schedulingAPI{data: map[string][]byte{}, allowed: true}
+	p := &Plugin{}
+	p.SetAPI(a)
+	job := &scheduledPost{ID: model.NewId(), UserID: scheduleUserID, ChannelID: scheduleChannelID, Message: "cancel race", ScheduledAt: model.GetMillis() - 1}
+	if err := p.saveScheduledPost(job); err != nil {
+		t.Fatal(err)
+	}
+	a.beforeClaim = func() {
+		req := httptest.NewRequest(http.MethodDelete, schedulePath+"/"+job.ID, nil)
+		req.Header.Set("Mattermost-User-Id", scheduleUserID)
+		out := httptest.NewRecorder()
+		p.ServeHTTP(nil, out, req)
+		if out.Code != 200 {
+			t.Fatalf("cancellation failed: %d", out.Code)
+		}
+	}
+	p.deliverScheduledPost(job, model.GetMillis())
+	if len(a.creates) != 0 || len(a.data) != 0 {
+		t.Fatal("delivery claim ignored successful concurrent cancellation")
 	}
 }

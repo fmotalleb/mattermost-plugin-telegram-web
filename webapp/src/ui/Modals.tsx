@@ -9,7 +9,7 @@ import {ACCENTS, THEME_LABELS, updateSettings, WALLPAPER_LABELS} from '../mm/set
 import type {AccentName, ThemeName, WallpaperName} from '../mm/settings';
 import {getAllChats, getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMChannelNotificationOverrides, MMPost, MMUser} from '../mm/types';
+import type {MMChannelNotificationOverrides, MMFileInfo, MMPost, MMScheduledPost, MMUser} from '../mm/types';
 import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
@@ -663,35 +663,44 @@ export function ChannelNotificationsModal({payload}: {payload: {channelId: strin
 }
 
 export function ScheduledMessagesModal({channelId}: {channelId: string}) {
-    const {actions, timeFormat, settings} = useTg();
+    const {actions, timeFormat, settings, ui} = useTg();
     const formatter = new Intl.DateTimeFormat(timeFormat.locale, {calendar: settings.jalali ? 'persian' : 'gregory', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: !timeFormat.military});
     const sendTime = (timestamp: number) => {
         const date = new Date(timestamp);
         return Number.isNaN(date.getTime()) ? 'Unknown send time' : formatter.format(date);
     };
     const {posts, loading, loaded, error, refresh} = useScheduledPosts(channelId);
-    const content = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const previous = document.activeElement as HTMLElement | null;
-        const modal = content.current?.closest('[role="dialog"]');
-        modal?.querySelector<HTMLButtonElement>('button')?.focus();
-        const trapTab = (event: KeyboardEvent) => {
-            if (event.key !== 'Tab') return;
-            const buttons = Array.from(modal?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || []);
-            const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-            if (buttons.length && ((event.shiftKey && index <= 0) || (!event.shiftKey && index === buttons.length - 1))) {
-                event.preventDefault();
-                buttons[event.shiftKey ? buttons.length - 1 : 0].focus();
+    const [pending, setPending] = useState('');
+    const [actionError, setActionError] = useState('');
+    const inFlight = useRef(false);
+    const close = () => { if (!inFlight.current) actions.closeModal(); };
+    const change = async (post: MMScheduledPost, edit: boolean) => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        setPending(post.id);
+        setActionError('');
+        try {
+            // Resolve everything before cancelling, so a failed attachment/thread fetch keeps the schedule intact.
+            const files = edit ? await Promise.all((post.file_ids || []).map((id) => api.request<MMFileInfo>(`/files/${encodeURIComponent(id)}/info`))) : [];
+            const replyTo = edit && post.root_id ? await api.getPost(post.root_id) : null;
+            const removed = await api.deleteScheduledPost(post.id);
+            if (edit) {
+                actions.closeModal();
+                if (ui.quickChatId || ui.selectedChannelId !== channelId) actions.openChat(channelId);
+                actions.setUI({quickChatId: undefined, editing: null, replyTo, threadRootId: null,
+                    scheduledDraft: {post: removed, files, quick: false}});
+            } else {
+                actions.toast('Scheduled message removed', 'success');
             }
-        };
-        modal?.addEventListener('keydown', trapTab);
-        return () => {
-            modal?.removeEventListener('keydown', trapTab);
-            if (previous?.isConnected) previous.focus({preventScroll: true});
-        };
-    }, []);
-    return <ModalShell title="Scheduled messages" onClose={actions.closeModal} width={560}>
-        <div className="tgw-scheduled-content" ref={content}>
+        } catch (error: any) {
+            setActionError(error?.message || 'Could not change this scheduled message');
+        } finally {
+            inFlight.current = false;
+            setPending('');
+        }
+    };
+    return <ModalShell title="Scheduled messages" manageFocus onClose={close} width={560}>
+        <div className="tgw-scheduled-content">
             <div className="tgw-scheduled-toolbar">
                 <span>Your messages in this chat · {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
                 <button type="button" className="tgw-button tgw-button-secondary" disabled={loading} onClick={() => void refresh()}>Refresh</button>
@@ -699,6 +708,7 @@ export function ScheduledMessagesModal({channelId}: {channelId: string}) {
             {loading && !loaded && <div className="tgw-picker-empty" role="status">Loading scheduled messages…</div>}
             {error && <div role="alert">{error} <button type="button" className="tgw-button tgw-button-secondary" disabled={loading} onClick={() => void refresh()}>Retry</button></div>}
             {!loading && !error && loaded && !posts.length && <div className="tgw-picker-empty">No scheduled messages in this chat</div>}
+            {actionError && <div role="alert">{actionError}</div>}
             <div className="tgw-scheduled-list">
                 {posts.map((post) => <article className="tgw-scheduled-message" key={post.id}>
                     <div className="tgw-scheduled-meta"><time>{sendTime(post.scheduled_at)}</time>
@@ -707,6 +717,11 @@ export function ScheduledMessagesModal({channelId}: {channelId: string}) {
                     <div className="tgw-scheduled-message-text">{post.message || (post.props?.voice ? 'Voice message' : 'Attachment')}</div>
                     {post.file_ids?.length > 0 && <div className="tgw-scheduled-detail">{post.file_ids.length} attachment{post.file_ids.length === 1 ? '' : 's'}</div>}
                     {post.root_id && <div className="tgw-scheduled-detail">Thread reply</div>}
+                    <div className="tgw-scheduled-actions">
+                        <button type="button" className="tgw-button tgw-button-secondary" disabled={!!pending} title="Remove from schedule and edit text and send time" onClick={() => void change(post, true)}>Edit</button>
+                        <button type="button" className="tgw-button tgw-button-secondary" disabled={!!pending} onClick={() => void change(post, false)}>Remove</button>
+                        {pending === post.id && <span role="status">Updating…</span>}
+                    </div>
                     {post.error_code && <div className="tgw-scheduled-detail">{post.error_code === 'delivery_failed' ? 'The server could not deliver this message.' : post.error_code}</div>}
                 </article>)}
             </div>

@@ -165,6 +165,56 @@ func (p *Plugin) handleScheduledPosts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(post)
 }
 
+// Cancellation and the worker's delivery claim compete atomically for the same record.
+// A successful cancellation can never be resurrected by a worker holding an older snapshot.
+func (p *Plugin) handleDeleteScheduledPost(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodDelete {
+		setResponseHeader(w, "Allow", "DELETE")
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	userID := r.Header.Get("Mattermost-User-Id")
+	if userID == "" {
+		writeError(w, 401, "authentication required")
+		return
+	}
+	if !model.IsValidId(id) {
+		writeError(w, 400, "invalid scheduled message ID")
+		return
+	}
+	data, appErr := p.API.KVGet(scheduleKeyPrefix + id)
+	if appErr != nil {
+		writeError(w, 500, "could not load scheduled message")
+		return
+	}
+	var post scheduledPost
+	if len(data) == 0 || json.Unmarshal(data, &post) != nil || post.UserID != userID {
+		writeError(w, 404, "scheduled message not found")
+		return
+	}
+	if post.StartedAt != 0 {
+		if post.ErrorCode == "" {
+			writeError(w, 409, "This message is already being delivered. Refresh the list.")
+			return
+		}
+		delivered, err := p.scheduledPostDelivered(&post)
+		if err != nil || delivered {
+			writeError(w, 409, "Could not safely cancel this delivery. Refresh the list.")
+			return
+		}
+	}
+	removed, appErr := p.API.KVCompareAndDelete(scheduleKeyPrefix+id, data)
+	if appErr != nil {
+		writeError(w, 500, "could not remove scheduled message")
+		return
+	}
+	if !removed {
+		writeError(w, 409, "This scheduled message changed. Refresh the list and try again.")
+		return
+	}
+	writeJSON(w, &post)
+}
+
 // Plugin APIs run with server privileges. Revalidate the sender's own access both when queuing
 // and when delivering, rather than using that privilege to bypass channel/user restrictions.
 func (p *Plugin) validateScheduledPost(post *scheduledPost) error {
@@ -217,15 +267,23 @@ func (p *Plugin) runScheduledPosts() {
 	}
 }
 
-func (p *Plugin) failScheduledPost(post *scheduledPost, reason string) {
+func (p *Plugin) failScheduledPost(post *scheduledPost, reason string, data []byte) {
 	post.ErrorCode = reason
-	if err := p.saveScheduledPost(post); err != nil {
+	updated, err := json.Marshal(post)
+	if err != nil {
+		return
+	}
+	if _, err := p.API.KVCompareAndSet(scheduleKeyPrefix+post.ID, data, updated); err != nil {
 		p.API.LogWarn("could not persist scheduled message failure", "id", post.ID, "error", err.Error())
 	}
 	p.API.LogWarn("scheduled message was not delivered", "id", post.ID, "reason", reason)
 }
 
 func (p *Plugin) deliverScheduledPost(post *scheduledPost, now int64) {
+	data, appErr := p.API.KVGet(scheduleKeyPrefix + post.ID)
+	if appErr != nil || len(data) == 0 || json.Unmarshal(data, post) != nil || post.ErrorCode != "" {
+		return
+	}
 	if post.StartedAt != 0 {
 		// A crash or an RPC failure may happen after CreatePost committed but before its reply.
 		// Look for our marker before retrying, even if the sender subsequently lost access.
@@ -240,11 +298,11 @@ func (p *Plugin) deliverScheduledPost(post *scheduledPost, now int64) {
 		}
 	}
 	if post.Attempts >= 3 {
-		p.failScheduledPost(post, "delivery_failed")
+		p.failScheduledPost(post, "delivery_failed", data)
 		return
 	}
 	if err := p.validateScheduledPost(post); err != nil {
-		p.failScheduledPost(post, err.Error())
+		p.failScheduledPost(post, err.Error(), data)
 		return
 	}
 	if post.StartedAt == 0 {
@@ -252,8 +310,12 @@ func (p *Plugin) deliverScheduledPost(post *scheduledPost, now int64) {
 	}
 	post.Attempts++
 	post.RetryAt = now + int64(post.Attempts)*30000
-	if err := p.saveScheduledPost(post); err != nil {
-		p.API.LogWarn("could not start scheduled delivery", "id", post.ID, "error", err.Error())
+	updated, err := json.Marshal(post)
+	if err != nil {
+		return
+	}
+	claimed, appErr := p.API.KVCompareAndSet(scheduleKeyPrefix+post.ID, data, updated)
+	if appErr != nil || !claimed {
 		return
 	}
 	props := model.StringInterface{schedulePostProp: post.ID}

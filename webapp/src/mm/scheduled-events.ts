@@ -10,3 +10,14 @@ export function emitScheduledPostCreated(post: MMScheduledPost) {
         try { listener(post); } catch (error) { console.warn('[telegram-web-ui] scheduled message listener failed', error); }
     });
 }
+
+const removedListeners = new Set<(post: MMScheduledPost) => void>();
+export function subscribeScheduledPostRemoved(listener: (post: MMScheduledPost) => void) {
+    removedListeners.add(listener);
+    return () => { removedListeners.delete(listener); };
+}
+export function emitScheduledPostRemoved(post: MMScheduledPost) {
+    removedListeners.forEach((listener) => {
+        try { listener(post); } catch (error) { console.warn('[telegram-web-ui] scheduled message listener failed', error); }
+    });
+}

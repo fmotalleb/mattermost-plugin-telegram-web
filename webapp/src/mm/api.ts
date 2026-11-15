@@ -8,7 +8,7 @@
 
 import type {MMChannelNotificationOverrides, MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
-import {emitScheduledPostCreated} from './scheduled-events';
+import {emitScheduledPostCreated, emitScheduledPostRemoved} from './scheduled-events';
 
 declare const window: any;
 
@@ -369,6 +369,12 @@ export class MattermostAPI {
 
     getScheduledPosts(channelId: string): Promise<MMScheduledPost[]> {
         return this.pluginRequest('/api/v1/scheduled-posts', {query: {channel_id: channelId}});
+    }
+
+    async deleteScheduledPost(id: string): Promise<MMScheduledPost> {
+        const removed = await this.pluginRequest<MMScheduledPost>(`/api/v1/scheduled-posts/${encodeURIComponent(id)}`, {method: 'DELETE'});
+        emitScheduledPostRemoved(removed);
+        return removed;
     }
 
     async schedulePost(post: Omit<MMScheduledPost, 'id'>): Promise<MMScheduledPost> {

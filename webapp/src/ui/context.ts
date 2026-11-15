@@ -3,7 +3,7 @@
 import {createContext, useContext} from 'react';
 import type {PluginSettings} from '../mm/settings';
 import type {ChatTab} from '../mm/selectors';
-import type {MMChannel, MMPost, MMUser} from '../mm/types';
+import type {MMChannel, MMFileInfo, MMPost, MMScheduledPost, MMUser} from '../mm/types';
 import type {TimeFormat} from '../mm/utils';
 
 export type ModalKind = null | 'scheduledMessages' | 'channelNotifications' | 'userProfile' | 'settings' | 'newGroup' | 'newChannel' | 'newContact' | 'channelInfo' | 'addMembers' | 'userPicker' | 'forward';
@@ -29,6 +29,7 @@ export interface ContextTarget {
 
 export interface TgUIState {
     quickChatId?: string;
+    scheduledDraft?: {post: MMScheduledPost; files: MMFileInfo[]; quick: boolean};
     selectedChannelId: string;
     unreadEntry?: {channelId: string; lastViewedAt: number | null};
     /** Bumped by openChat(), so the composer can grab the input even when the same chat is re-opened. */

@@ -43,7 +43,7 @@ func (p *Plugin) OnActivate() error {
 	if err := p.ensureViewTable(); err != nil {
 		return err
 	}
-	job, err := cluster.Schedule(p.API, "telegram-scheduled-posts", cluster.MakeWaitForInterval(10*time.Second), p.runScheduledPosts)
+	job, err := cluster.Schedule(p.API, "telegram-scheduled-posts", cluster.MakeWaitForInterval(30*time.Second), p.runScheduledPosts)
 	if err != nil {
 		return err
 	}
@@ -61,6 +61,8 @@ func (p *Plugin) OnDeactivate() error {
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	switch {
+	case strings.Contains(path, schedulePath+"/"):
+		p.handleDeleteScheduledPost(w, r, strings.TrimPrefix(path[strings.Index(path, schedulePath):], schedulePath+"/"))
 	case strings.HasSuffix(path, schedulePath):
 		if r.Method != http.MethodPost && r.Method != http.MethodGet {
 			if !setResponseHeader(w, "Allow", "GET, POST") {

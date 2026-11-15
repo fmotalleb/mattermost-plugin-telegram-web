@@ -970,6 +970,30 @@ class CDP {
         ok(selectAll.outsideCollapsed || selectAll.outsideText === '',
             `no page text (usernames) is selected outside the input (selection: ${JSON.stringify(selectAll.outsideText)})`);
 
+        console.log('\n== editing scheduled messages ==');
+        await cdp.eval(`(() => {
+            scheduledMessages = [{id:'browser-edit',user_id:ME,channel_id:DM,message:'Edit this scheduled text',scheduled_at:Date.now()+86400000}];
+            window.dispatchEvent(new Event('focus'));
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-schedule-count")?.textContent === "1"',5000,'edit queue seed');
+        await cdp.eval(`document.querySelector('.tgw-schedule-toggle').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+        await cdp.waitFor('!!document.querySelector(".tgw-scheduled-actions")',3000,'scheduled edit actions');
+        await cdp.clickSelector('.tgw-scheduled-actions button:first-child');
+        await cdp.waitFor('!!document.querySelector(".tgw-schedule-panel") && !document.querySelector(".tgw-modal")',5000,'edit restored in composer');
+        ok(await cdp.eval(`document.querySelector('.tgw-composer textarea').value === 'Edit this scheduled text' && !!document.querySelector('[aria-label="Scheduled send time"]').value && !document.querySelector('.tgw-schedule-count')`),'Edit removes the queued entry and restores composer text and schedule time');
+        ok(await cdp.eval(`document.activeElement === document.querySelector('[aria-label="Scheduled send time"]')`),'schedule time is focused after editing a queued message');
+        await cdp.clickSelector('.tgw-schedule-actions button:first-child');
+        await cdp.eval(`(() => {
+            scheduledMessages = [{id:'browser-remove',user_id:ME,channel_id:DM,message:'Cancel this scheduled text',scheduled_at:Date.now()+86400000}];
+            window.dispatchEvent(new Event('focus'));
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-schedule-count")?.textContent === "1"',5000,'remove queue seed');
+        await cdp.eval(`document.querySelector('.tgw-schedule-toggle').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+        await cdp.waitFor('!!document.querySelector(".tgw-scheduled-actions")',3000,'scheduled remove action');
+        await cdp.clickSelector('.tgw-scheduled-actions button:last-child');
+        await cdp.waitFor('!document.querySelector(".tgw-schedule-count") && !document.querySelector(".tgw-scheduled-message")',5000,'scheduled removal');
+        ok(await cdp.eval('document.querySelector(".tgw-modal").textContent.includes("No scheduled messages")'),'Remove refreshes the queue and clears its indicator');
+
         const pageErrors = [...bootErrors, ...await cdp.eval('window.__pageErrors'), ...cdp.pageErrors];
         ok(pageErrors.length === 0, `no page errors during the run${pageErrors.length ? ` (${pageErrors[0]})` : ''}`);
     } catch (error) {

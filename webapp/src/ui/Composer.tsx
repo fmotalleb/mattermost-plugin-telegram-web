@@ -53,9 +53,10 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
     const [urgent, setUrgent] = useState(false);
+    const [restoreSchedule, setRestoreSchedule] = useState<{id: string; scheduledAt: number; channelId: string} | null>(null);
     const [sending, setSending] = useState(false);
     const sendInFlight = useRef(false);
-    useEffect(() => { setUrgent(false); }, [channel.id]);
+    useEffect(() => { setUrgent(false); setRestoreSchedule(null); }, [channel.id]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
@@ -168,6 +169,19 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     // would otherwise see the snapshot from when it started, not what is in the tray now.
     const filesRef = useRef(files);
     filesRef.current = files;
+
+    useEffect(() => {
+        const draft = ui.scheduledDraft;
+        if (!draft || draft.post.channel_id !== channel.id || draft.quick !== quick) return;
+        setComposerMessage(draft.post.message || '');
+        const restoredFiles = draft.files.map((info) => ({clientId: info.id, info, file: new File([], info.name, {type: info.mime_type}),
+            voice: draft.post.props?.voice?.fileId === info.id ? draft.post.props.voice : undefined}));
+        setFiles(restoredFiles);
+        filesRef.current = restoredFiles;
+        setUrgent(draft.post.priority?.priority === 'urgent');
+        setRestoreSchedule({id: draft.post.id, scheduledAt: draft.post.scheduled_at, channelId: channel.id});
+        actions.setUI({scheduledDraft: undefined});
+    }, [ui.scheduledDraft, channel.id, quick]);
 
     const insertMarkdown = (prefix: string, suffix = prefix, placeholderText = '') => {
         const element = textareaRef.current;
@@ -425,11 +439,11 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 <button type="button" title="Code" onClick={() => insertMarkdown('`', '`', 'code')}><IconCode size={18}/></button>
                 <button type="button" title="Code block" onClick={() => insertMarkdown('```\n', '\n```', 'code')}><IconQuote size={18}/></button>
                 <button type="button" title="Link" onClick={() => insertMarkdown('[', '](https://)', 'link')}><IconLink size={18}/></button>
-                <SendOptions key={channel.id} urgent={urgent} onUrgent={setUrgent}
+                <SendOptions key={channel.id} restoreSchedule={restoreSchedule?.channelId === channel.id ? restoreSchedule : null} urgent={urgent} onUrgent={setUrgent}
                     priorityDisabled={!!threadRootId || /^\/[^\s/]+/.test(message.trim())}
                     disabled={!!editing || recording} busy={sending}
                     canSend={!!(message.trim() || files.length) && !files.some((entry) => !entry.info)}
-                    onSchedule={(timestamp) => send(timestamp)}/>
+                    onSchedule={async (timestamp) => { const sent = await send(timestamp); if (sent) setRestoreSchedule(null); return sent; }}/>
             </div>
 
             {recording ? (

@@ -250,6 +250,17 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/scheduled-posts/') && options.method === 'DELETE') {
+        const id = decodeURIComponent(p.split('/').pop());
+        const item = scheduledMessages.find((entry) => entry.id === id && (!entry.user_id || entry.user_id === ME));
+        if (!item) return json({message:'scheduled message not found'},404);
+        scheduledMessages = scheduledMessages.filter((entry) => entry !== item);
+        return json(item);
+    }
+    if (/^\/files\/[^/]+\/info$/.test(p)) {
+        const id = p.split('/')[2];
+        return json({id,name:'scheduled-attachment.txt',mime_type:'text/plain',size:10});
+    }
     if (p === '/plugins/com.telegramweb.ui/api/v1/scheduled-posts') {
         if ((options.method || 'GET') === 'GET') return json(scheduledMessages.filter((item) => (!item.user_id || item.user_id === ME) && item.channel_id === parsed.searchParams.get('channel_id')));
         const item = {...post, id: `scheduled-${Date.now()}-${scheduledMessages.length}`, user_id: ME};
