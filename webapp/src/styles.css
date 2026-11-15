@@ -4090,3 +4090,28 @@ body.tgw-root-active {
 .tgw-root .tgw-command-option small { color: var(--tgw-text-secondary); overflow-wrap: anywhere; }
 .tgw-root .tgw-command-message { display: block; padding: 12px; color: var(--tgw-text-secondary); background: transparent; border: 0; }
 .tgw-root .tgw-bot-info .tgw-info-text + .tgw-info-text { margin-top: 8px; }
+
+/* Delivery options follow formatting controls on the right of the composer toolbar. */
+.tgw-root .tgw-send-options { display: flex; align-items: center; gap: 2px; margin-left: auto; position: relative; }
+.tgw-root .tgw-send-options > button { width: auto; gap: 5px; border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12px; white-space: nowrap; }
+.tgw-root .tgw-send-options > .tgw-urgent-toggle.active { color: #c62828; background: rgba(198,40,40,.12); }
+.tgw-root .tgw-composer-toolbar button:disabled { opacity: .45; cursor: default; }
+.tgw-root .tgw-schedule-panel { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(300px, calc(100vw - 32px)); padding: 14px; z-index: 40; border: 1px solid var(--tgw-border); border-radius: 12px; color: var(--tgw-text); background: var(--tgw-bg); box-shadow: 0 8px 28px rgba(0,0,0,.2); }
+.tgw-root .tgw-schedule-panel label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.tgw-root .tgw-schedule-panel input { min-width: 0; width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid var(--tgw-border); border-radius: 6px; color: var(--tgw-text); background: var(--tgw-bg); }
+.tgw-root .tgw-schedule-panel small { display: block; margin-top: 8px; color: var(--tgw-text-secondary); }
+.tgw-root .tgw-schedule-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.tgw-root .tgw-schedule-actions button { width: auto; height: auto; padding: 8px; border-radius: 6px; font: inherit; font-size: 13px; }
+.tgw-root .tgw-schedule-actions button:last-child { color: var(--tgw-accent); background: var(--tgw-accent-soft); }
+.tgw-root .tgw-schedule-error { margin-top: 8px; color: #c62828; font-size: 13px; }
+.tgw-root .tgw-msg-priority { color: #c62828; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+@media (max-width: 480px) {
+    .tgw-root .tgw-send-options > button { width: 30px; padding: 0; }
+    .tgw-root .tgw-send-options > button > span { display: none; }
+}
+.tgw-root.tgw-theme-dark .tgw-urgent-toggle.active,
+.tgw-root.tgw-theme-midnight .tgw-urgent-toggle.active,
+.tgw-root.tgw-theme-dark .tgw-schedule-error,
+.tgw-root.tgw-theme-midnight .tgw-schedule-error,
+.tgw-root.tgw-theme-dark .tgw-msg-priority,
+.tgw-root.tgw-theme-midnight .tgw-msg-priority { color: #ff8a80; }

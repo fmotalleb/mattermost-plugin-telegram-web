@@ -5,9 +5,10 @@ import {api} from '../mm/api';
 import {getBlock} from '../mm/posts';
 import {attachmentSummary, directionOf, displayName, fileKindOf, formatBytes, formatDuration, throttle, toPlainPreview} from '../mm/utils';
 import {EmojiText} from './EmojiText';
-import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
+import type {MMChannel, MMFileInfo, MMPost, MMPostPriority} from '../mm/types';
 import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
+import {SendOptions} from './SendOptions';
 import {useCommandAutocomplete} from './Commands';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {useSelector} from '../mm/store';
@@ -31,7 +32,7 @@ export interface ComposerProps {
     rootId?: string;
     onCancelReply: () => void;
     onCancelEdit: () => void;
-    onSend: (payload: {message: string; fileIds: string[]; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => Promise<any>;
+    onSend: (payload: {message: string; fileIds: string[]; priority?: MMPostPriority; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => Promise<any>;
     onSent: () => void;
     placeholder?: string;
 }
@@ -51,6 +52,10 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const storedDraftMessage = useSelector((state) => selectComposerDraft(state, channel.id)?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [urgent, setUrgent] = useState(false);
+    const [sending, setSending] = useState(false);
+    const sendInFlight = useRef(false);
+    useEffect(() => { setUrgent(false); }, [channel.id]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
@@ -153,6 +158,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const reset = () => {
         setComposerMessage('');
         setFiles([]);
+        filesRef.current = [];
         if (!editing) {
             clearComposerDraft(channel.id);
         }
@@ -211,17 +217,28 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         }
     };
 
-    const send = async () => {
+    const send = async (scheduledAt?: number): Promise<boolean> => {
+        if (sendInFlight.current) return false;
         const trimmed = message.trim();
         const ready = files.filter((entry) => entry.info);
         const readyFiles = ready.map((entry) => entry.info!.id);
-        if (!trimmed && !readyFiles.length) {
-            return;
+        if (!trimmed && !readyFiles.length) return false;
+        if (files.some((entry) => !entry.info)) {
+            actions.toast('Wait for attachments to finish uploading or remove failed uploads', 'error');
+            return false;
+        }
+        if (scheduledAt !== undefined && (!Number.isFinite(scheduledAt) || scheduledAt <= Date.now())) {
+            actions.toast('Choose a time in the future', 'error');
+            return false;
         }
         const isCommand = !editing && /^\/[^\s/]+/.test(trimmed);
+        if (isCommand && scheduledAt !== undefined) {
+            actions.toast('Commands cannot be scheduled', 'error');
+            return false;
+        }
         if (isCommand && files.length) {
             actions.toast('Send attachments separately from commands', 'error');
-            return;
+            return false;
         }
         // Snapshot the payload and free the input right away: the network round trip can take a
         // while, and anything typed into the box while it is in flight must survive — a late
@@ -230,6 +247,8 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         const payload = {
             message: trimmed,
             fileIds: readyFiles,
+            priority: urgent && !threadRootId && !isCommand && !editing
+                ? {priority: 'urgent', requested_ack: false, persistent_notifications: false} as MMPostPriority : undefined,
             rootId: threadRootId,
             files: ready.map((entry) => entry.info!),
             voice: voiceEntry && voiceEntry.info
@@ -237,6 +256,10 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 : undefined,
         };
         const wasEditing = editing;
+        const destination = channel.id;
+        sendInFlight.current = true;
+        setSending(true);
+        setUrgent(false);
         reset();
         setShowEmoji(false);
         // The reply bar must disappear once the reply went out, otherwise every later message
@@ -248,6 +271,12 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             if (wasEditing) {
                 await api.patchPost(wasEditing.id, {message: trimmed});
                 onCancelEdit();
+            } else if (scheduledAt !== undefined) {
+                await api.schedulePost({channel_id: destination, message: trimmed, root_id: threadRootId || '',
+                    file_ids: readyFiles, props: payload.voice ? {voice: payload.voice} : {},
+                    priority: payload.priority, scheduled_at: scheduledAt});
+                actions.toast(`Message scheduled for ${new Date(scheduledAt).toLocaleString()}`, 'success');
+                onSent();
             } else if (isCommand) {
                 await api.executeCommand(trimmed, channel.id, commandTeamId, threadRootId);
                 onSent();
@@ -255,15 +284,22 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 await onSend(payload);
                 onSent();
             }
+            return true;
         } catch (error: any) {
             // Put the draft back, but only if nothing new was typed while the request was out.
             const element = textareaRef.current;
             if (!wasEditing && !getComposerDraft(channel.id)?.message) saveComposerDraft(channel.id, trimmed);
-            if (element && !element.value.trim() && !filesRef.current.length) {
+            if (channelRef.current === destination && element && !messageRef.current.trim() && !filesRef.current.length) {
                 setComposerMessage(wasEditing ? (wasEditing.message || '') : trimmed);
                 setFiles(ready);
+                setUrgent(!!payload.priority);
+                if (replyTo && !wasEditing) actions.startReply(replyTo);
             }
-            actions.toast(error?.message || (wasEditing ? 'Could not save the changes' : 'Could not send the message'), 'error');
+            actions.toast(error?.message || (wasEditing ? 'Could not save the changes' : scheduledAt !== undefined ? 'Could not schedule the message' : 'Could not send the message'), 'error');
+            return false;
+        } finally {
+            sendInFlight.current = false;
+            setSending(false);
         }
     };
 
@@ -389,6 +425,11 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 <button type="button" title="Code" onClick={() => insertMarkdown('`', '`', 'code')}><IconCode size={18}/></button>
                 <button type="button" title="Code block" onClick={() => insertMarkdown('```\n', '\n```', 'code')}><IconQuote size={18}/></button>
                 <button type="button" title="Link" onClick={() => insertMarkdown('[', '](https://)', 'link')}><IconLink size={18}/></button>
+                <SendOptions key={channel.id} urgent={urgent} onUrgent={setUrgent}
+                    priorityDisabled={!!threadRootId || /^\/[^\s/]+/.test(message.trim())}
+                    disabled={!!editing || recording} busy={sending}
+                    canSend={!!(message.trim() || files.length) && !files.some((entry) => !entry.info)}
+                    onSchedule={(timestamp) => send(timestamp)}/>
             </div>
 
             {recording ? (
@@ -501,7 +542,8 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                     <button
                         type="button"
                         className={`tgw-send-button ${message.trim() || files.length ? 'tgw-send-button-active' : ''}`}
-                        onClick={send}
+                        onClick={() => send()}
+                        disabled={sending}
                         title={editing ? 'Save changes' : 'Send'}
                     >
                         {editing ? <IconEdit size={18}/> : <IconSend size={18}/>}

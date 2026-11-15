@@ -523,6 +523,7 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
                 )}
             </div>
             <div className={`tgw-bubble ${meta.showAvatar ? '' : 'tgw-bubble-grouped'}`}>
+                {post.metadata?.priority?.priority === 'urgent' && <div className="tgw-msg-priority">Urgent</div>}
                 {post.props?.tgw_forwarded_from && (
                     <div className="tgw-msg-forwarded">Forwarded from {post.props.tgw_forwarded_name || 'another chat'}</div>
                 )}

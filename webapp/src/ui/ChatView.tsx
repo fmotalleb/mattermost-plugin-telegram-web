@@ -6,7 +6,7 @@ import {setChannelFavorite} from '../mm/favorites';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
+import type {MMChannel, MMFileInfo, MMPost, MMPostPriority, MMReaction, MMUser} from '../mm/types';
 import {channelMemberIds, copyToClipboard, displayName, initialsFor, memberCountLabel, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {Composer} from './Composer';
 import {isBot} from './BotInfo';
@@ -209,7 +209,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
         actions.setUI({highlightedPostId: post.id});
     }, [searchHits, actions]);
 
-    const handleSend = useCallback(async ({message, fileIds, rootId, files, voice}: {message: string; fileIds: string[]; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => {
+    const handleSend = useCallback(async ({message, fileIds, rootId, files, voice, priority}: {message: string; fileIds: string[]; priority?: MMPostPriority; rootId?: string; files?: MMFileInfo[]; voice?: {fileId: string; durationMs: number; levels: number[]}}) => {
         if (!channel) {
             return;
         }
@@ -232,7 +232,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
             file_ids: fileIds,
             // Without this the optimistic bubble cannot render the attachments we just uploaded;
             // the server echo normally brings the same data back.
-            metadata: files?.length ? {files} : undefined,
+            metadata: files?.length || priority ? {files, priority} : undefined,
         };
         addOptimistic(channel.id, optimistic);
         try {
@@ -242,6 +242,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                 root_id: rootId,
                 file_ids: fileIds,
                 pending_post_id: pendingId,
+                metadata: priority ? {priority} : undefined,
                 props: voice ? {voice} : undefined,
             });
             if (post) {
@@ -252,6 +253,9 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                 }
                 if (voice && merged.props?.voice?.fileId !== voice.fileId) {
                     merged = {...merged, props: {...merged.props, voice}};
+                }
+                if (priority && !merged.metadata?.priority) {
+                    merged = {...merged, metadata: {...merged.metadata, priority}};
                 }
                 receivePost(merged);
             }

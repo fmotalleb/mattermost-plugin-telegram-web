@@ -97,6 +97,7 @@ export interface MMPost {
         embeds?: Array<{type: string; url: string; data?: any}>;
         images?: Record<string, {width: number; height: number; format: string; frameCount: number}>;
         reactions?: MMReaction[];
+        priority?: MMPostPriority;
     };
     translations?: any;
     /** local-only flags added by the plugin */
@@ -227,4 +228,21 @@ export interface MMBot {
     username: string;
     display_name?: string;
     description?: string;
+}
+
+export interface MMPostPriority {
+    priority: '' | 'important' | 'urgent';
+    requested_ack: boolean;
+    persistent_notifications: boolean;
+}
+
+export interface MMScheduledPost {
+    id: string;
+    channel_id: string;
+    message: string;
+    root_id?: string;
+    file_ids?: string[];
+    props?: Record<string, any>;
+    scheduled_at: number;
+    priority?: MMPostPriority;
 }

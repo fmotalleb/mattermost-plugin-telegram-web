@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
+import type {MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
 
 declare const window: any;
@@ -358,8 +358,12 @@ export class MattermostAPI {
         return this.request(`/channels/${channelId}/posts${buildQuery({after: postId, per_page: perPage})}`);
     }
 
-    createPost(post: {channel_id: string; message: string; root_id?: string; file_ids?: string[]; pending_post_id?: string; props?: Record<string, any>}): Promise<MMPost> {
+    createPost(post: {channel_id: string; message: string; root_id?: string; file_ids?: string[]; pending_post_id?: string; props?: Record<string, any>; metadata?: {priority?: MMPostPriority}}): Promise<MMPost> {
         return this.request<MMPost>('/posts', {method: 'POST', body: post});
+    }
+
+    schedulePost(post: Omit<MMScheduledPost, 'id'>): Promise<MMScheduledPost> {
+        return this.request('/posts/schedule', {method: 'POST', body: post});
     }
 
     forwardPost(postId: string, channelId: string): Promise<MMPost> {

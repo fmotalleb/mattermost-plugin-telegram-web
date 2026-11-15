@@ -478,6 +478,30 @@ class CDP {
             input.dispatchEvent(new Event('input', {bubbles: true}));
         })()`);
 
+        console.log('\n== delivery options layout ==');
+        const deliveryLayout = await cdp.eval(`(() => {
+            const link = document.querySelector('.tgw-composer-toolbar button[title="Link"]').getBoundingClientRect();
+            const urgent = document.querySelector('.tgw-urgent-toggle').getBoundingClientRect();
+            const schedule = document.querySelector('.tgw-schedule-toggle').getBoundingClientRect();
+            const input = document.querySelector('.tgw-composer textarea').getBoundingClientRect();
+            return urgent.left >= link.right && schedule.left >= urgent.right && schedule.bottom <= input.top;
+        })()`);
+        ok(deliveryLayout, 'urgent and schedule controls sit right of formatting and above input');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 420, height: 700, deviceScaleFactor: 1, mobile: false});
+        await cdp.eval('document.querySelector(".tgw-chat-row").click()');
+        await sleep(100);
+        await cdp.eval('document.querySelector(".tgw-schedule-toggle").click()');
+        await cdp.waitFor('!!document.querySelector(".tgw-schedule-panel input")', 3000, 'schedule picker');
+        await cdp.waitFor('document.activeElement === document.querySelector(".tgw-schedule-panel input")', 3000, 'date input focus');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-schedule-panel input")'), 'schedule picker focuses the date input');
+        ok(await cdp.eval(`(() => {const r = document.querySelector('.tgw-schedule-panel').getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;})()`), 'schedule picker fits a narrow viewport');
+        fs.writeFileSync('/tmp/tgw-schedule-options.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.waitFor('!document.querySelector(".tgw-schedule-panel")', 3000, 'schedule picker closes');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-schedule-toggle")'), 'closing schedule picker returns focus to its control');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
+
         console.log('\n== quick chat modal ==');
         await cdp.eval(`(() => {
             window.__quickPrevious = document.activeElement;
