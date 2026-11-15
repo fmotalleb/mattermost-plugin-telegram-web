@@ -4073,6 +4073,14 @@ body.tgw-root-active {
 .tgw-root .tgw-quick-loading { padding: 70px 24px; background: var(--tgw-bg); height: 100%; }
 .tgw-root .tgw-draft-preview strong { color: var(--tgw-accent); font-weight: 500; }
 
+/* Registered bot and slash commands. */
+.tgw-root .tgw-command-picker { position: absolute; bottom: calc(100% + 8px); left: 0; right: 0; max-height: 280px; overflow-y: auto; padding: 6px; border-radius: 12px; background: var(--tgw-bg); color: var(--tgw-text); border: 1px solid var(--tgw-border); box-shadow: 0 8px 28px rgba(0,0,0,.18); z-index: 30; }
+.tgw-root .tgw-command-option { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 10px 12px; text-align: start; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.tgw-root .tgw-command-option.active { background: var(--tgw-hover); }
+.tgw-root .tgw-command-option small { color: var(--tgw-text-secondary); overflow-wrap: anywhere; }
+.tgw-root .tgw-command-message { display: block; padding: 12px; color: var(--tgw-text-secondary); background: transparent; border: 0; }
+.tgw-root .tgw-bot-info .tgw-info-text + .tgw-info-text { margin-top: 8px; }
+
 /* Chromeless page so the fixed-position overlay fills the frame. */
 html, body { margin: 0; height: 100%; background: #0f0f0f; }
 </style>

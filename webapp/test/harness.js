@@ -249,6 +249,13 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    if (p === `/teams/${TEAM}/commands/autocomplete`) {
+        return json([{trigger: 'help', auto_complete_hint: '[topic]', auto_complete_desc: 'Get bot help'}]);
+    }
+    if (p === '/commands/execute') {
+        return json({});
+    }
+
     if (p === '/plugins/com.telegramweb.ui/api/v1/forward' && options.method === 'POST') {
         const source = posts[post.post_id];
         if (!source || !channels[post.channel_id]) {

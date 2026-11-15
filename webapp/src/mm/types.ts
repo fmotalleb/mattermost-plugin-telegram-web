@@ -215,3 +215,16 @@ export interface StoreLike {
     subscribe(listener: () => void): () => void;
     dispatch: (action: any) => any;
 }
+
+export interface MMCommand {
+    trigger: string;
+    auto_complete_hint?: string;
+    auto_complete_desc?: string;
+}
+
+export interface MMBot {
+    user_id: string;
+    username: string;
+    display_name?: string;
+    description?: string;
+}

@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
+import type {MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
 
 declare const window: any;
@@ -76,6 +76,20 @@ export class MattermostAPI {
         if (typeof window !== 'undefined') {
             this.basePath = `${getBasename()}/api/v4`;
         }
+    }
+
+    getAutocompleteCommands(teamId: string): Promise<MMCommand[]> {
+        return this.request(`/teams/${encodeURIComponent(teamId)}/commands/autocomplete`);
+    }
+
+    executeCommand(command: string, channelId: string, teamId: string, rootId?: string): Promise<any> {
+        return this.request('/commands/execute', {method: 'POST', body: {
+            command, channel_id: channelId, team_id: teamId, root_id: rootId || '',
+        }});
+    }
+
+    getBot(userId: string): Promise<MMBot> {
+        return this.request(`/bots/${encodeURIComponent(userId)}`);
     }
 
     setToken(token: string) {

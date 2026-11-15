@@ -8,6 +8,7 @@ import {EmojiText} from './EmojiText';
 import type {MMChannel, MMFileInfo, MMPost} from '../mm/types';
 import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
+import {useCommandAutocomplete} from './Commands';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {useSelector} from '../mm/store';
 import {clearComposerDraft, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
@@ -74,6 +75,16 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         setMessage(value);
         if (!editing) saveComposerDraft(channel.id, value);
     };
+
+    const currentTeamId = useSelector((state) => state.entities?.teams?.currentTeamId);
+    const commandTeamId = channel.team_id || currentTeamId || '';
+    const commandAutocomplete = useCommandAutocomplete(message, commandTeamId, channel.id, !editing, (value) => {
+        setComposerMessage(value);
+        requestAnimationFrame(() => {
+            textareaRef.current?.focus();
+            textareaRef.current?.setSelectionRange(value.length, value.length);
+        });
+    });
 
     // Both chat surfaces observe the same Mattermost draft, including clears.
     useEffect(() => {
@@ -207,6 +218,11 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         if (!trimmed && !readyFiles.length) {
             return;
         }
+        const isCommand = !editing && /^\/[^\s/]+/.test(trimmed);
+        if (isCommand && files.length) {
+            actions.toast('Send attachments separately from commands', 'error');
+            return;
+        }
         // Snapshot the payload and free the input right away: the network round trip can take a
         // while, and anything typed into the box while it is in flight must survive — a late
         // reset used to wipe the next message the user had already started composing.
@@ -232,6 +248,9 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             if (wasEditing) {
                 await api.patchPost(wasEditing.id, {message: trimmed});
                 onCancelEdit();
+            } else if (isCommand) {
+                await api.executeCommand(trimmed, channel.id, commandTeamId, threadRootId);
+                onSent();
             } else {
                 await onSend(payload);
                 onSent();
@@ -249,6 +268,8 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     };
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.nativeEvent.isComposing) return;
+        if (commandAutocomplete.onKeyDown(event)) return;
         if (event.key === 'Escape') {
             if (editing) {
                 onCancelEdit();
@@ -444,6 +465,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                             typingRef.current();
                         }}
                         onKeyDown={onKeyDown}
+                        {...(commandAutocomplete.controls ? {'aria-expanded': true, 'aria-autocomplete': 'list' as const, 'aria-controls': commandAutocomplete.controls, 'aria-activedescendant': commandAutocomplete.active} : {})}
                         onPaste={(event) => {
                             // Screenshots and copied images arrive as files on the clipboard; a
                             // textarea would silently drop them, so hand them to the upload path.
@@ -467,6 +489,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                             uploadFiles(pasted);
                         }}
                     />
+                    {commandAutocomplete.picker}
                     <button
                         type="button"
                         className="tgw-composer-icon"

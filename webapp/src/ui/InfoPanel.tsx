@@ -2,6 +2,7 @@
 
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
+import {BotInfo, isBot} from './BotInfo';
 import {setChannelFavorite} from '../mm/favorites';
 import {getChatSummary, getMemberCount, getMyId, getPeersOfDirectChannel} from '../mm/selectors';
 import {getStore, useSelector} from '../mm/store';
@@ -221,7 +222,7 @@ export function InfoPanel() {
                 <div className="tgw-info-name">{summary.title}</div>
                 <div className="tgw-info-sub">
                     {isDirect
-                        ? statusLabel(summary.status, 0, timeFormat)
+                        ? (isBot(peers[0]) ? 'bot' : statusLabel(summary.status, 0, timeFormat))
                         : memberCountLabel(memberCount) || 'group'}
                 </div>
             </div>
@@ -267,6 +268,8 @@ export function InfoPanel() {
                 </button>
             </div>
 
+            {isDirect && isBot(peers[0]) && <BotInfo user={peers[0]}/>}
+
             {peers.length > 0 && (
                 <div className="tgw-info-block">
                     <div className="tgw-info-block-title">Participant{peers.length > 1 ? 's' : ''}</div>
@@ -310,7 +313,7 @@ export function InfoPanel() {
                                 <Avatar userId={id} name={displayName(user)} size={40}/>
                                 <span className="tgw-member-body">
                                     <span className="tgw-member-name">{displayName(user)}</span>
-                                    <span className="tgw-member-username">@{user.username}</span>
+                                    <span className="tgw-member-username">@{user.username}{isBot(user) ? ' · bot' : ''}</span>
                                 </span>
                             </button>
                         ))}

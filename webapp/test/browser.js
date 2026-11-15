@@ -453,6 +453,31 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        console.log('\n== command autocomplete ==');
+        await cdp.eval('document.querySelector(".tgw-composer textarea").focus()');
+        await cdp.send('Input.insertText', {text: '/he'});
+        await cdp.waitFor('!!document.querySelector(".tgw-command-option")', 5000, 'command suggestions');
+        const commandLayout = await cdp.eval(`(() => {
+            const picker = document.querySelector('.tgw-command-picker');
+            const option = picker.querySelector('button');
+            const r = picker.getBoundingClientRect();
+            const input = document.querySelector('.tgw-composer textarea').getBoundingClientRect();
+            const b = option.getBoundingClientRect();
+            return {above: r.bottom <= input.top, bounded: r.left >= 0 && r.right <= innerWidth,
+                clickable: option.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)),
+                background: getComputedStyle(picker).backgroundColor};
+        })()`);
+        ok(commandLayout.above && commandLayout.bounded && commandLayout.clickable, 'commands appear above composer and remain clickable within viewport');
+        ok(commandLayout.background !== 'rgba(0, 0, 0, 0)', 'command picker has an opaque theme background');
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-composer textarea") && document.activeElement.value === "/help "'), 'command completion preserves composer focus');
+        await cdp.eval(`(() => {
+            const input = document.querySelector('.tgw-composer textarea');
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, '');
+            input.dispatchEvent(new Event('input', {bubbles: true}));
+        })()`);
+
         console.log('\n== quick chat modal ==');
         await cdp.eval(`(() => {
             window.__quickPrevious = document.activeElement;

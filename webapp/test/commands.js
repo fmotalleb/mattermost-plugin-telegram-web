@@ -1,0 +1,88 @@
+const {dom, React, ReactDOM, container, store, state, tick, ok, report, payloads, ids} = require('./harness');
+const {setStore} = require('../src/mm/store');
+const {initSettings, updateSettings} = require('../src/mm/settings');
+const {TelegramUI} = require('../src/ui/TelegramUI');
+const {getComposerDraft} = require('../src/mm/drafts');
+const originalFetch = global.fetch;
+const requests = [];
+let failCommand = false;
+let denyBot = false;
+global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url, 'https://mattermost.example.com');
+    const path = parsed.pathname.replace('/api/v4', '');
+    const json = (data, status = 200) => ({ok: status < 400, status, text: async () => JSON.stringify(data)});
+    requests.push({path, body: options.body && JSON.parse(options.body)});
+    if (path.endsWith('/commands/autocomplete')) return json([
+        {trigger: 'help', auto_complete_hint: '[topic]', auto_complete_desc: 'Get bot help'},
+        {trigger: 'hello', auto_complete_desc: 'Say hello'},
+    ]);
+    if (path === '/commands/execute') return failCommand ? json({message: 'Command failed'}, 400) : json({});
+    if (path === `/bots/${ids.OTHER}`) return denyBot ? json({}, 403) : json({user_id: ids.OTHER, display_name: 'Helper', description: 'Answers your questions'});
+    return originalFetch(url, options);
+};
+state.entities.users.profiles[ids.OTHER].is_bot = true;
+setStore(store);
+initSettings();
+updateSettings({mode: 'on'});
+const root = ReactDOM.createRoot(container);
+root.render(React.createElement(TelegramUI));
+const wait = async (fn) => { for (let n = 0; n < 70 && !fn(); n++) await tick(30); return fn(); };
+const click = (node) => node?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+const key = async (node, value) => { node.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: value, bubbles: true, cancelable: true})); await tick(50); };
+const type = async (node, value) => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set.call(node, value);
+    node.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+    await tick(60);
+};
+(async () => {
+    await wait(() => document.querySelector('.tgw-chat-row'));
+    click(Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice')));
+    await wait(() => document.querySelector('.tgw-shell textarea'));
+    const area = document.querySelector('.tgw-shell textarea');
+    ok(document.querySelector('.tgw-chat-header-sub')?.textContent === 'bot', 'bot chat header identifies automated accounts');
+    await type(area, '/he');
+    await wait(() => document.querySelectorAll('.tgw-command-option').length === 2);
+    ok(document.querySelectorAll('.tgw-command-option').length === 2, 'slash prefix filters registered commands');
+    ok(document.querySelector('.tgw-command-picker').textContent.includes('Get bot help'), 'suggestions show command descriptions and hints');
+    ok(requests.some((request) => request.path.endsWith('/commands/autocomplete') && !request.path.includes('//')), 'DM commands use the active team');
+    await key(area, 'ArrowDown');
+    await key(area, 'Tab');
+    ok(area.value === '/hello ', 'keyboard selection inserts command with argument space');
+    ok(!document.querySelector('.tgw-command-picker'), 'selection closes autocomplete');
+    await type(area, '/help topic');
+    const postsBefore = payloads.filter((request) => request.path === '/posts').length;
+    await key(area, 'Enter');
+    await wait(() => requests.some((request) => request.path === '/commands/execute'));
+    const sent = requests.find((request) => request.path === '/commands/execute');
+    ok(sent?.body.command === '/help topic' && sent.body.channel_id === ids.DM && !!sent.body.team_id, 'submission executes with arguments, channel and team');
+    ok(payloads.filter((request) => request.path === '/posts').length === postsBefore, 'commands are not posted as ordinary chat messages');
+    ok(area.value === '' && !getComposerDraft(ids.DM)?.message, 'successful command clears the draft');
+    failCommand = true;
+    await type(area, '/unknown argument');
+    await key(area, 'Enter');
+    await wait(() => area.value === '/unknown argument');
+    ok(area.value === '/unknown argument', 'failed command restores its draft');
+    await type(area, '/he');
+    await wait(() => document.querySelector('.tgw-command-option'));
+    await key(area, 'Escape');
+    await wait(() => !document.querySelector('.tgw-command-picker'));
+    ok(!document.querySelector('.tgw-command-picker') && area.value === '/he', 'Escape dismisses suggestions without losing text');
+    await type(area, 'ordinary /help');
+    ok(!document.querySelector('.tgw-command-picker'), 'slashes within ordinary messages do not open commands');
+    await type(area, '/he');
+    click(document.querySelector('.tgw-command-option'));
+    await tick(60);
+    ok(area.value === '/help ', 'mouse selection inserts command');
+    click(document.querySelector('.tgw-chat-header-title'));
+    await wait(() => document.querySelector('.tgw-bot-info')?.textContent.includes('Answers your questions'));
+    ok(document.querySelector('.tgw-bot-info')?.textContent.includes('Answers your questions'), 'bot details show API description');
+    // Reopening with a denied metadata endpoint still shows the public bot identity.
+    click(document.querySelector('.tgw-info-panel [title="Close"]'));
+    await wait(() => !document.querySelector('.tgw-bot-info'));
+    denyBot = true;
+    click(document.querySelector('.tgw-chat-header-title'));
+    await tick(100);
+    ok(document.querySelector('.tgw-bot-info')?.textContent.includes('@alice') && !document.querySelector('.tgw-bot-info')?.textContent.includes('Answers your questions'), 'bot identity remains available without metadata permissions');
+    root.unmount();
+    report('BOT COMMAND TEST');
+})().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

@@ -9,6 +9,7 @@ import {useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
 import {channelMemberIds, copyToClipboard, displayName, initialsFor, memberCountLabel, statusLabel, toPlainPreview, truncate} from '../mm/utils';
 import {Composer} from './Composer';
+import {isBot} from './BotInfo';
 import {useTg} from './context';
 import {MessageList} from './MessageList';
 import {Menu, menuPositionFromElement} from './menu';
@@ -394,7 +395,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
         : '';
 
     const subtitle = typingLabel || (channel.type === 'D'
-        ? statusLabel(summary.status, 0, timeFormat)
+        ? (isBot(peer) ? 'bot' : statusLabel(summary.status, 0, timeFormat))
         : memberCountLabel(channel.type === 'G' ? summary.peerIds.length || summary.memberCount : summary.memberCount));
 
     return (
