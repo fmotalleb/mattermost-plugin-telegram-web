@@ -8,7 +8,7 @@ let rejectSchedule = false;
 let holdSchedule;
 const scheduled = [];
 global.fetch = async (url, options = {}) => {
-    if (new URL(url, 'https://mattermost.example.com').pathname.endsWith('/posts/schedule')) {
+    if (new URL(url, 'https://mattermost.example.com').pathname === '/plugins/com.telegramweb.ui/api/v1/scheduled-posts') {
         const body = JSON.parse(options.body);
         scheduled.push(body);
         if (holdSchedule) await holdSchedule;
@@ -113,6 +113,7 @@ const confirm = () => Array.from(document.querySelectorAll('.tgw-schedule-action
     release(); holdSchedule = null;
     await wait(() => !document.querySelector('.tgw-schedule-panel'));
     ok(area.value === 'next draft', 'late scheduling completion preserves the next draft');
+    ok(!payloads.some((request) => request.path === '/posts/schedule'), 'scheduling never calls the licensed native endpoint');
     root.unmount();
     report('SEND OPTIONS TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

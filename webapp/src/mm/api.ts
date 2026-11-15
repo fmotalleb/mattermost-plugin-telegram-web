@@ -363,7 +363,7 @@ export class MattermostAPI {
     }
 
     schedulePost(post: Omit<MMScheduledPost, 'id'>): Promise<MMScheduledPost> {
-        return this.request('/posts/schedule', {method: 'POST', body: post});
+        return this.pluginRequest('/api/v1/scheduled-posts', {method: 'POST', body: post});
     }
 
     forwardPost(postId: string, channelId: string): Promise<MMPost> {

@@ -3,7 +3,7 @@
 Gives the Mattermost web app a Telegram Web (K) style client: a chat list with **contacts**,
 **groups** and **custom groups**, and a Telegram look for the **chat screen** — all built from the
 data and state the Mattermost web app already has. Nothing is imported from outside Mattermost, a
-small optional server component only tracks Telegram-style message view counts, and a single
+small server component provides Telegram-style view counts and scheduled sending, and a single
 button switches back to the stock UI.
 
 **[Open the rendered preview →](docs/ui-preview.html)** — a static snapshot of the actual UI
@@ -21,7 +21,7 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 | --- | --- |
 | Target Mattermost | **v12.0+** (built and verified against the React 19 web app that ships with v12.0); also runs on v11.x hosts (React 18), which the classic JSX output stays compatible with |
 | `min_server_version` | `12.0.0` |
-| Server component | small Go binary (`server/`) — records who saw which post so the web app can show Telegram-style view counts; only linux-amd64/arm64 builds ship |
+| Server component | Go binary (`server/`) — view counts, chat actions, and plugin-owned scheduled sending; only linux-amd64/arm64 builds ship |
 | Bundle | `webapp/dist/main.js` (a single ~190 KB minified file, CSS inlined) |
 | React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance (React 19 on Mattermost v12); the test harness runs on React 19 to match |
 
@@ -81,6 +81,16 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   this does not enforce a policy for future members. Requires the plugin's server component.
 * **Composer** — attachment tray, emoji picker, reply bar, `Enter` sends, `Shift+Enter` adds a line,
   optimistic "sending…" bubble that is reconciled with the server response.
+* **Scheduled sending** — choose **Schedule** beside the composer formatting controls. Pending
+  messages are stored in this plugin's durable KV storage and delivered by one coordinated server
+  worker, checked every 10 seconds. No Mattermost scheduled-posts license is required. The queue is
+  separate from the stock UI's Scheduled tab; only the Telegram view creates these schedules.
+  The plugin server must remain enabled; after downtime, due messages are delivered when it starts
+  again. Permissions, account/channel status, thread access and attachment ownership are rechecked
+  at delivery. Failed jobs remain in plugin storage, available to their sender through
+  `GET /plugins/com.telegramweb.ui/api/v1/scheduled-posts` (optionally `?channel_id=...`).
+  Delivery is attempted up to three times, with channel-history reconciliation before retries;
+  permanently invalid jobs are retained with an error. Attachments must still exist when delivery is due.
 * **Create** — *New Message* (opens/creates a DM), *New Group* (group message), *New Channel*, plus
   add-members and channel-details modals, all dispatching through the Mattermost REST API.
 
@@ -169,8 +179,9 @@ every call):
 ## Notes and limitations
 
 * The plugin is a client-side overlay: it renders only for users who have it enabled, and the stock
-  Mattermost UI stays one click away. The Go server component only records message view counts for
-  this plugin's own UI; the stock Mattermost UI never reads or shows that data.
+  Mattermost UI stays one click away. View counts and pending schedules belong to this plugin;
+  the stock UI does not consume them. Once a scheduled message is sent, it is an ordinary post
+  visible in every Mattermost client.
 * User settings survive a reload by being stored as a Mattermost user preference rather than in
   plugin KV storage.
 * Message rendering prefers the host's `formatText`/`messageHtmlToComponent`; if a future release

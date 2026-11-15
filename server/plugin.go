@@ -1,7 +1,5 @@
-// Server component of the Telegram Web UI plugin: records which users have seen which posts
-// and reports view counts back to the web app. The data lives in its own table
-// (tg_webui_user_view_tracking) and is only ever exposed through this plugin's HTTP API — the
-// Mattermost web app itself knows nothing about it and stays unchanged.
+// Server APIs for Telegram view tracking, chat actions, and a durable plugin-owned message scheduler.
+// Pending schedules are private to this plugin; delivered messages are ordinary Mattermost posts.
 
 package main
 
@@ -10,10 +8,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
 	"github.com/mattermost/mattermost/server/public/pluginapi"
+	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 )
 
 const (
@@ -33,17 +33,42 @@ const (
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	client *pluginapi.Client
+	client      *pluginapi.Client
+	scheduleJob *cluster.Job
 }
 
 func (p *Plugin) OnActivate() error {
 	p.client = pluginapi.NewClient(p.API, p.Driver)
-	return p.ensureViewTable()
+	if err := p.ensureViewTable(); err != nil {
+		return err
+	}
+	job, err := cluster.Schedule(p.API, "telegram-scheduled-posts", cluster.MakeWaitForInterval(10*time.Second), p.runScheduledPosts)
+	if err != nil {
+		return err
+	}
+	p.scheduleJob = job
+	return nil
+}
+
+func (p *Plugin) OnDeactivate() error {
+	if p.scheduleJob != nil {
+		return p.scheduleJob.Close()
+	}
+	return nil
 }
 
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	switch {
+	case strings.HasSuffix(path, schedulePath):
+		if r.Method != http.MethodPost && r.Method != http.MethodGet {
+			if !setResponseHeader(w, "Allow", "GET, POST") {
+				return
+			}
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		p.handleScheduledPosts(w, r)
 	case strings.HasSuffix(path, unmuteChannelPath):
 		if r.Method != http.MethodPost {
 			if !setResponseHeader(w, "Allow", http.MethodPost) {
