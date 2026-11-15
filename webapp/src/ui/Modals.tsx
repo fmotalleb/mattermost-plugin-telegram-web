@@ -539,7 +539,7 @@ function ForwardModal({post}: {post: MMPost}) {
 }
 
 export function UserProfileModal({payload}: {payload: {userId?: string; username?: string}}) {
-    const {actions} = useTg();
+    const {actions, ui} = useTg();
     const cached = useSelector((state) => payload.userId
         ? state.entities?.users?.profiles?.[payload.userId]
         : Object.values(state.entities?.users?.profiles || {}).find((user) => user.username === payload.username));
@@ -559,7 +559,10 @@ export function UserProfileModal({payload}: {payload: {userId?: string; username
         return () => { cancelled = true; };
     }, [payload.userId, payload.username, cached, attempt]);
     const user = cached || loaded;
-    return <ModalShell title="User profile" onClose={actions.closeModal}>
+    return <ModalShell title="User profile" onClose={actions.closeModal} footer={user && (
+        <button type="button" className="tgw-button" disabled={!!user.delete_at} title={user.delete_at ? 'This account is deactivated' : undefined}
+            onClick={() => { actions.closeModal(); if (ui.quickChatId) actions.setUI({quickChatId: undefined}); actions.openUserChat(user.id); }}>Open direct chat</button>
+    )}>
         {user ? <div className="tgw-info-profile">
             <Avatar userId={user.id} profile={user} name={displayName(user)} size={80}/>
             <div className="tgw-info-name">{displayName(user)}</div>
