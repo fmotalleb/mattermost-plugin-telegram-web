@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -15,25 +16,40 @@ const testChannelID = "abcdefghijklmnopqrstuvwxyz"
 
 type unmuteAPI struct {
 	plugin.API
-	roles       string
-	channelType model.ChannelType
-	memberCount int
-	readFailure bool
-	failUser    string
-	pages       []int
-	updates     []string
+	roles         string
+	channelType   model.ChannelType
+	memberCount   int
+	readFailure   bool
+	failUser      string
+	pages         []int
+	updates       []string
+	expectedProps map[string]string
+	archived      bool
+	deactivated   bool
+	repeatPage    bool
 }
 
 func (a *unmuteAPI) GetUser(string) (*model.User, *model.AppError) {
-	return &model.User{Roles: a.roles}, nil
+	user := &model.User{Roles: a.roles}
+	if a.deactivated {
+		user.DeleteAt = 1
+	}
+	return user, nil
 }
 func (a *unmuteAPI) GetChannel(string) (*model.Channel, *model.AppError) {
-	return &model.Channel{Id: testChannelID, Type: a.channelType}, nil
+	channel := &model.Channel{Id: testChannelID, Type: a.channelType}
+	if a.archived {
+		channel.DeleteAt = 1
+	}
+	return channel, nil
 }
 func (a *unmuteAPI) GetChannelMembers(channelID string, page, perPage int) (model.ChannelMembers, *model.AppError) {
 	a.pages = append(a.pages, page)
 	if a.readFailure && page == 1 {
 		return nil, &model.AppError{}
+	}
+	if a.repeatPage {
+		page = 0
 	}
 	var members model.ChannelMembers
 	for i := page * perPage; i < (page+1)*perPage && i < a.memberCount; i++ {
@@ -42,7 +58,11 @@ func (a *unmuteAPI) GetChannelMembers(channelID string, page, perPage int) (mode
 	return members, nil
 }
 func (a *unmuteAPI) UpdateChannelMemberNotifications(channelID, userID string, props map[string]string) (*model.ChannelMember, *model.AppError) {
-	if channelID != testChannelID || len(props) != 3 || props["desktop"] != "default" || props["push"] != "default" || props["mark_unread"] != "all" {
+	expected := a.expectedProps
+	if expected == nil {
+		expected = map[string]string{"desktop": "default", "push": "default", "mark_unread": "all"}
+	}
+	if channelID != testChannelID || !reflect.DeepEqual(props, expected) {
 		panic("unexpected notification patch")
 	}
 	a.updates = append(a.updates, userID)

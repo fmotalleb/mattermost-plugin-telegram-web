@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
+import type {MMChannelNotificationOverrides, MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
 
 declare const window: any;
@@ -297,6 +297,10 @@ export class MattermostAPI {
 
     updateChannelNotifyProps(channelId: string, userId: string, props: Record<string, string>): Promise<any> {
         return this.request(`/channels/${channelId}/members/${userId}/notify_props`, {method: 'PUT', body: props});
+    }
+
+    overrideChannelNotificationsForEveryone(channelId: string, notifyProps: MMChannelNotificationOverrides): Promise<{updated: number; failed: number}> {
+        return this.pluginRequest('/api/v1/channel-notifications', {method: 'POST', body: {channel_id: channelId, notify_props: notifyProps}});
     }
 
     unmuteChannelForEveryone(channelId: string): Promise<{updated: number; failed: number}> {

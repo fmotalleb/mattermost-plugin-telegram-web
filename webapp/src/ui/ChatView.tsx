@@ -348,6 +348,11 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                         }
                     },
                 }),
+            }, {
+                key: 'notifications-everyone',
+                label: 'Override notifications for everyone',
+                icon: <IconBell size={18}/>,
+                onClick: () => actions.openModal('channelNotifications', {channelId: channel.id, title: summary.title}),
             }] : []),
             ...(!quick ? [{
                 key: 'read',

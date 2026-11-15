@@ -79,6 +79,12 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   in a public or private channel. After confirmation, the server resets all current members to
   default desktop/push notifications and all-message unread indicators. Members can mute again;
   this does not enforce a policy for future members. Requires the plugin's server component.
+* **Override channel notifications for everyone** — next to **Unmute for everyone**, server
+  admins can apply desktop, mobile push, email, unread indicators, channel-wide mention, and thread
+  auto-follow settings to all current members of a public/private channel. Each field starts at
+  **Keep unchanged**; only selected fields are changed after **Apply to everyone**.
+  The dialog reports failed member updates and supports retry. This is a one-time override;
+  members can change their settings afterward and future members are not affected.
 * **Composer** — attachment tray, emoji picker, reply bar, `Enter` sends, `Shift+Enter` adds a line,
   optimistic "sending…" bubble that is reconciled with the server response.
 * **Scheduled sending** — choose **Schedule** beside the composer formatting controls. Pending

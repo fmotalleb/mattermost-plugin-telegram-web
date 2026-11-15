@@ -502,6 +502,42 @@ class CDP {
         ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-schedule-toggle")'), 'closing schedule picker returns focus to its control');
         await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
 
+        console.log('\n== bulk channel notification dialog ==');
+        await cdp.eval(`(() => {
+            const state = window.__store.getState();
+            const id = state.entities.users.currentUserId;
+            window.__notificationOriginalUser = state.entities.users.profiles[id];
+            state.entities.users.profiles = {...state.entities.users.profiles, [id]: {...state.entities.users.profiles[id], roles: 'system_user system_admin'}};
+            window.__store.dispatch({type: 'TEST_ROLE_UPDATE'});
+            Array.from(document.querySelectorAll('.tgw-chat-row')).find(row => row.textContent.includes('Town Square')).click();
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-chat-header-title").textContent === "Town Square"', 5000, 'channel to open');
+        await cdp.eval(`document.querySelector('.tgw-chat-header [title="More"]').click()`);
+        await cdp.waitFor('Array.from(document.querySelectorAll(".tgw-menu-item")).some(item => item.textContent.trim() === "Override notifications for everyone")', 3000, 'admin notification action');
+        await cdp.eval('Array.from(document.querySelectorAll(".tgw-menu-item")).find(item => item.textContent.trim() === "Override notifications for everyone").click()');
+        await cdp.waitFor(`!!document.querySelector('[role="dialog"][aria-label="Override channel notifications"]')`, 3000, 'notification dialog');
+        ok(await cdp.eval('document.querySelectorAll(".tgw-modal select").length === 6'), 'bulk notification dialog exposes all six settings');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 420, height: 700, deviceScaleFactor: 1, mobile: false});
+        await sleep(100);
+        const notificationLayout = await cdp.eval(`(() => {
+            const modal = document.querySelector('.tgw-modal');
+            const r = modal.getBoundingClientRect();
+            return r.width > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight &&
+                Array.from(modal.querySelectorAll('select, footer button')).every(node => {const b = node.getBoundingClientRect(); return b.left >= r.left && b.right <= r.right;});
+        })()`);
+        ok(notificationLayout, 'notification settings and apply controls fit a narrow viewport');
+        fs.writeFileSync('/tmp/tgw-channel-notifications.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+        await cdp.eval(`document.querySelector('.tgw-modal [title="Close"]').click()`);
+        await cdp.waitFor('!document.querySelector(".tgw-modal")', 3000, 'notification dialog closes');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
+        await cdp.eval(`(() => {
+            const state = window.__store.getState();
+            state.entities.users.profiles = {...state.entities.users.profiles, [state.entities.users.currentUserId]: window.__notificationOriginalUser};
+            window.__store.dispatch({type: 'TEST_ROLE_UPDATE'});
+            Array.from(document.querySelectorAll('.tgw-chat-row')).find(row => row.textContent.includes('Alice')).click();
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-chat-header-title").textContent.includes("Alice")', 3000, 'direct chat restored');
+
         console.log('\n== quick chat modal ==');
         await cdp.eval(`(() => {
             window.__quickPrevious = document.activeElement;

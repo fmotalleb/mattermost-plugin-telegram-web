@@ -22,9 +22,10 @@ const (
 	viewsPath = "/api/v1/views"
 	// Searches every retained post in one channel. Unlike Mattermost's indexed /posts/search,
 	// this is not subject to a server's search-result cap.
-	channelSearchPath = "/api/v1/channel-search"
-	forwardPath       = "/api/v1/forward"
-	unmuteChannelPath = "/api/v1/channel-unmute"
+	channelSearchPath                = "/api/v1/channel-search"
+	forwardPath                      = "/api/v1/forward"
+	unmuteChannelPath                = "/api/v1/channel-unmute"
+	overrideChannelNotificationsPath = "/api/v1/channel-notifications"
 
 	maxPostIDsPerRequest  = 100
 	channelSearchPageSize = 100
@@ -69,7 +70,7 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 			return
 		}
 		p.handleScheduledPosts(w, r)
-	case strings.HasSuffix(path, unmuteChannelPath):
+	case strings.HasSuffix(path, unmuteChannelPath), strings.HasSuffix(path, overrideChannelNotificationsPath):
 		if r.Method != http.MethodPost {
 			if !setResponseHeader(w, "Allow", http.MethodPost) {
 				return
@@ -77,7 +78,11 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
-		p.handleUnmuteChannel(w, r)
+		if strings.HasSuffix(path, unmuteChannelPath) {
+			p.handleUnmuteChannel(w, r)
+		} else {
+			p.handleOverrideChannelNotifications(w, r)
+		}
 	case strings.HasSuffix(path, viewsPath):
 		switch r.Method {
 		case http.MethodPost:

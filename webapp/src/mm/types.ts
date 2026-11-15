@@ -246,3 +246,12 @@ export interface MMScheduledPost {
     scheduled_at: number;
     priority?: MMPostPriority;
 }
+
+export interface MMChannelNotificationOverrides {
+    desktop?: 'default' | 'all' | 'mention' | 'none';
+    push?: 'default' | 'all' | 'mention' | 'none';
+    email?: 'default' | 'true' | 'false';
+    mark_unread?: 'all' | 'mention';
+    ignore_channel_mentions?: 'default' | 'on' | 'off';
+    channel_auto_follow_threads?: 'on' | 'off';
+}

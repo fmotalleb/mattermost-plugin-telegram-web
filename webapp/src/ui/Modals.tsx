@@ -8,7 +8,7 @@ import {ACCENTS, THEME_LABELS, updateSettings, WALLPAPER_LABELS} from '../mm/set
 import type {AccentName, ThemeName, WallpaperName} from '../mm/settings';
 import {getAllChats, getContacts, getCurrentTeamId, getMyId, searchContactCandidates} from '../mm/selectors';
 import {useSelector} from '../mm/store';
-import type {MMPost, MMUser} from '../mm/types';
+import type {MMChannelNotificationOverrides, MMPost, MMUser} from '../mm/types';
 import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
@@ -571,9 +571,69 @@ export function UserProfileModal({payload}: {payload: {userId?: string; username
     </ModalShell>;
 }
 
+const channelNotificationFields: Array<{key: keyof MMChannelNotificationOverrides; label: string; options: Array<[string, string]>}> = [
+    {key: 'desktop', label: 'Desktop notifications', options: [['default', 'Account default'], ['all', 'All messages'], ['mention', 'Mentions only'], ['none', 'Nothing']]},
+    {key: 'push', label: 'Mobile push notifications', options: [['default', 'Account default'], ['all', 'All messages'], ['mention', 'Mentions only'], ['none', 'Nothing']]},
+    {key: 'email', label: 'Email notifications', options: [['default', 'Account default'], ['true', 'Enabled'], ['false', 'Disabled']]},
+    {key: 'mark_unread', label: 'Unread indicators', options: [['all', 'All messages'], ['mention', 'Mentions only']]},
+    {key: 'ignore_channel_mentions', label: 'Channel-wide mentions', options: [['default', 'Account default'], ['off', 'Notify'], ['on', 'Ignore']]},
+    {key: 'channel_auto_follow_threads', label: 'Automatically follow threads', options: [['on', 'Enabled'], ['off', 'Disabled']]},
+];
+
+export function ChannelNotificationsModal({payload}: {payload: {channelId: string; title?: string}}) {
+    const {actions, me} = useTg();
+    const [values, setValues] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const inFlight = useRef(false);
+    const isAdmin = me?.roles?.split(/\s+/).includes('system_admin');
+    const close = () => { if (!inFlight.current) actions.closeModal(); };
+    const patch = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '')) as MMChannelNotificationOverrides;
+    if (!isAdmin) return null;
+    const apply = async () => {
+        if (inFlight.current || !Object.keys(patch).length) return;
+        inFlight.current = true;
+        setSaving(true);
+        setError('');
+        try {
+            const result = await api.overrideChannelNotificationsForEveryone(payload.channelId, patch);
+            if (result.failed) {
+                setError(`Updated ${result.updated} members; ${result.failed} could not be updated. You can retry these settings.`);
+            } else {
+                actions.toast(`Notification settings updated for ${result.updated} members`, 'success');
+                actions.closeModal();
+            }
+        } catch (err: any) {
+            setError(err.message || 'Could not update notification settings');
+        } finally {
+            inFlight.current = false;
+            setSaving(false);
+        }
+    };
+    return <ModalShell title="Override channel notifications" onClose={close} width={540} footer={<>
+        <button type="button" className="tgw-button tgw-button-secondary" disabled={saving} onClick={close}>Cancel</button>
+        <button type="button" className="tgw-button" disabled={saving || !Object.keys(patch).length} onClick={apply}>{saving ? 'Applying…' : 'Apply to everyone'}</button>
+    </>}>
+        <div className="tgw-settings-section">
+            <p>Selected settings will replace the notification settings for every current member of {payload.title || 'this channel'}. Members can change them again afterward; future members are not affected.</p>
+            {channelNotificationFields.map((field) => <label className="tgw-field" key={field.key}>
+                <span>{field.label}</span>
+                <select className="tgw-input" style={{width: '60%', minWidth: 0}} aria-label={field.label} disabled={saving} value={values[field.key] || ''}
+                    onChange={(event) => setValues({...values, [field.key]: event.target.value})}>
+                    <option value="">Keep unchanged</option>
+                    {field.options.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                </select>
+            </label>)}
+            {error && <p role="alert">{error}</p>}
+        </div>
+    </ModalShell>;
+}
+
 export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
+    case 'channelNotifications':
+        return <ChannelNotificationsModal key={ui.modalPayload?.channelId} payload={ui.modalPayload}/>;
     case 'userProfile':
         return <UserProfileModal key={ui.modalPayload?.userId || ui.modalPayload?.username} payload={ui.modalPayload || {}}/>;
     case 'settings':
