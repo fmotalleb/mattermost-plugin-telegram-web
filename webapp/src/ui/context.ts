@@ -30,6 +30,7 @@ export interface ContextTarget {
 export interface TgUIState {
     quickChatId?: string;
     selectedChannelId: string;
+    unreadEntry?: {channelId: string; lastViewedAt: number | null};
     /** Bumped by openChat(), so the composer can grab the input even when the same chat is re-opened. */
     chatSeq: number;
     activeTabId: string;
@@ -48,7 +49,6 @@ export interface TgUIState {
     editing: MMPost | null;
     contextMenu: ContextTarget | null;
     imageViewer: {post: MMPost; fileId?: string} | null;
-    profilePhoto?: {url: string; name: string; origin?: HTMLElement};
     highlightedPostId: string | null;
     threadRootId: string | null;
     mobilePane: 'list' | 'chat';

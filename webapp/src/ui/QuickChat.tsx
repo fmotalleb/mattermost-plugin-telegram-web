@@ -37,7 +37,7 @@ export function QuickChat({channelId}: {channelId: string}) {
         if (initialInput) initialInput.focus();
         else dialog.current?.focus();
         const onKey = (event: KeyboardEvent) => {
-            if (latest.current.ui.imageViewer || latest.current.ui.profilePhoto || latest.current.ui.modal === 'scheduledMessages') return;
+            if (latest.current.ui.imageViewer || latest.current.ui.modal === 'userProfile' || latest.current.ui.modal === 'scheduledMessages') return;
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopImmediatePropagation();
@@ -52,7 +52,7 @@ export function QuickChat({channelId}: {channelId: string}) {
             }
         };
         const onFocus = (event: FocusEvent) => {
-            if (latest.current.ui.imageViewer || latest.current.ui.profilePhoto || latest.current.ui.modal === 'scheduledMessages') return;
+            if (latest.current.ui.imageViewer || latest.current.ui.modal === 'userProfile' || latest.current.ui.modal === 'scheduledMessages') return;
             const target = event.target as Node;
             if (!dialog.current?.contains(target)) {
                 const input = dialog.current?.querySelector<HTMLTextAreaElement>('textarea');

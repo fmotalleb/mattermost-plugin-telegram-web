@@ -122,6 +122,13 @@ const channels = ${sub(channels)};
 const posts = ${sub(posts)};
 let scheduledMessages = [];
 const stockExtraIds = [];
+// Enough unread history to distinguish opening at the boundary from opening at the bottom.
+for (let n = 0; n < 30; n++) {
+    const id = 'unread-browser-' + n;
+    posts[id] = {id,channel_id:DM,user_id:OTHER,message:'Unread history message ' + n,
+        create_at:1700000800000+n*1000,update_at:1700000800000+n*1000,delete_at:0,type:'',props:{}};
+    stockExtraIds.push(id);
+}
 const calls = []; const payloads = [];
 window.__calls = calls;
 window.__payloads = payloads;
@@ -458,22 +465,31 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        const unreadOpening = await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            const unread = list.querySelector('[data-post-id="p3"]');
+            return {offset:unread.getBoundingClientRect().top-list.getBoundingClientRect().top,
+                remaining:list.scrollHeight-list.scrollTop-list.clientHeight};
+        })()`);
+        ok(unreadOpening.offset >= 0 && unreadOpening.offset < 100 && unreadOpening.remaining > 500,
+            `unread chat opens at the first unread message with newer history below (${JSON.stringify(unreadOpening)})`);
+
         console.log('\n== profile photo viewer ==');
         await cdp.waitFor('document.querySelector(".tgw-chat-header-main .tgw-avatar img")?.naturalWidth > 0', 5000, 'profile photo fixture');
         await cdp.clickSelector('.tgw-chat-header-main .tgw-avatar img');
-        await cdp.waitFor('!!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'profile photo viewer');
-        ok(await cdp.eval('!document.querySelector(".tgw-info-panel") && document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'photo click opens its viewer and focuses it without opening chat info');
+        await cdp.waitFor('!!document.querySelector(".tgw-modal[aria-label^=User]")', 3000, 'profile photo viewer');
+        ok(await cdp.eval('!document.querySelector(".tgw-info-panel") && document.activeElement === document.querySelector(".tgw-modal[aria-label^=User] button")'), 'photo click opens its viewer and focuses it without opening chat info');
         await cdp.send('Emulation.setDeviceMetricsOverride', {width: 420, height: 700, deviceScaleFactor: 1, mobile: false});
-        await cdp.waitFor('document.querySelector(".tgw-profile-photo")?.naturalWidth > 0', 3000, 'enlarged profile image');
-        ok(await cdp.eval(`(() => {const r = document.querySelector('.tgw-profile-photo').getBoundingClientRect(); return r.width > 100 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;})()`), 'enlarged profile photo fits the narrow viewport');
+        await cdp.waitFor('document.querySelector(".tgw-modal[aria-label^=User] .tgw-avatar img")?.naturalWidth > 0', 3000, 'enlarged profile image');
+        ok(await cdp.eval(`(() => {const r = document.querySelector('.tgw-modal[aria-label^=User] .tgw-avatar img').getBoundingClientRect(); return r.width > 100 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;})()`), 'enlarged profile photo fits the narrow viewport');
         fs.writeFileSync('/tmp/tgw-profile-photo.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
         await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
-        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'profile viewer traps keyboard focus');
+        ok(await cdp.eval('document.querySelector(".tgw-modal[aria-label^=User]").contains(document.activeElement)'), 'profile viewer traps keyboard focus');
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
-        await cdp.waitFor('!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'photo viewer closes');
+        await cdp.waitFor('!document.querySelector(".tgw-modal[aria-label^=User]")', 3000, 'photo viewer closes');
         ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-chat-header-main .tgw-avatar img")'), 'closing the profile photo restores focus to its trigger');
 
         console.log('\n== command autocomplete ==');
@@ -612,11 +628,11 @@ class CDP {
         ok(await cdp.eval(`(() => {const button = document.querySelector('.tgw-quick-close'); const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));})()`), 'close button is above the chat header');
         ok(quickLayout.focus && quickLayout.inert && quickLayout.route, 'quick chat focuses composer and preserves main chat');
         await cdp.clickSelector('.tgw-quick-dialog .tgw-chat-header-main .tgw-avatar img');
-        await cdp.waitFor('!!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'quick chat photo');
-        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'quick chat allows the photo viewer to take focus');
+        await cdp.waitFor('!!document.querySelector(".tgw-modal[aria-label^=User]")', 3000, 'quick chat photo');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-modal[aria-label^=User] button")'), 'quick chat allows the photo viewer to take focus');
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
         await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
-        await cdp.waitFor('!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'quick chat photo closes');
+        await cdp.waitFor('!document.querySelector(".tgw-modal[aria-label^=User]")', 3000, 'quick chat photo closes');
         ok(await cdp.eval('!!document.querySelector(".tgw-quick-dialog") && document.querySelector(".tgw-quick-dialog").contains(document.activeElement)'), 'closing a photo preserves quick chat and restores its focus');
 
         const quickSchedulePoint = await cdp.eval(`(() => {const r = document.querySelector('.tgw-quick-dialog .tgw-schedule-toggle').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
@@ -767,8 +783,15 @@ class CDP {
                 const list = document.querySelector('.tgw-messages');
                 return {scrollTop: list.scrollTop, clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
             })()`);
-            ok(chatScroll.scrollTop + chatScroll.clientHeight >= chatScroll.scrollHeight - 2,
-                `opening a chat starts at its latest messages (${JSON.stringify(chatScroll)})`);
+            const unreadPosition = await cdp.eval(`(() => {
+                const list = document.querySelector('.tgw-messages');
+                const divider = list.querySelector('.tgw-unread-divider');
+                if (!divider) return null;
+                return divider.getBoundingClientRect().top - list.getBoundingClientRect().top;
+            })()`);
+            ok(unreadPosition !== null ? unreadPosition >= -2 && unreadPosition < chatScroll.clientHeight
+                : chatScroll.scrollTop + chatScroll.clientHeight >= chatScroll.scrollHeight - 2,
+                `opening a chat shows its unread boundary or latest read messages (${JSON.stringify(chatScroll)})`);
             const focused = await cdp.eval(`(() => {
                 const active = document.activeElement;
                 const composer = document.querySelector('.tgw-composer textarea');

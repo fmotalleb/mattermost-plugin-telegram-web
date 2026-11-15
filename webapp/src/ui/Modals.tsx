@@ -16,7 +16,36 @@ import {filesOfPost} from './MessageList';
 import {overlayRoot} from './portal';
 import {Avatar, IconBack, IconClose, IconForward} from './primitives';
 
-export function ModalShell({title, children, footer, width = 460, onClose}: {title: string; children: React.ReactNode; footer?: React.ReactNode; width?: number; onClose: () => void}) {
+export function ModalShell({title, children, footer, width = 460, onClose, manageFocus = false}: {title: string; children: React.ReactNode; footer?: React.ReactNode; width?: number; onClose: () => void; manageFocus?: boolean}) {
+    const dialog = useRef<HTMLDivElement>(null);
+    const latestClose = useRef(onClose);
+    latestClose.current = onClose;
+    useEffect(() => {
+        if (!manageFocus) return;
+        const previous = document.activeElement as HTMLElement;
+        const controls = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, textarea, [tabindex="0"]') || []);
+        controls()[0]?.focus();
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault(); event.stopImmediatePropagation(); latestClose.current();
+            } else if (event.key === 'Tab') {
+                const items = controls();
+                const index = items.indexOf(document.activeElement as HTMLElement);
+                event.preventDefault(); event.stopImmediatePropagation();
+                items[(index + (event.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
+            }
+        };
+        const onFocus = (event: FocusEvent) => {
+            if (!dialog.current?.contains(event.target as Node)) controls()[0]?.focus();
+        };
+        document.addEventListener('keydown', onKey, true);
+        document.addEventListener('focusin', onFocus);
+        return () => {
+            document.removeEventListener('keydown', onKey, true);
+            document.removeEventListener('focusin', onFocus);
+            if (previous?.isConnected) previous.focus({preventScroll: true});
+        };
+    }, [manageFocus]);
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -29,7 +58,7 @@ export function ModalShell({title, children, footer, width = 460, onClose}: {tit
 
     return createPortal(
         <div className="tgw-modal-backdrop" onMouseDown={(event) => (event.target === event.currentTarget ? onClose() : undefined)}>
-            <div className="tgw-modal" style={{width}} role="dialog" aria-label={title}>
+            <div ref={dialog} className="tgw-modal" style={{width}} role="dialog" aria-modal="true" aria-label={title}>
                 <header className="tgw-modal-header">
                     <span>{title}</span>
                     <button type="button" className="tgw-icon-button" onClick={onClose} title="Close">
@@ -559,12 +588,12 @@ export function UserProfileModal({payload}: {payload: {userId?: string; username
         return () => { cancelled = true; };
     }, [payload.userId, payload.username, cached, attempt]);
     const user = cached || loaded;
-    return <ModalShell title="User profile" onClose={actions.closeModal} footer={user && (
+    return <ModalShell title="User profile" manageFocus onClose={actions.closeModal} footer={user && (
         <button type="button" className="tgw-button" disabled={!!user.delete_at} title={user.delete_at ? 'This account is deactivated' : undefined}
             onClick={() => { actions.closeModal(); if (ui.quickChatId) actions.setUI({quickChatId: undefined}); actions.openUserChat(user.id); }}>Open direct chat</button>
     )}>
         {user ? <div className="tgw-info-profile">
-            <Avatar userId={user.id} profile={user} name={displayName(user)} size={80}/>
+            <Avatar userId={user.id} profile={user} name={displayName(user)} size={128} previewProfile={false}/>
             <div className="tgw-info-name">{displayName(user)}</div>
             <div className="tgw-info-sub">@{user.username}{user.is_bot || user.bot ? ' · bot' : ''}</div>
             {user.nickname && <div className="tgw-info-text">{user.nickname}</div>}

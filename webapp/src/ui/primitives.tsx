@@ -146,6 +146,7 @@ export interface AvatarProps {
     className?: string;
     savedMessages?: boolean;
     imageUrl?: string;
+    previewProfile?: boolean;
 }
 
 function allowedToLoadAvatar(user?: MMUser): boolean {
@@ -155,7 +156,7 @@ function allowedToLoadAvatar(user?: MMUser): boolean {
     return user.delete_at === 0 || user.delete_at === undefined;
 }
 
-export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className, savedMessages, imageUrl}: AvatarProps) {
+export function Avatar({userId, profile, name, colorKey, size = 54, status, showStatus, className, savedMessages, imageUrl, previewProfile = true}: AvatarProps) {
     const cachedUser = useSelector((state) => (userId ? getUser(state, userId) : undefined));
     const user = profile || cachedUser;
     const siteURL = useSelector(getSiteURL);
@@ -169,13 +170,13 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
         ? `${siteURL}/api/v4/users/${userId}/image?_=${user.last_picture_update}` : '');
     const failed = !!url && failedSource === url;
     const hasPicture = !!url && !failed;
-    const canPreview = hasPicture && !!userId && !savedMessages && !!tg;
+    const canPreview = previewProfile && hasPicture && !!userId && !savedMessages && !!tg;
     const openPhoto = (event: React.MouseEvent<HTMLImageElement> | React.KeyboardEvent<HTMLImageElement>) => {
         if (!canPreview) return;
         event.preventDefault();
         event.stopPropagation();
         event.currentTarget.focus();
-        tg.actions.setUI({profilePhoto: {url, name, origin: event.currentTarget}});
+        tg.actions.openModal('userProfile', {userId});
     };
 
     return (
@@ -191,11 +192,11 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
                     alt=""
                     draggable={false}
                     onError={() => setFailedSource(url)}
-                    className={canPreview ? 'tgw-avatar-photo-trigger' : undefined}
+                    className={canPreview ? 'tgw-avatar-profile-trigger' : undefined}
                     role={canPreview ? 'button' : undefined}
                     tabIndex={canPreview ? 0 : undefined}
-                    aria-label={canPreview ? `Open ${name}'s profile photo` : undefined}
-                    title={canPreview ? 'View profile photo' : undefined}
+                    aria-label={canPreview ? `Open ${name}'s profile` : undefined}
+                    title={canPreview ? 'View profile' : undefined}
                     onClick={canPreview ? openPhoto : undefined}
                     onKeyDown={canPreview ? (event) => {
                         if (event.key === 'Enter' || event.key === ' ') openPhoto(event);

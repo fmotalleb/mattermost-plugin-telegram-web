@@ -117,24 +117,23 @@ export function MessageList(props: MessageListProps) {
     const rows = useMemo(() => groupPosts(posts, myId), [posts, myId]);
 
     const member = useSelector((state) => state.entities?.channels?.myMembers?.[channel.id]);
-    const firstUnreadPostId = useMemo(() => {
-        if (!member || !posts.length) {
-            return null;
-        }
-        return posts.find((post) => post.create_at > (member.last_viewed_at || 0) && post.user_id !== myId)?.id || null;
-    }, [posts, member, myId]);
-    const unreadDividerPostId = useMemo(() => {
-        if (!firstUnreadPostId) {
-            return null;
-        }
-        const firstUnread = posts.find((post) => post.id === firstUnreadPostId);
-        if (!firstUnread) return null;
-        // Only show the divider for messages that are not "brand new" (older than 2 minutes).
-        if (Date.now() - firstUnread.create_at < 120_000) {
-            return null;
-        }
-        return firstUnread.id;
-    }, [posts, firstUnreadPostId]);
+    // Keep the entry boundary while the host's view receipt updates the live membership.
+    const entry = useRef<{channelId: string; lastViewedAt: number | null}>({channelId: '', lastViewedAt: null});
+    if (entry.current.channelId !== channel.id) {
+        const hasUnread = member && (channel.total_msg_count > member.msg_count || member.mention_count > 0);
+        entry.current = !quick && ui.unreadEntry?.channelId === channel.id ? ui.unreadEntry
+            : {channelId: channel.id, lastViewedAt: hasUnread ? member.last_viewed_at || 0 : null};
+    }
+    const unreadSince = entry.current.lastViewedAt;
+    const firstUnreadPostId = useMemo(() => unreadSince === null ? null
+        : posts.find((post) => post.create_at > unreadSince && post.user_id !== myId)?.id || null,
+    [posts, unreadSince, myId]);
+    const unreadDividerPostId = firstUnreadPostId;
+    const findingUnread = !highlightedPostId && unreadSince !== null && hasMoreOlder &&
+        !!posts.length && posts[0].create_at > unreadSince;
+    useEffect(() => {
+        if (findingUnread && !loading && !loadingOlder) loadOlder(channel.id);
+    }, [findingUnread, loading, loadingOlder, channel.id, posts]);
 
     // Scroll handling ---------------------------------------------------------------------------
     const rememberScrollAnchor = useCallback(() => {
@@ -168,7 +167,7 @@ export function MessageList(props: MessageListProps) {
 
     useLayoutEffect(() => {
         const element = listRef.current;
-        if (!element) {
+        if (!element || loading || findingUnread || (!posts.length && hasMoreOlder)) {
             return;
         }
         const firstId = posts[0]?.id || null;
@@ -178,15 +177,23 @@ export function MessageList(props: MessageListProps) {
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
             loadOlderIntent.current = false;
-            // Every newly opened chat starts at its latest message, regardless of unread state.
-            scrollToBottom();
+            const unread = firstUnreadPostId && !highlightedPostId
+                ? element.querySelector<HTMLElement>(`[data-post-id="${firstUnreadPostId}"]`) : null;
+            if (unread) {
+                followBottom.current = false;
+                setAtBottom(false);
+                setUnseenBelow(0);
+                element.scrollTop += unread.getBoundingClientRect().top - element.getBoundingClientRect().top - 40;
+            } else {
+                scrollToBottom();
+            }
         } else if (sentNewPost) {
             scrollToBottom();
         } else if (previousFirstId.current && firstId !== previousFirstId.current && heightGrew) {
             // Older messages were prepended: keep the viewport anchored.
             const delta = element.scrollHeight - previousHeight.current;
             element.scrollTop += delta;
-        } else if (atBottom) {
+        } else if (followBottom.current) {
             scrollToBottom();
         } else if (posts.some((post) => !previousPostIds.current.has(post.id))) {
             setUnseenBelow((count) => count + 1);
@@ -196,7 +203,7 @@ export function MessageList(props: MessageListProps) {
         previousFirstId.current = firstId;
         previousPostIds.current = new Set(posts.map((post) => post.id));
         rememberScrollAnchor();
-    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId, rememberScrollAnchor]);
+    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId, rememberScrollAnchor, loading, findingUnread, highlightedPostId, hasMoreOlder]);
 
     // Images, rich content and the composer can settle after the posts have rendered. Their
     // size changes do not change `posts`, so the effect above cannot keep an open chat pinned.
