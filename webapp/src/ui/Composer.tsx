@@ -20,8 +20,20 @@ function autoGrow(element: HTMLTextAreaElement | null) {
     if (!element) {
         return;
     }
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(Math.max(element.scrollHeight, 24), 320)}px`;
+    // Collapsing the live textarea to measure it temporarily enlarges the message viewport.
+    // The browser clamps its scrollTop during that layout, making history jump on each input.
+    // Measure an out-of-flow copy at the same width instead, then resize the real box once.
+    const measure = element.cloneNode(false) as HTMLTextAreaElement;
+    measure.value = element.value;
+    measure.tabIndex = -1;
+    measure.setAttribute('aria-hidden', 'true');
+    Object.assign(measure.style, {position: 'fixed', left: '-10000px', top: '0', visibility: 'hidden',
+        pointerEvents: 'none', height: 'auto', minHeight: '0', maxHeight: 'none',
+        width: `${element.getBoundingClientRect().width}px`});
+    element.parentElement?.appendChild(measure);
+    const height = `${Math.min(Math.max(measure.scrollHeight, 24), 320)}px`;
+    measure.remove();
+    if (element.style.height !== height) element.style.height = height;
 }
 
 export interface ComposerProps {
@@ -140,7 +152,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
 
     // The textarea height is imperative (style.height), so every programmatic message change —
     // loading a long message for editing, inserting emoji/markdown — must re-measure, not just
-    // the onChange path. Without this an edit of a large message stayed stuck at one line.
+    // ordinary typing. Without this an edit of a large message stayed stuck at one line.
     useLayoutEffect(() => {
         autoGrow(textareaRef.current);
     }, [message]);
@@ -516,7 +528,6 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                         spellCheck={false}
                         onChange={(event) => {
                             setComposerMessage(event.target.value);
-                            autoGrow(event.target);
                             typingRef.current();
                         }}
                         onKeyDown={onKeyDown}

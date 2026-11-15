@@ -970,6 +970,49 @@ class CDP {
         ok(selectAll.outsideCollapsed || selectAll.outsideText === '',
             `no page text (usernames) is selected outside the input (selection: ${JSON.stringify(selectAll.outsideText)})`);
 
+        console.log('\n== composer typing stability ==');
+        await cdp.eval(`(() => {
+            const area = document.querySelector('.tgw-composer textarea');
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area, Array.from({length:10},(_,n)=>'Draft line '+n).join('\\n'));
+            area.dispatchEvent(new Event('input',{bubbles:true}));
+            area.focus({preventScroll:true});
+            area.setSelectionRange(area.value.length,area.value.length);
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-composer textarea").getBoundingClientRect().height > 180',3000,'multiline composer');
+        await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            list.scrollTop = list.scrollHeight-list.clientHeight-120;
+            list.dispatchEvent(new Event('scroll',{bubbles:true}));
+        })()`);
+        await sleep(100);
+        await cdp.eval(`(() => {
+            const list = document.querySelector('.tgw-messages');
+            window.__typingAnchor = Array.from(list.querySelectorAll('[data-post-id]')).find(row=>row.getBoundingClientRect().top>=list.getBoundingClientRect().top);
+            window.__typingFrames = [];
+            window.__typingSampling = true;
+            const sample = () => {
+                window.__typingFrames.push({top:window.__typingAnchor.getBoundingClientRect().top,height:document.querySelector('.tgw-composer textarea').getBoundingClientRect().height,scrollTop:list.scrollTop});
+                if (window.__typingSampling) requestAnimationFrame(sample);
+            };
+            sample();
+        })()`);
+        for (let n=0;n<12;n++) {
+            await cdp.send('Input.insertText',{text:'x'});
+            await sleep(25);
+        }
+        const typingStability = await cdp.eval(`(() => {
+            window.__typingSampling = false;
+            const frames = window.__typingFrames;
+            return {travel:Math.max(...frames.map(f=>f.top))-Math.min(...frames.map(f=>f.top)),heightTravel:Math.max(...frames.map(f=>f.height))-Math.min(...frames.map(f=>f.height)),samples:frames.length};
+        })()`);
+        ok(typingStability.samples > 5 && typingStability.travel <= 2 && typingStability.heightTravel <= 2,
+            `typing within a line keeps the composer and visible history steady (${JSON.stringify(typingStability)})`);
+        await cdp.eval(`(() => {
+            const area=document.querySelector('.tgw-composer textarea');
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area,'');
+            area.dispatchEvent(new Event('input',{bubbles:true}));
+        })()`);
+
         console.log('\n== editing scheduled messages ==');
         await cdp.eval(`(() => {
             scheduledMessages = [{id:'browser-edit',user_id:ME,channel_id:DM,message:'Edit this scheduled text',scheduled_at:Date.now()+86400000}];
