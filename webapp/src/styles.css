@@ -4120,3 +4120,16 @@ body.tgw-root-active {
 .tgw-root .tgw-avatar-photo-trigger:focus-visible { outline: 2px solid var(--tgw-accent); outline-offset: -3px; }
 .tgw-root .tgw-profile-photo-viewer .tgw-profile-photo { width: min(480px, calc(100vw - 48px)); max-height: calc(100vh - 140px); object-fit: contain; border-radius: 8px; }
 .tgw-root .tgw-profile-photo-viewer .tgw-image-viewer-caption { color: #fff; }
+
+.tgw-root .tgw-schedule-toggle { position: relative; }
+.tgw-root .tgw-send-options .tgw-schedule-count { display: inline-flex; position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px; align-items: center; justify-content: center; border-radius: 9px; background: var(--tgw-accent); color: #fff; font-size: 10px; line-height: 16px; box-shadow: 0 0 0 2px var(--tgw-bg); pointer-events: none; }
+.tgw-root .tgw-send-options .tgw-schedule-count-error { background: #c62828; }
+.tgw-root .tgw-scheduled-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--tgw-text-secondary); font-size: 13px; }
+.tgw-root .tgw-scheduled-list { display: flex; flex-direction: column; gap: 12px; }
+.tgw-root .tgw-scheduled-message { padding: 12px; border: 1px solid var(--tgw-border); border-radius: 10px; }
+.tgw-root .tgw-scheduled-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; color: var(--tgw-text-secondary); font-size: 12px; margin-bottom: 8px; }
+.tgw-root .tgw-scheduled-message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tgw-root .tgw-scheduled-detail { margin-top: 6px; color: var(--tgw-text-secondary); font-size: 12px; }
+.tgw-root .tgw-scheduled-failed { color: #c62828; }
+.tgw-root.tgw-theme-dark .tgw-scheduled-failed, .tgw-root.tgw-theme-midnight .tgw-scheduled-failed { color: #ff8a80; }
+.tgw-root .tgw-scheduled-content { display: flex; flex-direction: column; gap: 10px; min-width: 0; }

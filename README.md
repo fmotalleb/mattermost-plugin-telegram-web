@@ -94,6 +94,10 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   messages are stored in this plugin's durable KV storage and delivered by one coordinated server
   worker, checked every 10 seconds. No Mattermost scheduled-posts license is required. The queue is
   separate from the stock UI's Scheduled tab; only the Telegram view creates these schedules.
+  The Schedule button shows a count when you have queued messages in that chat. Right-click it
+  (or press Shift+F10 while focused) to inspect your scheduled messages, send times, attachments,
+  and delivery failures. The count updates on creation and refreshes on window focus or every
+  30 seconds while the chat is open; the list also provides a Refresh button.
   The plugin server must remain enabled; after downtime, due messages are delivered when it starts
   again. Permissions, account/channel status, thread access and attachment ownership are rechecked
   at delivery. Failed jobs remain in plugin storage, available to their sender through

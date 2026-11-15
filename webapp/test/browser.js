@@ -120,6 +120,7 @@ const DM = ids.DM; const TOWN = ids.TOWN; const THIRD = 'user-third';
 const users = ${sub(users)};
 const channels = ${sub(channels)};
 const posts = ${sub(posts)};
+let scheduledMessages = [];
 const stockExtraIds = [];
 const calls = []; const payloads = [];
 window.__calls = calls;
@@ -560,6 +561,32 @@ class CDP {
         })()`);
         await cdp.waitFor('document.querySelector(".tgw-chat-header-title").textContent.includes("Alice")', 3000, 'direct chat restored');
 
+        console.log('\n== scheduled queue indicator and list ==');
+        await cdp.eval(`(() => {
+            scheduledMessages = [
+                {id:'queue-pending', user_id:ME, channel_id:DM, message:'Send the release update', scheduled_at:Date.now()+86400000, file_ids:['one','two'], priority:{priority:'urgent'}},
+                {id:'queue-failed', user_id:ME, channel_id:DM, message:'Earlier announcement', scheduled_at:Date.now()-60000, error_code:'delivery_failed'},
+                {id:'queue-other-chat', user_id:ME, channel_id:TOWN, message:'Other channel queue', scheduled_at:Date.now()+3600000},
+                {id:'queue-other-user', user_id:OTHER, channel_id:DM, message:'Private queue', scheduled_at:Date.now()+3600000},
+            ];
+            window.dispatchEvent(new Event('focus'));
+        })()`);
+        await cdp.waitFor('document.querySelector(".tgw-schedule-count")?.textContent === "2"', 5000, 'scheduled count');
+        const schedulePoint = await cdp.eval(`(() => {const r = document.querySelector('.tgw-schedule-toggle').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+        await cdp.send('Input.dispatchMouseEvent', {type:'mousePressed', button:'right', buttons:2, clickCount:1, ...schedulePoint});
+        await cdp.send('Input.dispatchMouseEvent', {type:'mouseReleased', button:'right', buttons:0, clickCount:1, ...schedulePoint});
+        await cdp.waitFor('document.querySelectorAll(".tgw-scheduled-message").length === 2', 3000, 'scheduled message list');
+        ok(await cdp.eval(`(() => {const modal = document.querySelector('[aria-label="Scheduled messages"]'); return modal.contains(document.activeElement) && !modal.textContent.includes('Private queue') && !modal.textContent.includes('Other channel queue');})()`), 'right click opens and focuses this user’s current-chat queue');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width:420,height:700,deviceScaleFactor:1,mobile:false});
+        await sleep(100);
+        ok(await cdp.eval(`(() => {const modal = document.querySelector('[aria-label="Scheduled messages"]'); const r = modal.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight && modal.scrollWidth <= modal.clientWidth;})()`), 'scheduled queue modal fits a narrow viewport');
+        ok(await cdp.eval('getComputedStyle(document.querySelector(".tgw-schedule-count")).display !== "none"'), 'scheduled indicator remains visible on compact toolbar');
+        fs.writeFileSync('/tmp/tgw-scheduled-queue.png', Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        await cdp.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+        await cdp.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+        await cdp.waitFor(`!document.querySelector('[aria-label="Scheduled messages"]')`,3000,'scheduled queue closes');
+        await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+
         console.log('\n== quick chat modal ==');
         await cdp.eval(`(() => {
             window.__quickPrevious = document.activeElement;
@@ -592,6 +619,15 @@ class CDP {
         await cdp.waitFor('!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'quick chat photo closes');
         ok(await cdp.eval('!!document.querySelector(".tgw-quick-dialog") && document.querySelector(".tgw-quick-dialog").contains(document.activeElement)'), 'closing a photo preserves quick chat and restores its focus');
 
+        const quickSchedulePoint = await cdp.eval(`(() => {const r = document.querySelector('.tgw-quick-dialog .tgw-schedule-toggle').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+        await cdp.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'right',buttons:2,clickCount:1,...quickSchedulePoint});
+        await cdp.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'right',buttons:0,clickCount:1,...quickSchedulePoint});
+        await cdp.waitFor('document.querySelectorAll(".tgw-scheduled-message").length === 2',3000,'quick chat queue modal');
+        ok(await cdp.eval(`(() => {const modal = document.querySelector('[aria-label="Scheduled messages"]');const r = modal.getBoundingClientRect();return modal.contains(document.activeElement) && modal.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`), 'scheduled list opens above quick chat and takes focus');
+        await cdp.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+        await cdp.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+        await cdp.waitFor(`!document.querySelector('[aria-label="Scheduled messages"]')`,3000,'quick chat queue closes');
+        ok(await cdp.eval('!!document.querySelector(".tgw-quick-dialog") && document.querySelector(".tgw-quick-dialog").contains(document.activeElement)'), 'queue dismissal preserves quick chat and restores its focus');
         await cdp.eval(`(() => {
             const buttons = Array.from(document.querySelector('.tgw-quick-dialog').querySelectorAll('button:not(:disabled), textarea, input, a[href], [tabindex="0"]')).filter(x => x.getClientRects().length);
             buttons[buttons.length - 1].focus();

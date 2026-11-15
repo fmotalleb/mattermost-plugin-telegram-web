@@ -8,7 +8,7 @@ let rejectSchedule = false;
 let holdSchedule;
 const scheduled = [];
 global.fetch = async (url, options = {}) => {
-    if (new URL(url, 'https://mattermost.example.com').pathname === '/plugins/com.telegramweb.ui/api/v1/scheduled-posts') {
+    if (new URL(url, 'https://mattermost.example.com').pathname === '/plugins/com.telegramweb.ui/api/v1/scheduled-posts' && options.method === 'POST') {
         const body = JSON.parse(options.body);
         scheduled.push(body);
         if (holdSchedule) await holdSchedule;

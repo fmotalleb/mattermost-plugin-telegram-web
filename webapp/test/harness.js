@@ -227,6 +227,7 @@ const viewTracking = new Map([
     ['p2', new Set([OTHER])], // an outgoing post someone else already saw: two checkmarks
 ]);
 let serverDrafts = [];
+let scheduledMessages = [];
 global.fetch = async (url, options = {}) => {
     const parsed = new URL(url, 'https://mattermost.example.com');
     const p = parsed.pathname.replace('/api/v4', '');
@@ -248,6 +249,13 @@ global.fetch = async (url, options = {}) => {
         }
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
+
+    if (p === '/plugins/com.telegramweb.ui/api/v1/scheduled-posts') {
+        if ((options.method || 'GET') === 'GET') return json(scheduledMessages.filter((item) => (!item.user_id || item.user_id === ME) && item.channel_id === parsed.searchParams.get('channel_id')));
+        const item = {...post, id: `scheduled-${Date.now()}-${scheduledMessages.length}`, user_id: ME};
+        scheduledMessages.push(item);
+        return json(item, 201);
+    }
 
     if (p === `/teams/${TEAM}/commands/autocomplete`) {
         return json([{trigger: 'help', auto_complete_hint: '[topic]', auto_complete_desc: 'Get bot help'}]);
@@ -644,6 +652,7 @@ module.exports = {
     pushStockPost,
     viewTracking,
     setServerDrafts: (drafts) => { serverDrafts = drafts; },
+    setScheduledMessages: (messages) => { scheduledMessages = messages; },
     notifyStoreChange: () => listeners.forEach((listener) => listener()),
     tick,
     ok,

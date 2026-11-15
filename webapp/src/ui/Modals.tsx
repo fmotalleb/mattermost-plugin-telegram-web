@@ -3,6 +3,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
+import {useScheduledPosts} from '../mm/scheduled';
 import {useChannelPosts} from '../mm/posts';
 import {ACCENTS, THEME_LABELS, updateSettings, WALLPAPER_LABELS} from '../mm/settings';
 import type {AccentName, ThemeName, WallpaperName} from '../mm/settings';
@@ -629,9 +630,63 @@ export function ChannelNotificationsModal({payload}: {payload: {channelId: strin
     </ModalShell>;
 }
 
+export function ScheduledMessagesModal({channelId}: {channelId: string}) {
+    const {actions, timeFormat, settings} = useTg();
+    const formatter = new Intl.DateTimeFormat(timeFormat.locale, {calendar: settings.jalali ? 'persian' : 'gregory', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: !timeFormat.military});
+    const sendTime = (timestamp: number) => {
+        const date = new Date(timestamp);
+        return Number.isNaN(date.getTime()) ? 'Unknown send time' : formatter.format(date);
+    };
+    const {posts, loading, loaded, error, refresh} = useScheduledPosts(channelId);
+    const content = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const previous = document.activeElement as HTMLElement | null;
+        const modal = content.current?.closest('[role="dialog"]');
+        modal?.querySelector<HTMLButtonElement>('button')?.focus();
+        const trapTab = (event: KeyboardEvent) => {
+            if (event.key !== 'Tab') return;
+            const buttons = Array.from(modal?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || []);
+            const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+            if (buttons.length && ((event.shiftKey && index <= 0) || (!event.shiftKey && index === buttons.length - 1))) {
+                event.preventDefault();
+                buttons[event.shiftKey ? buttons.length - 1 : 0].focus();
+            }
+        };
+        modal?.addEventListener('keydown', trapTab);
+        return () => {
+            modal?.removeEventListener('keydown', trapTab);
+            if (previous?.isConnected) previous.focus({preventScroll: true});
+        };
+    }, []);
+    return <ModalShell title="Scheduled messages" onClose={actions.closeModal} width={560}>
+        <div className="tgw-scheduled-content" ref={content}>
+            <div className="tgw-scheduled-toolbar">
+                <span>Your messages in this chat · {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+                <button type="button" className="tgw-button tgw-button-secondary" disabled={loading} onClick={() => void refresh()}>Refresh</button>
+            </div>
+            {loading && !loaded && <div className="tgw-picker-empty" role="status">Loading scheduled messages…</div>}
+            {error && <div role="alert">{error} <button type="button" className="tgw-button tgw-button-secondary" disabled={loading} onClick={() => void refresh()}>Retry</button></div>}
+            {!loading && !error && loaded && !posts.length && <div className="tgw-picker-empty">No scheduled messages in this chat</div>}
+            <div className="tgw-scheduled-list">
+                {posts.map((post) => <article className="tgw-scheduled-message" key={post.id}>
+                    <div className="tgw-scheduled-meta"><time>{sendTime(post.scheduled_at)}</time>
+                        <span className={post.error_code ? 'tgw-scheduled-failed' : ''}>{post.error_code ? 'Failed to send' : post.scheduled_at <= Date.now() ? 'Waiting to send' : 'Scheduled'}</span></div>
+                    {post.priority?.priority === 'urgent' && <div className="tgw-msg-priority">Urgent</div>}
+                    <div className="tgw-scheduled-message-text">{post.message || (post.props?.voice ? 'Voice message' : 'Attachment')}</div>
+                    {post.file_ids?.length > 0 && <div className="tgw-scheduled-detail">{post.file_ids.length} attachment{post.file_ids.length === 1 ? '' : 's'}</div>}
+                    {post.root_id && <div className="tgw-scheduled-detail">Thread reply</div>}
+                    {post.error_code && <div className="tgw-scheduled-detail">{post.error_code === 'delivery_failed' ? 'The server could not deliver this message.' : post.error_code}</div>}
+                </article>)}
+            </div>
+        </div>
+    </ModalShell>;
+}
+
 export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
+    case 'scheduledMessages':
+        return ui.modalPayload?.channelId ? <ScheduledMessagesModal key={ui.modalPayload.channelId} channelId={ui.modalPayload.channelId}/> : null;
     case 'channelNotifications':
         return <ChannelNotificationsModal key={ui.modalPayload?.channelId} payload={ui.modalPayload}/>;
     case 'userProfile':

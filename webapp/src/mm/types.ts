@@ -238,6 +238,11 @@ export interface MMPostPriority {
 
 export interface MMScheduledPost {
     id: string;
+    user_id?: string;
+    error_code?: string;
+    attempts?: number;
+    retry_at?: number;
+    delivery_started_at?: number;
     channel_id: string;
     message: string;
     root_id?: string;
