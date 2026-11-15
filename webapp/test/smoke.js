@@ -1577,18 +1577,21 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== newly opened direct chat ==');
-    state.entities.users.profiles[ids.THIRD].last_picture_update = 42;
-    document.querySelector('button[title="New chat"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-    await waitFor(() => document.querySelector('.tgw-menu'));
-    Array.from(document.querySelectorAll('.tgw-menu-item')).find((item) => item.textContent.trim() === 'New Message')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-    await waitFor(() => document.querySelector('[role="dialog"][aria-label="New message"]'));
-    const newPeer = Array.from(document.querySelectorAll('.tgw-modal .tgw-picker-row')).find((row) => row.textContent.includes('Nina Novak'));
-    ok(!!newPeer, 'new message picker includes the contact');
+    state.entities.users.profiles = {...state.entities.users.profiles, [ids.THIRD]: {...state.entities.users.profiles[ids.THIRD], last_picture_update: 42}};
+    notifyStoreChange();
+    const newDirectCallsBefore = calls.length;
+    folderBtn('Contacts')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => (folderBtn('Contacts')?.className || '').includes('tgw-folder-active'));
+    const contactRow = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row')).find((row) => row.textContent.includes('Nina Novak'));
+    await waitFor(contactRow);
+    const newPeer = contactRow();
+    ok(!!newPeer, 'Contacts lists the contact available for a new message');
     newPeer?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
     await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak');
     ok(document.querySelector('.tgw-chat-header-title')?.textContent === 'Nina Novak', 'new direct chat shows the contact name instead of the raw channel name');
     ok(document.querySelector('.tgw-chat-header-main .tgw-avatar img')?.getAttribute('src')?.includes('/users/user-third/image'), 'new direct chat shows the contact profile picture');
-    ok(calls.some((call) => call === `GET /channels/${ids.NEW_DM}`), 'new channel is loaded when the host store has not received it yet');
+    ok(calls.slice(newDirectCallsBefore).some((call) => call === 'POST /channels/direct'), 'choosing a contact opens its direct channel through the API');
+    ok(calls.slice(newDirectCallsBefore).some((call) => call === `GET /channels/${ids.NEW_DM}`), 'new channel is loaded when the host store has not received it yet');
 
     console.log('\n== own avatar menu ==');
     // Simulate Mattermost's own account menu so the test catches hosts where openUserSettings is

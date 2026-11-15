@@ -50,7 +50,7 @@ const type = async (node, value) => {
     await type(area, 'updated together');
     ok(main.value === 'updated together', 'main composer follows quick chat draft');
     saveComposerDraft('channel-dm', 'host updated draft');
-    await tick(80);
+    await wait(() => area.value === 'host updated draft' && main.value === area.value);
     ok(area.value === 'host updated draft' && main.value === area.value, 'both composers follow external draft updates');
     receivePost({id: 'quick-incoming', channel_id: 'channel-dm', user_id: 'user-alice', message: 'live quick message', create_at: Date.now(), update_at: Date.now(), props: {}});
     await wait(() => modal.textContent.includes('live quick message'));
@@ -75,7 +75,7 @@ const type = async (node, value) => {
     const reopened = document.querySelector('.tgw-quick-dialog');
     await type(reopened.querySelector('textarea'), 'restore after failure');
     fire(reopened.querySelector('.tgw-send-button'), 'click');
-    await wait(() => reopened.querySelector('textarea').value === 'restore after failure');
+    await wait(() => Array.from(document.querySelectorAll('.tgw-toast')).some((node) => node.textContent.includes('test send failure')) && !reopened.querySelector('.tgw-send-button').disabled && main.value === 'restore after failure' && reopened.querySelector('textarea').value === main.value);
     ok(main.value === 'restore after failure', 'failed send restores shared draft');
     api.createPost = originalSend;
     const originalUpload = api.uploadFile;

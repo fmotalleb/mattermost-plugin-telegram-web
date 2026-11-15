@@ -10,6 +10,10 @@ import {replaceShortcodes, replaceUnsupportedMattermostShortcodes, splitEmoji} f
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
 
+// Keep host and fallback rendering on the same suffix list, with a boundary preventing a
+// shorter suffix (such as .ch or .co) from linking only the start of a longer domain.
+const BARE_DOMAIN_SOURCE = String.raw`(?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|chat|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?![\w-]|\.[\w-])(?::\d{2,5})?(?:[/?#][^\s<>()]*)?`;
+
 interface PostUtilsShape {
     formatText?: (text: string, options?: any, emojiMap?: any) => string;
     messageHtmlToComponent?: (html: string, options?: any) => React.ReactNode;
@@ -211,7 +215,7 @@ export function renderFallback(message: string, mentionKeys?: Array<{key: string
 function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key: string; caseSensitive?: boolean}>): React.ReactNode[] {
     const nodes: React.ReactNode[] = [];
     // Order matters: inline code first so its content is not formatted any further.
-    const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9._-]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
+    const pattern = new RegExp('(`[^`]+`)|' + String.raw`(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9._-]+)|(${BARE_DOMAIN_SOURCE})`, 'gi');
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let index = 0;
@@ -391,7 +395,7 @@ export function isolateLatinRuns(node: React.ReactNode): React.ReactNode {
  * nodes: both renderers only linked explicit http(s) URLs, so typed domains stayed plain. The
  * curated TLD list keeps words like version.js or file.name from turning into links.
  */
-const AUTOLINK_PATTERN = /(?:https?:\/\/[^\s<>()]+)|((?:www\.)?(?:[\w-]+\.)+(?:com|org|net|io|ai|app|dev|co|me|info|biz|edu|gov|xyz|tech|site|store|cloud|blog|chat|sh|gg|to|fm|ly|tv|gl|st|uk|de|jp|fr|cn|ca|au|nl|es|it|ch|se|no|fi|ru|br|kr|eu|us)(?::\d{2,5})?(?:[/?#][^\s<>()]*)?)/gi;
+const AUTOLINK_PATTERN = new RegExp(String.raw`(?:https?:\/\/[^\s<>()]+)|(${BARE_DOMAIN_SOURCE})`, 'gi');
 
 function linkifyText(text: string): React.ReactNode[] {
     const re = new RegExp(AUTOLINK_PATTERN.source, 'gi');
