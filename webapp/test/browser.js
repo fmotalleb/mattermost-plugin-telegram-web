@@ -151,6 +151,7 @@ function revive(value) {
     return value;
 }
 const state = revive(${sub(state)});
+state.entities.general.config.SiteURL = location.origin;
 const listeners = new Set();
 const store = {
     getState: () => state,
@@ -370,8 +371,11 @@ class CDP {
         if (request.url === '/' || request.url.startsWith('/?')) {
             response.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
             response.end(page);
+        } else if (/^\/api\/v4\/users\/[^/]+\/image(?:\?|$)/.test(request.url)) {
+            response.writeHead(200, {'Content-Type': 'image/svg+xml'});
+            response.end('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#3390ec"/><circle cx="128" cy="92" r="48" fill="#fff"/><path d="M38 256v-32a90 90 0 0 1 180 0v32" fill="#fff"/></svg>');
         } else {
-            // Avatars and anything else the page asks for over the network: not available here.
+            // Content outside the explicit test fixtures is unavailable here.
             response.writeHead(404, {'Content-Type': 'text/plain'});
             response.end('not found');
         }
@@ -452,6 +456,24 @@ class CDP {
 
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
+
+        console.log('\n== profile photo viewer ==');
+        await cdp.waitFor('document.querySelector(".tgw-chat-header-main .tgw-avatar img")?.naturalWidth > 0', 5000, 'profile photo fixture');
+        await cdp.clickSelector('.tgw-chat-header-main .tgw-avatar img');
+        await cdp.waitFor('!!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'profile photo viewer');
+        ok(await cdp.eval('!document.querySelector(".tgw-info-panel") && document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'photo click opens its viewer and focuses it without opening chat info');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 420, height: 700, deviceScaleFactor: 1, mobile: false});
+        await cdp.waitFor('document.querySelector(".tgw-profile-photo")?.naturalWidth > 0', 3000, 'enlarged profile image');
+        ok(await cdp.eval(`(() => {const r = document.querySelector('.tgw-profile-photo').getBoundingClientRect(); return r.width > 100 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;})()`), 'enlarged profile photo fits the narrow viewport');
+        fs.writeFileSync('/tmp/tgw-profile-photo.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'profile viewer traps keyboard focus');
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.waitFor('!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'photo viewer closes');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-chat-header-main .tgw-avatar img")'), 'closing the profile photo restores focus to its trigger');
 
         console.log('\n== command autocomplete ==');
         await cdp.eval('document.querySelector(".tgw-composer textarea").focus()');
@@ -562,6 +584,14 @@ class CDP {
         ok(quickLayout.blur.includes('10px'), 'quick chat backdrop blurs by 10px');
         ok(await cdp.eval(`(() => {const button = document.querySelector('.tgw-quick-close'); const r = button.getBoundingClientRect(); return button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));})()`), 'close button is above the chat header');
         ok(quickLayout.focus && quickLayout.inert && quickLayout.route, 'quick chat focuses composer and preserves main chat');
+        await cdp.clickSelector('.tgw-quick-dialog .tgw-chat-header-main .tgw-avatar img');
+        await cdp.waitFor('!!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'quick chat photo');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-profile-photo-viewer button")'), 'quick chat allows the photo viewer to take focus');
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+        await cdp.waitFor('!document.querySelector(".tgw-profile-photo-viewer")', 3000, 'quick chat photo closes');
+        ok(await cdp.eval('!!document.querySelector(".tgw-quick-dialog") && document.querySelector(".tgw-quick-dialog").contains(document.activeElement)'), 'closing a photo preserves quick chat and restores its focus');
+
         await cdp.eval(`(() => {
             const buttons = Array.from(document.querySelector('.tgw-quick-dialog').querySelectorAll('button:not(:disabled), textarea, input, a[href], [tabindex="0"]')).filter(x => x.getClientRects().length);
             buttons[buttons.length - 1].focus();

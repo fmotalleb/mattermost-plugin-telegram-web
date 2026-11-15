@@ -85,6 +85,9 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   **Keep unchanged**; only selected fields are changed after **Apply to everyone**.
   The dialog reports failed member updates and supports retry. This is a one-time override;
   members can change their settings afterward and future members are not affected.
+* **Profile photos** — click a user's picture in a chat, member list, profile card, or quick chat
+  to open a larger photo modal. Escape, the close control, or the backdrop closes it and returns
+  focus to the picture; Enter and Space also open a focused photo.
 * **Composer** — attachment tray, emoji picker, reply bar, `Enter` sends, `Shift+Enter` adds a line,
   optimistic "sending…" bubble that is reconciled with the server response.
 * **Scheduled sending** — choose **Schedule** beside the composer formatting controls. Pending

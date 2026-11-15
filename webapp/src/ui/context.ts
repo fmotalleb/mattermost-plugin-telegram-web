@@ -48,6 +48,7 @@ export interface TgUIState {
     editing: MMPost | null;
     contextMenu: ContextTarget | null;
     imageViewer: {post: MMPost; fileId?: string} | null;
+    profilePhoto?: {url: string; name: string; origin?: HTMLElement};
     highlightedPostId: string | null;
     threadRootId: string | null;
     mobilePane: 'list' | 'chat';

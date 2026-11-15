@@ -4,6 +4,7 @@ import React from 'react';
 import {useSelector} from '../mm/store';
 import {getSiteURL, getUser, getUsers} from '../mm/selectors';
 import type {MMUser} from '../mm/types';
+import {TgContext} from './context';
 import {colorForKey, initialsFor} from '../mm/utils';
 
 interface IconProps {
@@ -158,13 +159,24 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
     const cachedUser = useSelector((state) => (userId ? getUser(state, userId) : undefined));
     const user = profile || cachedUser;
     const siteURL = useSelector(getSiteURL);
-    const [failed, setFailed] = React.useState(false);
+    const tg = React.useContext(TgContext);
+    const [failedSource, setFailedSource] = React.useState<string | null>(null);
     const background = colorForKey(colorKey || userId || name);
     // Mattermost only serves a picture for users whose `last_picture_update` is set (see
     // mattermost-redux's imageURLForUser); without this check every avatar would request the image
     // endpoint and 404 for users that never uploaded one.
-    const hasPicture = !!imageUrl || (!!userId && allowedToLoadAvatar(user) && !!user?.last_picture_update && !failed);
-    const url = imageUrl || (hasPicture ? `${siteURL}/api/v4/users/${userId}/image${user?.last_picture_update ? `?_=${user.last_picture_update}` : ''}` : '');
+    const url = imageUrl || (userId && allowedToLoadAvatar(user) && user?.last_picture_update
+        ? `${siteURL}/api/v4/users/${userId}/image?_=${user.last_picture_update}` : '');
+    const failed = !!url && failedSource === url;
+    const hasPicture = !!url && !failed;
+    const canPreview = hasPicture && !!userId && !savedMessages && !!tg;
+    const openPhoto = (event: React.MouseEvent<HTMLImageElement> | React.KeyboardEvent<HTMLImageElement>) => {
+        if (!canPreview) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.focus();
+        tg.actions.setUI({profilePhoto: {url, name, origin: event.currentTarget}});
+    };
 
     return (
         <span
@@ -178,7 +190,16 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
                     src={url}
                     alt=""
                     draggable={false}
-                    onError={() => setFailed(true)}
+                    onError={() => setFailedSource(url)}
+                    className={canPreview ? 'tgw-avatar-photo-trigger' : undefined}
+                    role={canPreview ? 'button' : undefined}
+                    tabIndex={canPreview ? 0 : undefined}
+                    aria-label={canPreview ? `Open ${name}'s profile photo` : undefined}
+                    title={canPreview ? 'View profile photo' : undefined}
+                    onClick={canPreview ? openPhoto : undefined}
+                    onKeyDown={canPreview ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') openPhoto(event);
+                    } : undefined}
                 />
             )}
             {!savedMessages && (!hasPicture || failed) && <span className="tgw-avatar-initials">{initialsFor(name)}</span>}

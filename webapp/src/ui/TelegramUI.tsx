@@ -8,6 +8,7 @@ import {getBlock, getReactions, loadChannel, receivePost, receiveReaction} from 
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
 import {getSettings, subscribeSettings} from '../mm/settings';
+import {ProfilePhotoViewer} from './ProfilePhotoViewer';
 import {copyToClipboard, displayName, formatDateSeparator, formatTime, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
@@ -387,6 +388,7 @@ export function TelegramUI() {
                     <Modals/>
                     <ConfirmModal/>
                     <ImageViewer/>
+                    {ui.profilePhoto && <ProfilePhotoViewer key={ui.profilePhoto.url}/>}
                     {contextMenu && (
                         <Menu
                             x={contextMenu.x}

@@ -4115,3 +4115,8 @@ body.tgw-root-active {
 .tgw-root.tgw-theme-midnight .tgw-schedule-error,
 .tgw-root.tgw-theme-dark .tgw-msg-priority,
 .tgw-root.tgw-theme-midnight .tgw-msg-priority { color: #ff8a80; }
+
+.tgw-root .tgw-avatar-photo-trigger { cursor: zoom-in; pointer-events: auto; }
+.tgw-root .tgw-avatar-photo-trigger:focus-visible { outline: 2px solid var(--tgw-accent); outline-offset: -3px; }
+.tgw-root .tgw-profile-photo-viewer .tgw-profile-photo { width: min(480px, calc(100vw - 48px)); max-height: calc(100vh - 140px); object-fit: contain; border-radius: 8px; }
+.tgw-root .tgw-profile-photo-viewer .tgw-image-viewer-caption { color: #fff; }
