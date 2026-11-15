@@ -28,7 +28,9 @@ const {TelegramUI} = require('../src/ui/TelegramUI');
 
 setStore(store);
 initSettings();
-updateSettings({mode: 'on', theme: 'light'});
+// This broad suite exercises unread lists containing the muted Town Square fixture.
+// Default exclusion and the setting toggle are covered in unread-settings.js.
+updateSettings({mode: 'on', theme: 'light', includeMutedInUnread: true});
 setServerDrafts([{channel_id: 'channel-town', message: 'unsent draft', update_at: Date.now()}]);
 
 // Waits until a condition holds, so assertions do not depend on how long a render takes.
@@ -108,7 +110,7 @@ root.render(React.createElement(TelegramUI));
     const unreadPreviewRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
     unreadPreviewRow?.dispatchEvent(new dom.window.MouseEvent('mouseover', {bubbles: true}));
     await waitFor(() => !!document.querySelector('.tgw-unread-peek'), 3000);
-    await waitFor(() => !document.querySelector('.tgw-unread-peek-empty')?.textContent.includes('Loading'));
+    await waitFor(() => (document.querySelector('.tgw-unread-peek')?.textContent || '').includes('Deploy'), 3000);
     ok((document.querySelector('.tgw-unread-peek')?.textContent || '').includes('Deploy'), 'hovering an unread chat previews recent unread messages');
     unreadPreviewRow?.dispatchEvent(new dom.window.MouseEvent('mouseout', {bubbles: true}));
     // Take Town Square's mention away: its unread messages still qualify it for this folder.
@@ -1183,8 +1185,8 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => document.querySelector('.tgw-menu'));
         const removeEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.includes('Remove from favorites'));
         ok(!!removeEntry, 'context menu offers removing the chat from favorites');
-        const muteEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.trim() === 'Mute');
-        ok(!!muteEntry?.querySelector('svg'), 'mute menu item has an icon');
+        const muteEntry = Array.from(document.querySelectorAll('.tgw-menu-item')).find((el) => el.textContent.trim() === 'Unmute');
+        ok(!!muteEntry?.querySelector('svg'), 'muted channel offers an unmute menu item with an icon');
         const prefCallsBefore = calls.length;
         removeEntry?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => calls.slice(prefCallsBefore).some((call) => call === 'PUT /users/me/preferences'), 3000);

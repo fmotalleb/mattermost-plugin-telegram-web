@@ -196,9 +196,12 @@ export function getMemberCount(state: MMState, channelId: string): number {
 }
 
 export function isMutedForMe(state: MMState, channelId: string, userId?: string): boolean {
-    const member = state.entities?.channels?.membersInChannel?.[channelId]?.[userId || getMyId(state)];
-    if (member?.notify_props) {
-        const {desktop, push, mark_unread} = member.notify_props;
+    const targetId = userId || getMyId(state);
+    const member = state.entities?.channels?.membersInChannel?.[channelId]?.[targetId];
+    // Member maps can be sparse even though myMembers already has notification settings.
+    const notifyProps = (targetId === getMyId(state) ? getMyMember(state, channelId)?.notify_props : undefined) || member?.notify_props;
+    if (notifyProps) {
+        const {desktop, push, mark_unread} = notifyProps;
         if (desktop === 'none' || (desktop === 'mention' && push === 'none' && mark_unread === 'all')) {
             return true;
         }
@@ -464,6 +467,7 @@ export function getTabUnreadCounts(state: MMState, tabs: ChatTab[]): Record<stri
     return tabUnreadMemo.get(
         [
             tabs,
+            getSettings().includeMutedInUnread,
             state.entities?.channelCategories?.byId,
             getChannels(state),
             state.entities?.channels?.myMembers,
@@ -478,8 +482,8 @@ export function getTabUnreadCounts(state: MMState, tabs: ChatTab[]): Record<stri
         () => {
             const counts: Record<string, number> = {};
             tabs.forEach((tab) => {
-                // The Unread tab counts DM messages and group mentions (its own scope); every
-                // other tab keeps the plain unread-message sum of the chats it lists.
+                // The Unread tab counts messages in its filtered scope; every other tab
+                // keeps the plain unread-message sum of the chats it lists.
                 counts[tab.id] = getTabChats(state, tab.id).reduce(
                     (sum, chat) => sum + (tab.kind === 'unread' ? unreadFolderTally(chat) : (chat.unread || 0)),
                     0,
@@ -510,10 +514,7 @@ export function searchChats(state: MMState, term: string): ChatSummary[] {
     });
 }
 
-// The Unread folder stays personal. Direct messages (and multi-person group messages, which
-// Mattermost lists under "Direct Messages" as well) qualify on any unread message; public/private
-// channels only qualify when they carry a mention of me — ordinary group traffic never buries the
-// chats that actually need an answer.
+// Direct and multi-person conversations receive personal-chat priority in unread sorting.
 function isPersonalUnread(chat: ChatSummary): boolean {
     return chat.type === 'D' || chat.type === 'G';
 }
@@ -540,9 +541,14 @@ function sortChatsByPriority(chats: ChatSummary[], includeRead: boolean): ChatSu
     });
 }
 
+/** Shared scope for the Unread tab and the All tab's unread section. */
+export function isUnreadChat(chat: ChatSummary): boolean {
+    return (getSettings().includeMutedInUnread || !chat.muted) && (chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0);
+}
+
 export function getUnreadChats(state: MMState): ChatSummary[] {
     return sortChatsByPriority(
-        getAllChats(state).filter((chat) => chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0),
+        getAllChats(state).filter(isUnreadChat),
         false,
     );
 }

@@ -43,6 +43,8 @@ export interface PluginSettings {
     showPreviews: boolean;
     /** Count only DMs and mentions; other unread channel messages use a dot. */
     quietUnreadCounts: boolean;
+    /** Include muted conversations in the unread lists. Off by default. */
+    includeMutedInUnread: boolean;
     compactMode: boolean;
     animations: boolean;
     folderTabs: boolean;
@@ -63,6 +65,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     wallpaper: 'doodles',
     showPreviews: true,
     quietUnreadCounts: false,
+    includeMutedInUnread: false,
     compactMode: false,
     animations: true,
     folderTabs: true,

@@ -188,6 +188,10 @@ export function SettingsModal() {
                         <span>Count only direct messages and mentions; show a dot for other unread chats</span>
                     </label>
                     <label className="tgw-field tgw-field-check">
+                        <input type="checkbox" checked={settings.includeMutedInUnread} onChange={(event) => updateSettings({includeMutedInUnread: event.target.checked})}/>
+                        <span>Include muted chats in unread messages</span>
+                    </label>
+                    <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.folderTabs} onChange={(event) => updateSettings({folderTabs: event.target.checked})}/>
                         <span>Show folders (Mattermost categories)</span>
                     </label>

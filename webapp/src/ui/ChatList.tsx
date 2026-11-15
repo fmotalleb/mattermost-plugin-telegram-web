@@ -12,6 +12,7 @@ import {useSelector} from '../mm/store';
 import type {MMPost, MMUser} from '../mm/types';
 import {attachmentSummary, displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
 import {useTg} from './context';
+import {isUnreadChat} from '../mm/selectors';
 import {EmojiText} from './EmojiText';
 import {Avatar, Badge, IconMute, IconStar} from './primitives';
 
@@ -260,7 +261,7 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const [fetchedPeers, setFetchedPeers] = useState<Record<string, MMUser>>({});
     const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
     const requestedPeers = useRef(new Set<string>());
-    const isUnread = (chat: ChatSummary) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread;
+    const isUnread = isUnreadChat;
     const allSections = [
         {key: 'unread', label: 'Unread messages', chats: chats.filter(isUnread)},
         {key: 'chats', label: 'All messages', chats: chats.filter((chat) => !isUnread(chat))},
