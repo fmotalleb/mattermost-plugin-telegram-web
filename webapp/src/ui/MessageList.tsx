@@ -129,7 +129,12 @@ export function MessageList(props: MessageListProps) {
         : posts.find((post) => post.create_at > unreadSince && post.user_id !== myId)?.id || null,
     [posts, unreadSince, myId]);
     const unreadDividerPostId = firstUnreadPostId;
-    const findingUnread = !highlightedPostId && unreadSince !== null && hasMoreOlder &&
+    const newestUnreadPostId = useMemo(() => unreadSince === null ? null
+        : [...posts].reverse().find((post) => post.create_at > unreadSince && post.user_id !== myId)?.id || null,
+    [posts, unreadSince, myId]);
+
+    // The latest page usually contains the target. Walk back only if it contains own posts alone.
+    const findingUnread = !highlightedPostId && unreadSince !== null && !newestUnreadPostId && hasMoreOlder &&
         !!posts.length && posts[0].create_at > unreadSince;
     useEffect(() => {
         if (findingUnread && !loading && !loadingOlder) loadOlder(channel.id);
@@ -177,8 +182,8 @@ export function MessageList(props: MessageListProps) {
         if (lastChannelId.current !== channel.id) {
             lastChannelId.current = channel.id;
             loadOlderIntent.current = false;
-            const unread = firstUnreadPostId && !highlightedPostId
-                ? element.querySelector<HTMLElement>(`[data-post-id="${firstUnreadPostId}"]`) : null;
+            const unread = newestUnreadPostId && !highlightedPostId
+                ? element.querySelector<HTMLElement>(`[data-post-id="${newestUnreadPostId}"]`) : null;
             if (unread) {
                 followBottom.current = false;
                 setAtBottom(false);
@@ -203,7 +208,7 @@ export function MessageList(props: MessageListProps) {
         previousFirstId.current = firstId;
         previousPostIds.current = new Set(posts.map((post) => post.id));
         rememberScrollAnchor();
-    }, [posts, channel.id, atBottom, myId, scrollToBottom, firstUnreadPostId, rememberScrollAnchor, loading, findingUnread, highlightedPostId, hasMoreOlder]);
+    }, [posts, channel.id, atBottom, myId, scrollToBottom, newestUnreadPostId, rememberScrollAnchor, loading, findingUnread, highlightedPostId, hasMoreOlder]);
 
     // Images, rich content and the composer can settle after the posts have rendered. Their
     // size changes do not change `posts`, so the effect above cannot keep an open chat pinned.

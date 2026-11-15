@@ -125,7 +125,7 @@ const stockExtraIds = [];
 // Enough unread history to distinguish opening at the boundary from opening at the bottom.
 for (let n = 0; n < 30; n++) {
     const id = 'unread-browser-' + n;
-    posts[id] = {id,channel_id:DM,user_id:OTHER,message:'Unread history message ' + n,
+    posts[id] = {id,channel_id:DM,user_id:n>=15?ME:OTHER,message:'Unread history message ' + n,
         create_at:1700000800000+n*1000,update_at:1700000800000+n*1000,delete_at:0,type:'',props:{}};
     stockExtraIds.push(id);
 }
@@ -467,12 +467,12 @@ class CDP {
 
         const unreadOpening = await cdp.eval(`(() => {
             const list = document.querySelector('.tgw-messages');
-            const unread = list.querySelector('[data-post-id="p3"]');
+            const unread = list.querySelector('[data-post-id="unread-browser-14"]');
             return {offset:unread.getBoundingClientRect().top-list.getBoundingClientRect().top,
                 remaining:list.scrollHeight-list.scrollTop-list.clientHeight};
         })()`);
-        ok(unreadOpening.offset >= 0 && unreadOpening.offset < 100 && unreadOpening.remaining > 500,
-            `unread chat opens at the first unread message with newer history below (${JSON.stringify(unreadOpening)})`);
+        ok(unreadOpening.offset >= 0 && unreadOpening.offset < 100 && unreadOpening.remaining > 200,
+            `unread chat opens at the newest unread incoming message with newer own messages below (${JSON.stringify(unreadOpening)})`);
 
         console.log('\n== profile photo viewer ==');
         await cdp.waitFor('document.querySelector(".tgw-chat-header-main .tgw-avatar img")?.naturalWidth > 0', 5000, 'profile photo fixture');
@@ -785,13 +785,13 @@ class CDP {
             })()`);
             const unreadPosition = await cdp.eval(`(() => {
                 const list = document.querySelector('.tgw-messages');
-                const divider = list.querySelector('.tgw-unread-divider');
+                const divider = list.querySelector('[data-post-id="unread-browser-14"]') || list.querySelector('.tgw-unread-divider');
                 if (!divider) return null;
                 return divider.getBoundingClientRect().top - list.getBoundingClientRect().top;
             })()`);
             ok(unreadPosition !== null ? unreadPosition >= -2 && unreadPosition < chatScroll.clientHeight
                 : chatScroll.scrollTop + chatScroll.clientHeight >= chatScroll.scrollHeight - 2,
-                `opening a chat shows its unread boundary or latest read messages (${JSON.stringify(chatScroll)})`);
+                `opening a chat shows its newest unread message or latest read messages (${JSON.stringify(chatScroll)})`);
             const focused = await cdp.eval(`(() => {
                 const active = document.activeElement;
                 const composer = document.querySelector('.tgw-composer textarea');
