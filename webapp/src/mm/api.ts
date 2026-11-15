@@ -198,6 +198,10 @@ export class MattermostAPI {
         return this.request(`${path}${rootId ? `/${encodeURIComponent(rootId)}` : ''}`, {method: 'DELETE'});
     }
 
+    getUserByUsername(username: string): Promise<MMUser> {
+        return this.request(`/users/username/${encodeURIComponent(username)}`);
+    }
+
     getUsersByIds(ids: string[]): Promise<MMUser[]> {
         return this.request<MMUser[]>('/users/ids', {method: 'POST', body: ids});
     }

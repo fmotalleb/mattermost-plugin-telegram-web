@@ -533,9 +533,45 @@ function ForwardModal({post}: {post: MMPost}) {
     );
 }
 
+export function UserProfileModal({payload}: {payload: {userId?: string; username?: string}}) {
+    const {actions} = useTg();
+    const cached = useSelector((state) => payload.userId
+        ? state.entities?.users?.profiles?.[payload.userId]
+        : Object.values(state.entities?.users?.profiles || {}).find((user) => user.username === payload.username));
+    const [loaded, setLoaded] = useState<MMUser | null>(null);
+    const [error, setError] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+    useEffect(() => {
+        let cancelled = false;
+        setLoaded(null);
+        setError(false);
+        if (cached) return;
+        const request = payload.userId ? api.getUsersByIds([payload.userId]).then((users) => users[0])
+            : api.getUserByUsername(payload.username || '');
+        request.then((user) => {
+            if (!cancelled) { setLoaded(user || null); setError(!user); }
+        }).catch(() => { if (!cancelled) setError(true); });
+        return () => { cancelled = true; };
+    }, [payload.userId, payload.username, cached, attempt]);
+    const user = cached || loaded;
+    return <ModalShell title="User profile" onClose={actions.closeModal}>
+        {user ? <div className="tgw-info-profile">
+            <Avatar userId={user.id} profile={user} name={displayName(user)} size={80}/>
+            <div className="tgw-info-name">{displayName(user)}</div>
+            <div className="tgw-info-sub">@{user.username}{user.is_bot || user.bot ? ' · bot' : ''}</div>
+            {user.nickname && <div className="tgw-info-text">{user.nickname}</div>}
+            {user.position && <div className="tgw-info-text">{user.position}</div>}
+            {user.email && <div className="tgw-info-text">{user.email}</div>}
+        </div> : error ? <div className="tgw-picker-empty">Could not load this profile. <button type="button" className="tgw-button" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>
+            : <div className="tgw-picker-empty">Loading profile…</div>}
+    </ModalShell>;
+}
+
 export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
+    case 'userProfile':
+        return <UserProfileModal key={ui.modalPayload?.userId || ui.modalPayload?.username} payload={ui.modalPayload || {}}/>;
     case 'settings':
         return <SettingsModal/>;
     case 'newContact':

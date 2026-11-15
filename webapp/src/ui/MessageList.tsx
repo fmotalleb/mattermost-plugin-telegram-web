@@ -27,6 +27,7 @@ import {useTg} from './context';
 import type {ContextTarget} from './context';
 import {EmojiText} from './EmojiText';
 import {MessageBody} from './render';
+import {SystemMessage} from './SystemMessage';
 import {Avatar, IconArrowDown, IconCheck, IconCheckDouble, IconClock, IconDownload, IconEmoji, IconEye, IconMore, IconPause, IconPlay, IconReply, IconWarning} from './primitives';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -391,13 +392,6 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
     // overflows the slot and lets the bubble paint over the face.
     const avatarSize = settings.compactMode ? 28 : 40;
     const author = useSelector((state) => state.entities?.users?.profiles?.[post.user_id]);
-    const systemUsername = post.props?.username || post.props?.removedUsername;
-    const systemUser = useSelector((state) => {
-        const profiles = state.entities?.users?.profiles || {};
-        return systemUsername
-            ? Object.values(profiles).find((user) => user.username === systemUsername)
-            : undefined;
-    });
     const customEmoji = useSelector(getCustomEmoji);
     // The reaction cache lives outside the Mattermost store and mutates in place, so a plain
     // selector never sees the change: subscribe to the cache itself instead.
@@ -508,11 +502,7 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
     if (isSystem) {
         return (
             <div className="tgw-system-post" data-post-id={post.id}>
-                {post.type === 'system_add_to_channel'
-                    ? <span>{toPlainPreview(post.message) || systemText(post)}</span>
-                    : systemUser && systemUsername
-                        ? <span><button type="button" className="tgw-system-user-link" onClick={() => actions.openUserChat(systemUser.id)}>{systemUsername}</button>{post.props?.removedUsername ? ' left' : ' joined'}</span>
-                    : <span>{toPlainPreview(post.message) || systemText(post)}</span>}
+                <SystemMessage post={post}/>
             </div>
         );
     }
@@ -724,17 +714,6 @@ function RelativeTimeTooltip({timestamp, className, children}: {timestamp: numbe
         setRelativeAge(age);
     }, [relativeAge, timestamp]);
     return <span className={`${className} tgw-relative-time`} data-tooltip={relativeAge || undefined} onMouseEnter={loadRelativeAge}>{children}</span>;
-}
-
-function systemText(post: MMPost): string {
-    const props = post.props || {};
-    if (props.username) {
-        return `${props.username} joined`;
-    }
-    if (props.removedUsername) {
-        return `${props.removedUsername} left`;
-    }
-    return 'System message';
 }
 
 function buildMentionKeys(me?: {username?: string; first_name?: string; last_name?: string; nickname?: string}) {

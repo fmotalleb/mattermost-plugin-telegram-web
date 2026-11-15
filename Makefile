@@ -59,7 +59,7 @@ check-types: $(WEBAPP_DIR)/node_modules
 test: check-types test-smoke test-bundle test-server
 
 test-smoke: $(WEBAPP_DIR)/node_modules
-	cd $(WEBAPP_DIR) && node test/commands.js && node test/quick-chat.js && node test/smoke.js
+	cd $(WEBAPP_DIR) && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
 
 test-bundle: bundle
 	cd $(WEBAPP_DIR) && node test/bundle.js
