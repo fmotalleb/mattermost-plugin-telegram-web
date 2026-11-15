@@ -43,7 +43,7 @@ export interface PluginSettings {
     showPreviews: boolean;
     /** Count only DMs and mentions; other unread channel messages use a dot. */
     quietUnreadCounts: boolean;
-    /** Include muted conversations in the unread lists. Off by default. */
+    /** Include muted chats and channels without mentions in unread lists. Off by default. */
     includeMutedInUnread: boolean;
     compactMode: boolean;
     animations: boolean;

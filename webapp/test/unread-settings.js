@@ -1,4 +1,4 @@
-const {dom, React, ReactDOM, container, store, state, tick, ok, report, ids, payloads} = require('./harness');
+const {dom, React, ReactDOM, container, store, state, tick, ok, report, ids, payloads, notifyStoreChange} = require('./harness');
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings, getSettings, DEFAULT_SETTINGS} = require('../src/mm/settings');
 const {getUnreadChats, getAllChats, getTabUnreadCounts, getTabs, isUnreadChat} = require('../src/mm/selectors');
@@ -49,6 +49,33 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     click(folder('All'));
     await wait(() => rows().length === 2);
     ok(rows().some((row) => row.textContent.includes('Town Square')), 'disabling never removes muted chats from All');
+    // Public/private channel traffic without mentions follows the same inclusion switch as
+    // muted chats, while personal conversations still qualify on any unread message.
+    const originalMembers = state.entities.channels.myMembers;
+    const unmutedTown = {...originalMembers[ids.TOWN], notify_props: {}, mention_count: 0};
+    state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: unmutedTown};
+    notifyStoreChange();
+    click(folder('Unread'));
+    await wait(() => rows().length === 1);
+    ok(rows().length === 1 && count() === '2', 'unmuted channels without mentions are excluded from unread rows and counts by default');
+    const unmutedChat = getAllChats(state).find((chat) => chat.id === ids.TOWN);
+    ok(!unmutedChat.muted, 'unmentioned channel inclusion does not alter its actual mute state');
+    ok(!isUnreadChat({...unmutedChat, type: 'P'}) && !isUnreadChat({...unmutedChat, type: 'O'}), 'public and private channels without mentions follow muted unread filtering');
+    ok(isUnreadChat({...unmutedChat, type: 'D'}) && isUnreadChat({...unmutedChat, type: 'G'}), 'unmuted direct and group messages remain unread without mentions');
+    state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: {...unmutedTown, mention_count: 1}};
+    notifyStoreChange();
+    await wait(() => rows().length === 2 && count() === '13');
+    ok(rows().length === 2 && count() === '13', 'a mention makes an unmuted channel qualify immediately');
+    state.entities.channels.myMembers = {...originalMembers, [ids.TOWN]: unmutedTown};
+    notifyStoreChange();
+    updateSettings({includeMutedInUnread: true});
+    await wait(() => rows().length === 2 && count() === '13');
+    ok(rows().length === 2 && count() === '13', 'enabling muted inclusion also includes non-tagging unmuted channels');
+    updateSettings({includeMutedInUnread: false});
+    click(folder('All'));
+    await wait(() => document.querySelectorAll('.tgw-section-heading').length === 2);
+    ok(headings().some((heading) => heading.textContent.includes('All messages') && heading.nextElementSibling?.textContent.includes('Town Square')), 'unmentioned channels remain in All outside its unread section');
+    state.entities.channels.myMembers = originalMembers;
     root.unmount();
     report('UNREAD SETTINGS TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

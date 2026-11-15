@@ -543,7 +543,10 @@ function sortChatsByPriority(chats: ChatSummary[], includeRead: boolean): ChatSu
 
 /** Shared scope for the Unread tab and the All tab's unread section. */
 export function isUnreadChat(chat: ChatSummary): boolean {
-    return (getSettings().includeMutedInUnread || !chat.muted) && (chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0);
+    // Channel traffic without a mention is treated like muted traffic only for unread lists.
+    // Keep the actual mute flag unchanged so notification settings and mute actions stay accurate.
+    const mutedForUnread = chat.muted || (!isPersonalUnread(chat) && !(chat.mentions > 0));
+    return (getSettings().includeMutedInUnread || !mutedForUnread) && (chat.unread > 0 || chat.manuallyUnread || chat.mentions > 0);
 }
 
 export function getUnreadChats(state: MMState): ChatSummary[] {

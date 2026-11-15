@@ -189,7 +189,7 @@ export function SettingsModal() {
                     </label>
                     <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.includeMutedInUnread} onChange={(event) => updateSettings({includeMutedInUnread: event.target.checked})}/>
-                        <span>Include muted chats in unread messages</span>
+                        <span title="Also includes unmuted channels without mentions of you">Include muted chats in unread messages</span>
                     </label>
                     <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.folderTabs} onChange={(event) => updateSettings({folderTabs: event.target.checked})}/>
