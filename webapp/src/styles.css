@@ -4133,3 +4133,19 @@ body.tgw-root-active {
 .tgw-root .tgw-scheduled-content { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 .tgw-root .tgw-scheduled-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+
+/* Mermaid diagrams use a light canvas so diagram-defined colors stay readable in every theme. */
+.tgw-root .tgw-mermaid { display: block; margin: 8px 0; padding: 10px; border-radius: 10px; border: 1px solid var(--tgw-border); background: #fff; color: #222; overflow: hidden; white-space: normal; }
+.tgw-root .tgw-mermaid-svg { display: block; direction: ltr; }
+.tgw-root .tgw-mermaid-svg svg { display: block; max-width: 100%; height: auto; margin: auto; }
+.tgw-root .tgw-mermaid-open { display: block; margin: 8px 0 0 auto; }
+.tgw-root .tgw-mermaid-error { display: block; overflow: auto; }
+.tgw-root .tgw-mermaid-error .tgw-code-block { white-space: pre; color: #222; background: #f3f3f3; }
+.tgw-root .tgw-mermaid-modal { width: min(1200px, 96vw); max-width: 96vw; height: 88vh; display: flex; flex-direction: column; }
+.tgw-root .tgw-mermaid-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--tgw-border); }
+.tgw-root .tgw-mermaid-toolbar output { min-width: 48px; text-align: center; }
+.tgw-root .tgw-mermaid-toolbar > span { color: var(--tgw-text-secondary); font-size: 12px; }
+.tgw-root .tgw-mermaid-viewport { flex: 1; min-height: 0; overflow: auto; background: #fff; color: #222; cursor: grab; touch-action: none; direction: ltr; }
+.tgw-root .tgw-mermaid-viewport:active { cursor: grabbing; }
+.tgw-root .tgw-mermaid-stage { box-sizing: border-box; padding: 24px; user-select: none; }
+.tgw-root .tgw-mermaid-stage .tgw-mermaid-svg svg { width: 100%; max-width: none !important; height: auto; pointer-events: none; }

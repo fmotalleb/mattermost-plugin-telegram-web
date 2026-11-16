@@ -6,12 +6,16 @@
 // same React instance the host app uses (React 19 on Mattermost v12, React 18 on v11).
 
 const path = require('path');
+const webpack = require('webpack');
 
 const PLUGIN_ID = require('../plugin.json').id;
 const NPM_TARGET = process.env.npm_lifecycle_event; // eslint-disable-line no-process-env
 const isDev = NPM_TARGET === 'debug' || NPM_TARGET === 'debug:watch';
 
 const config = {
+    // Mermaid imports diagram renderers dynamically. Ship them inside the installable
+    // main.js, since the plugin host does not serve webpack chunks from its root URL.
+    plugins: [new webpack.optimize.LimitChunkCountPlugin({maxChunks: 1})],
     entry: ['./src/index.tsx'],
     resolve: {
         modules: ['src', 'node_modules'],

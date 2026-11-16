@@ -9,6 +9,7 @@ import React from 'react';
 import {replaceShortcodes, replaceUnsupportedMattermostShortcodes, splitEmoji} from '../mm/emoji';
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
+import {MermaidDiagram} from './MermaidDiagram';
 
 // Keep host and fallback rendering on the same suffix list, with a boundary preventing a
 // shorter suffix (such as .ch or .co) from linking only the start of a longer domain.
@@ -131,6 +132,37 @@ function handleBodyClick(event: React.MouseEvent<HTMLSpanElement>, toast?: (mess
 }
 
 export function MessageBody({message, postId, mentionKeys, className, onTaskToggle}: MessageBodyProps) {
+    // Match complete fences (including other languages) so examples containing a nested
+    // ```mermaid fence inside a longer fence remain ordinary code.
+    const fences = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?\n/gm;
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    let taskOffset = 0;
+    let match: RegExpExecArray;
+    const text = (value: string, key: number) => {
+        const offset = taskOffset;
+        taskOffset += markdownTaskStates(value).length;
+        return <FormattedBody key={key} message={value} postId={postId} mentionKeys={mentionKeys}
+            onTaskToggle={onTaskToggle ? (index, checked) => onTaskToggle(index + offset, checked) : undefined}/>;
+    };
+    while ((match = fences.exec(message))) {
+        const closingFence = new RegExp(`^ {0,3}${match[1][0]}{${match[1].length},}[ \\t]*\\r?$`, 'gm');
+        closingFence.lastIndex = fences.lastIndex;
+        const closing = closingFence.exec(message);
+        if (!closing) break;
+        const source = message.slice(fences.lastIndex, closing.index).replace(/\r?\n$/, '');
+        fences.lastIndex = closingFence.lastIndex;
+        if (match[2].trim().toLowerCase() !== 'mermaid') continue;
+        parts.push(text(message.slice(last, match.index), last));
+        parts.push(<MermaidDiagram key={`mermaid-${match.index}`} source={source}/>);
+        last = fences.lastIndex;
+    }
+    if (!parts.length) return <FormattedBody {...{message, postId, mentionKeys, className, onTaskToggle}}/>;
+    parts.push(text(message.slice(last), last));
+    return <span className={className}>{parts}</span>;
+}
+
+function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
     const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
     const fallback = <span className={className} onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;

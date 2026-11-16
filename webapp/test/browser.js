@@ -121,6 +121,8 @@ const users = ${sub(users)};
 const channels = ${sub(channels)};
 const posts = ${sub(posts)};
 let scheduledMessages = [];
+// Include a real diagram in the built-bundle browser run (no CDN/chunk server).
+posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
 const stockExtraIds = [];
 // Enough unread history to distinguish opening at the boundary from opening at the bottom.
 for (let n = 0; n < 30; n++) {
@@ -473,6 +475,34 @@ class CDP {
         })()`);
         ok(unreadOpening.offset >= 0 && unreadOpening.offset < 100 && unreadOpening.remaining > 200,
             `unread chat opens at the newest unread incoming message with newer own messages below (${JSON.stringify(unreadOpening)})`);
+
+        console.log('\n== Mermaid viewer ==');
+        await cdp.waitFor('!!document.querySelector(".tgw-mermaid svg") && !document.querySelector(".tgw-mermaid-open").disabled', 15000, 'real Mermaid rendering');
+        ok(await cdp.eval('document.querySelector(".tgw-mermaid svg").textContent.includes("Review")'), 'production bundle renders Mermaid without external chunks');
+        await cdp.eval("document.querySelector('.tgw-mermaid-open').scrollIntoView({block:'center'})");
+        await sleep(250);
+        await cdp.clickSelector('.tgw-mermaid-open');
+        await cdp.waitFor('!!document.querySelector(".tgw-mermaid-modal svg")', 8000, 'diagram modal SVG');
+        const diagramWidth = await cdp.eval('document.querySelector(".tgw-mermaid-modal svg").getBoundingClientRect().width');
+        for (let i = 0; i < 3; i++) await cdp.clickSelector('[aria-label="Zoom in"]');
+        ok(await cdp.eval(`document.querySelector('.tgw-mermaid-modal svg').getBoundingClientRect().width > ${diagramWidth} * 1.5`), 'zoom increases the actual diagram size');
+        const panPoint = await cdp.eval(`(() => { const v = document.querySelector('.tgw-mermaid-viewport'); const r = v.getBoundingClientRect(); return {x:r.left+200,y:r.top+140}; })()`);
+        await cdp.send('Input.dispatchMouseEvent', {type:'mousePressed', x:panPoint.x, y:panPoint.y, button:'left', buttons:1, clickCount:1});
+        await cdp.send('Input.dispatchMouseEvent', {type:'mouseMoved', x:panPoint.x-100, y:panPoint.y-60, buttons:1});
+        await cdp.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:panPoint.x-100, y:panPoint.y-60, button:'left', buttons:0, clickCount:1});
+        ok(await cdp.eval('document.querySelector(".tgw-mermaid-viewport").scrollLeft > 50'), 'dragging pans an enlarged diagram');
+        await cdp.send('Input.dispatchMouseEvent', {type:'mouseWheel', x:panPoint.x, y:panPoint.y, deltaX:0, deltaY:-120});
+        await sleep(100);
+        ok(await cdp.eval('parseInt(document.querySelector(".tgw-mermaid-toolbar output").textContent) > 173'), 'mouse wheel zooms the diagram');
+        await cdp.eval(`Array.from(document.querySelectorAll('.tgw-mermaid-toolbar button')).find(b=>b.textContent==='Reset view').click()`);
+        ok(await cdp.eval('document.querySelector(".tgw-mermaid-toolbar output").textContent === "100%" && document.querySelector(".tgw-mermaid-viewport").scrollLeft === 0'), 'reset restores zoom and pan');
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width:420,height:700,deviceScaleFactor:1,mobile:false});
+        ok(await cdp.eval(`(() => { const r=document.querySelector('.tgw-mermaid-modal').getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth && r.height<=innerHeight; })()`), 'diagram modal fits a narrow screen');
+        fs.writeFileSync('/tmp/tgw-mermaid-modal.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format:'png'})).data, 'base64'));
+        await cdp.send('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:1,mobile:false});
+        await cdp.send('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27});
+        await cdp.waitFor('!document.querySelector(".tgw-mermaid-modal")', 2000, 'diagram modal closes');
+        ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-mermaid-open")'), 'closing the diagram restores focus');
 
         console.log('\n== profile photo viewer ==');
         await cdp.waitFor('document.querySelector(".tgw-chat-header-main .tgw-avatar img")?.naturalWidth > 0', 5000, 'profile photo fixture');
@@ -1046,6 +1076,8 @@ class CDP {
                 // eslint-disable-next-line no-await-in-loop
                 const diagnostics = await cdp.eval(`JSON.stringify({
                     pageErrors: window.__pageErrors,
+                    mermaidModal: document.querySelector('.tgw-mermaid-modal')?.textContent,
+                    mermaidButton: (()=>{const b=document.querySelector('.tgw-mermaid-open'); const r=b?.getBoundingClientRect(); return r ? {disabled:b.disabled,x:r.x,y:r.y,width:r.width,height:r.height,at:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML.slice(0,300)} : null;})(),
                     rows: document.querySelectorAll('.tgw-chat-row').length,
                     header: (document.querySelector('.tgw-chat-header-title') || {}).textContent || null,
                     composer: !!document.querySelector('.tgw-composer textarea'),

@@ -73,6 +73,9 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   as image/album/file/audio/video cards, typing indicators, edit/delete aware rendering, emoji
   shortcodes and `**markdown**`, `@mentions` highlighting, in-chat search, unread counters, and a
   scroll-to-latest pill.
+* **Mermaid diagrams** — fenced `mermaid` blocks render inline. Choose **Open diagram** for a
+  larger modal with zoom buttons, mouse-wheel zoom, drag-to-pan, and **Reset view**. Escape closes
+  the viewer. Invalid diagrams keep their source visible; rendering works without a CDN.
 * **Per-chat actions** — mute/unmute, add to favorites (Mattermost favorite category), mark as read,
   copy channel link, channel/contact info panel with members and shared files, leave channel.
 * **Unmute a channel for everyone** — system admins can choose **More → Unmute for everyone**
