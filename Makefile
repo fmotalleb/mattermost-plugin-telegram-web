@@ -59,7 +59,7 @@ check-types: $(WEBAPP_DIR)/node_modules
 test: check-types test-smoke test-bundle test-server
 
 test-smoke: $(WEBAPP_DIR)/node_modules
-	cd $(WEBAPP_DIR) && node test/unread-position.js && node test/scheduled-list.js && node test/profile-photos.js && node test/file-preview.js && node test/autolinks.js && node test/emoji-rendering.js && node test/mermaid.js && node test/channel-notifications.js && node test/unread-settings.js && node test/send-options.js && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
+	cd $(WEBAPP_DIR) && node test/unread-position.js && node test/scheduled-list.js && node test/profile-photos.js && node test/file-preview.js && node test/autolinks.js && node test/emoji-rendering.js && node test/chat-header-menu.js && node test/mermaid.js && node test/channel-notifications.js && node test/unread-settings.js && node test/send-options.js && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
 
 test-bundle: bundle
 	cd $(WEBAPP_DIR) && node test/bundle.js

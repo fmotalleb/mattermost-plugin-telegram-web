@@ -1,0 +1,123 @@
+const {dom, React, ReactDOM, container, store, state, posts, ids, tick, ok, report, notifyStoreChange} = require('./harness');
+const {setStore} = require('../src/mm/store');
+const {initSettings, updateSettings} = require('../src/mm/settings');
+const {saveComposerDraft, getComposerDraft} = require('../src/mm/drafts');
+const {getCachedPreview} = require('../src/mm/posts');
+const {TelegramUI} = require('../src/ui/TelegramUI');
+const originalFetch = global.fetch;
+const originalDispatch = store.dispatch;
+const requests = [];
+const dispatched = [];
+let unreadMode = 'success';
+let finishUnread;
+store.dispatch = (action) => { dispatched.push(action); return originalDispatch(action); };
+global.fetch = async (url, options = {}) => {
+    const path = new URL(url, 'https://mattermost.example.com').pathname.replace('/api/v4', '');
+    requests.push({path, method: options.method});
+    if (path.endsWith('/set_unread')) {
+        const post = posts[path.split('/')[4]];
+        const response = () => unreadMode === 'failure'
+            ? {ok: false, status: 500, text: async () => JSON.stringify({message: 'Unavailable'})}
+            : {ok: true, status: 200, text: async () => JSON.stringify({channel_id: post?.channel_id || ids.DM,
+                last_viewed_at: (post?.create_at || 1) - 1, msg_count: 0, mention_count: 0})};
+        if (unreadMode === 'deferred') return new Promise((resolve) => { finishUnread = () => resolve(response()); });
+        return response();
+    }
+    return originalFetch(url, options);
+};
+setStore(store);
+initSettings();
+updateSettings({mode: 'on'});
+const root = ReactDOM.createRoot(container);
+const wait = async (fn) => { for (let n = 0; n < 100 && !fn(); n++) await tick(25); return fn(); };
+const click = (node) => node?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+const title = () => document.querySelector('.tgw-shell .tgw-chat-header-title')?.textContent;
+const item = (label) => Array.from(document.querySelectorAll('.tgw-menu-item')).find((node) => node.textContent.trim() === label);
+const row = (name) => Array.from(document.querySelectorAll('.tgw-sidebar .tgw-chat-row')).find((node) => node.textContent.includes(name));
+const open = async (name) => { click(row(name)); await wait(() => title()?.includes(name)); };
+const menu = async (scope = '.tgw-shell') => {
+    click(document.querySelector(`${scope} .tgw-chat-header [title="More"]`));
+    await wait(() => item('Close chat'));
+};
+const views = () => requests.filter((request) => request.path.endsWith('/view')).length;
+const cleanup = () => { root.unmount(); global.fetch = originalFetch; store.dispatch = originalDispatch; };
+(async () => {
+    root.render(React.createElement(TelegramUI));
+    await wait(() => title() && document.querySelector('[data-post-id="p4"]'));
+    await open('Alice');
+    await tick(100);
+    saveComposerDraft(ids.DM, 'keep my draft when closing');
+    click(document.querySelector('.tgw-shell .tgw-chat-header [title="Shared files"]'));
+    await wait(() => document.querySelector('.tgw-files-panel'));
+    await menu();
+    ok(item('Close chat') && item('Mark as unread'), 'header menu offers Close chat and Mark as unread');
+    click(item('Close chat'));
+    await wait(() => document.querySelector('.tgw-chat-empty'));
+    notifyStoreChange();
+    await tick(100);
+    ok(document.querySelector('.tgw-chat-empty') && !title(), 'closing clears selection without automatic reopening');
+    ok(!document.querySelector('.tgw-info-panel'), 'closing dismisses shared-file and info panels');
+    ok(getComposerDraft(ids.DM)?.message === 'keep my draft when closing', 'closing preserves the composer draft');
+    ok(dom.window.localStorage.getItem('tgw.lastChannel') === '', 'closing clears the last-selected cache');
+    ok(state.entities.channels.myMembers[ids.DM] && !requests.some((request) => request.method === 'DELETE' && request.path.includes('/channels/')),
+        'Close chat preserves membership without calling Leave');
+    await open('Alice');
+    await wait(() => document.querySelector('.tgw-composer textarea')?.value === 'keep my draft when closing');
+    ok(document.querySelector('.tgw-composer textarea')?.value === 'keep my draft when closing', 'reopening restores the draft');
+    await tick(100);
+    await menu();
+    const latest = getCachedPreview(ids.DM).id;
+    const viewsBefore = views();
+    click(item('Mark as unread'));
+    await wait(() => document.querySelector('.tgw-chat-empty'));
+    await tick(100);
+    ok(requests.some((request) => request.path === `/users/${ids.ME}/posts/${latest}/set_unread`), 'mark-unread targets the latest message through Mattermost');
+    ok(dispatched.some((action) => action.type === 'POST_UNREAD_SUCCESS' && action.data.channelId === ids.DM), 'returned unread state is applied to the host store');
+    ok(document.querySelector('.tgw-chat-empty') && views() === viewsBefore, 'mark-unread closes the chat without marking it read again');
+    await open('Alice');
+    unreadMode = 'failure';
+    await menu();
+    click(item('Mark as unread'));
+    await wait(() => document.body.textContent.includes('Could not mark as unread'));
+    ok(title()?.includes('Alice') && document.body.textContent.includes('Could not mark as unread'), 'failure reports the error and keeps the chat open');
+    unreadMode = 'deferred';
+    await menu();
+    click(item('Mark as unread'));
+    await wait(() => finishUnread);
+    await open('Town Square');
+    finishUnread();
+    await tick(100);
+    ok(title() === 'Town Square', 'late unread success cannot close a different chat');
+    await menu();
+    click(item('Close chat'));
+    await wait(() => document.querySelector('.tgw-chat-empty'));
+    state.entities.channels.currentChannelId = ids.TOWN;
+    notifyStoreChange();
+    await wait(() => title() === 'Town Square');
+    ok(title() === 'Town Square', 'later host navigation opens its destination after closing');
+    row('Alice').dispatchEvent(new dom.window.MouseEvent('auxclick', {button: 1, bubbles: true, cancelable: true}));
+    await wait(() => document.querySelector('.tgw-quick-dialog .tgw-chat-header'));
+    await menu('.tgw-quick-dialog');
+    click(item('Close chat'));
+    await wait(() => !document.querySelector('.tgw-quick-dialog'));
+    ok(!document.querySelector('.tgw-quick-dialog') && title() === 'Town Square', 'quick-chat Close chat preserves the main conversation');
+    Object.defineProperty(dom.window, 'innerWidth', {value: 600, configurable: true});
+    dom.window.dispatchEvent(new dom.window.Event('resize'));
+    await tick(30);
+    await menu();
+    click(item('Close chat'));
+    await wait(() => document.querySelector('.tgw-chat-empty'));
+    ok(!document.querySelector('.tgw-shell-chat-open'), 'mobile Close chat returns to the list pane');
+    const emptyId = 'empty-chat';
+    state.entities.channels.channels = {...state.entities.channels.channels,
+        [emptyId]: {...state.entities.channels.channels[ids.TOWN], id: emptyId, name: 'empty', display_name: 'Empty chat', last_post_at: 0, total_msg_count: 0}};
+    state.entities.channels.myMembers = {...state.entities.channels.myMembers,
+        [emptyId]: {...state.entities.channels.myMembers[ids.TOWN], channel_id: emptyId, msg_count: 0, mention_count: 0}};
+    state.entities.channels.currentChannelId = emptyId;
+    notifyStoreChange();
+    await wait(() => title() === 'Empty chat');
+    await menu();
+    ok(item('Mark as unread')?.disabled, 'empty chats disable Mark as unread');
+    cleanup();
+    report('CHAT HEADER MENU TEST');
+})().catch((error) => { console.error(error); cleanup(); process.exitCode = 1; });

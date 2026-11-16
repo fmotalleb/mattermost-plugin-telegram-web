@@ -3,6 +3,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {api} from '../mm/api';
 import {setChannelFavorite} from '../mm/favorites';
+import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
 import {getChatSummary, getTypingUserIds} from '../mm/selectors';
 import {useSelector} from '../mm/store';
@@ -48,6 +49,9 @@ function minimalSummary(channel: MMChannel, peerId?: string, peer?: MMUser) {
 export function ChatView({quick = false}: {quick?: boolean}) {
     const {ui, actions, timeFormat, me, isMobile, channel} = useTg();
     const channelId = ui.selectedChannelId;
+    const activeChatRef = React.useRef(channelId);
+    activeChatRef.current = channelId;
+    useEffect(() => () => { activeChatRef.current = undefined; }, []);
     const storeSummary = useSelector((state) => (channelId ? getChatSummary(state, channelId) : undefined));
     const profiles = useSelector((state) => state.entities?.users?.profiles);
     const peerId = channel?.type === 'D' ? channelMemberIds(channel).find((id) => id !== me?.id) : undefined;
@@ -308,6 +312,24 @@ export function ChatView({quick = false}: {quick?: boolean}) {
             {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Group info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true})},
             {key: 'search', label: 'Search in chat', icon: <IconSearch size={18}/>, onClick: () => setSearchOpen(true)},
             {key: 'files', label: ui.filesOpen ? 'Hide shared files' : 'Shared files', icon: <IconFile size={18}/>, onClick: () => actions.setUI({filesOpen: !ui.filesOpen})},
+            {
+                key: 'unread',
+                label: 'Mark as unread',
+                disabled: !channel.last_post_at && !posts.length,
+                onClick: () => {
+                    markChannelUnreadFromLastPost(channel.id).then((ok) => {
+                        if (ok) {
+                            if (activeChatRef.current === channel.id) {
+                                actions.closeChat(channel.id);
+                            }
+                            actions.toast('Marked as unread', 'success');
+                        } else {
+                            actions.toast('Could not mark as unread', 'error');
+                        }
+                    }).catch(() => actions.toast('Could not mark as unread', 'error'));
+                },
+            },
+            {key: 'close', label: 'Close chat', icon: <IconClose size={18}/>, onClick: () => actions.closeChat(channel.id)},
             {
                 key: 'favorite',
                 label: summary.isFavorite ? 'Remove from favorites' : 'Add to favorites',

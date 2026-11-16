@@ -75,6 +75,9 @@ export function TelegramUI() {
     const settings = useSettingsState();
     const isMobile = useIsMobile();
     const [ui, setUIState] = useState<TgUIState>(() => ({...INITIAL_UI, selectedChannelId: readLocal('tgw.lastChannel', '')}));
+    const latestUI = useRef(ui);
+    latestUI.current = ui;
+    const chatClosed = useRef(false);
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [contextMenu, setContextMenu] = useState<{x: number; y: number; items: MenuEntry[]} | null>(null);
     const [reactionPicker, setReactionPicker] = useState<{post: MMPost; x: number; y: number} | null>(null);
@@ -174,6 +177,7 @@ export function TelegramUI() {
     }, []);
 
     const openChat = useCallback((channelId: string, opts: {keepSearch?: boolean; postId?: string} = {}) => {
+        chatClosed.current = false;
         const state = getState();
         const target = state.entities?.channels?.channels?.[channelId];
         const summary = getChatSummary(state, channelId);
@@ -216,6 +220,25 @@ export function TelegramUI() {
     const actions: TgActions = useMemo(() => ({
         setUI,
         openChat,
+        closeChat: (channelId) => {
+            const current = latestUI.current;
+            if (current.quickChatId === channelId) {
+                setUI({quickChatId: undefined});
+                return;
+            }
+            // A mark-unread request may finish after the user switches to another chat.
+            if (current.selectedChannelId !== channelId) {
+                return;
+            }
+            chatClosed.current = true;
+            writeLocal('tgw.lastChannel', '');
+            setUI({selectedChannelId: '', unreadEntry: undefined, mobilePane: 'list',
+                infoOpen: false, filesOpen: false, searchOpen: false,
+                replyTo: null, editing: null, threadRootId: null,
+                highlightedPostId: null, contextMenu: null, imageViewer: null});
+            setContextMenu(null);
+            setReactionPicker(null);
+        },
         openQuickChat: (channelId) => setUI({quickChatId: channelId}),
         openUserChat: (userId) => {
             if (!me?.id || !userId) {
@@ -331,6 +354,7 @@ export function TelegramUI() {
         if (!isMember) {
             return;
         }
+        chatClosed.current = false;
         writeLocal('tgw.lastChannel', mmCurrentChannelId);
         setUIState((current) => (current.selectedChannelId === mmCurrentChannelId ? current : {...current, selectedChannelId: mmCurrentChannelId}));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to host channel changes; the mount-time selection is read on the first run
@@ -338,7 +362,7 @@ export function TelegramUI() {
 
     // Pick a sensible chat on first paint.
     useEffect(() => {
-        if (!settings.mode || settings.mode !== 'on' || ui.selectedChannelId) {
+        if (!settings.mode || settings.mode !== 'on' || ui.selectedChannelId || chatClosed.current) {
             return;
         }
         const chats = getAllChats(getState());
