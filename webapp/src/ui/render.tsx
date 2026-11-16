@@ -6,7 +6,7 @@
 // surface ever changes.
 
 import React from 'react';
-import {replaceShortcodes, replaceUnsupportedMattermostShortcodes, splitEmoji} from '../mm/emoji';
+import {emojiChar, replaceShortcodes, replaceUnsupportedMattermostShortcodes, splitEmoji} from '../mm/emoji';
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
 import {MermaidDiagram} from './MermaidDiagram';
@@ -336,7 +336,8 @@ function renderEmojiRuns(text: string, key: string): React.ReactNode[] {
  * Walks the host formatter's rendered tree and wraps every emoji run in the same atomic box the
  * fallback renderer uses — formatText hands back bare unicode whose fallback-font metrics
  * stretch the row or split a sequence over two lines. Code/pre stay untouched so literal
- * characters keep their monospace flow, as do elements the host already marked as emoji.
+ * characters keep their monospace flow. Standard host emoji images/components are normalized
+ * to Unicode so the bundled font supplies their artwork too; custom images stay intact.
  */
 export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
     if (node === null || node === undefined || typeof node === 'boolean') {
@@ -369,7 +370,17 @@ export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
         }
         const props = element.props || {};
         const className = typeof props.className === 'string' ? props.className : '';
-        if (/(^|\s)(emoticon|emoji)(\s|$)/.test(className) || props.children === undefined) {
+        const markedEmoji = /(^|\s)(emoticon|emoji)(\s|$)/.test(className);
+        const customImage = /\/emoji\//.test(String(props.src || '')) || props.emoji?.id || props.emojiId || props.isCustomEmoji;
+        if (!customImage && (markedEmoji || props.emojiName || props['data-emoticon'])) {
+            const label = props.alt || props['data-emoticon'] || props.emojiName || props.title;
+            const name = typeof label === 'string' ? label.replace(/^:|:$/g, '') : '';
+            const unicode = emojiChar(name) || (typeof label === 'string' && splitEmoji(label).every((piece) => piece.emoji) ? label : '');
+            if (unicode) {
+                return <span key={element.key ?? undefined} className="tgw-emoji" title={props.title}>{unicode}</span>;
+            }
+        }
+        if (customImage || props.children === undefined) {
             return element;
         }
         return React.cloneElement(element, undefined, wrapEmojiNodes(props.children));

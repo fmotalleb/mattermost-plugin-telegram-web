@@ -467,6 +467,43 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        console.log('\n== bundled emoji artwork ==');
+        await cdp.send('DOM.enable');
+        await cdp.send('CSS.enable');
+        await cdp.eval(`(async () => {
+            const probe = document.createElement('div');
+            probe.id = 'tgw-emoji-font-probe';
+            probe.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;font-size:20px';
+            const samples = [
+                ['inherited', '😀👍🏽👨‍👩‍👧‍👦🇮🇷1️⃣#️⃣*️⃣🏴\\u{e0067}\\u{e0062}\\u{e0065}\\u{e006e}\\u{e0067}\\u{e007f}', ''],
+                ['reaction', '🎉', 'tgw-reaction-emoji'],
+                ['wrapped', '⚙️©️™️', 'tgw-emoji'],
+                ['text', '0123456789 # * English فارسی', ''],
+            ];
+            samples.forEach(([id, text, className]) => {
+                const span = document.createElement('span');
+                span.id = 'tgw-font-' + id;
+                span.className = className;
+                span.textContent = text;
+                probe.appendChild(span);
+            });
+            document.querySelector('.tgw-root').appendChild(probe);
+            await document.fonts.ready;
+        })()`);
+        const fontDocument = await cdp.send('DOM.getDocument');
+        for (const sample of ['inherited', 'reaction', 'wrapped', 'text']) {
+            const {nodeId} = await cdp.send('DOM.querySelector', {nodeId: fontDocument.root.nodeId, selector: `#tgw-font-${sample}`});
+            const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId});
+            const expected = sample === 'text' ? 'Vazirmatn' : 'TGW Telegram Emoji';
+            ok(fonts.length > 0 && fonts.every((font) => font.isCustomFont && font.familyName.includes(expected)),
+                `${sample} uses only bundled ${expected} glyphs (${fonts.map((font) => font.familyName).join(', ')})`);
+            if (sample === 'inherited') {
+                const glyphCount = fonts.reduce((count, font) => count + font.glyphCount, 0);
+                ok(glyphCount === 8, `eight complete emoji sequences shape to eight glyphs (${glyphCount})`);
+            }
+        }
+        await cdp.eval("document.querySelector('#tgw-emoji-font-probe').remove()");
+
         const unreadOpening = await cdp.eval(`(() => {
             const list = document.querySelector('.tgw-messages');
             const unread = list.querySelector('[data-post-id="unread-browser-14"]');

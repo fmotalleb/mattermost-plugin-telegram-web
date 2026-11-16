@@ -270,11 +270,10 @@ export function replaceUnsupportedMattermostShortcodes(text: string): string {
     });
 }
 
-// One whole emoji as a line-breaking unit: base + optional variation selector/skin tone, ZWJ
-// chains (👨‍👩‍👧‍👦) and flag pairs (🇷🇪). \p{RI} is not a Unicode property, hence the surrogate-pair
-// range for regional indicators. Keycaps (1️⃣) are rare in chat and stay plain text.
+// Keep each complete grapheme together, including skin tones, ZWJ families, keycaps,
+// regional-indicator flags and subdivision flags (black flag + tag letters + cancel tag).
 const EMOJI_RUN = new RegExp(
-    '(\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E|\\p{Emoji_Modifier})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\uFE0E|\\p{Emoji_Modifier})?)*|[\\u{1F1E6}-\\u{1F1FF}]{2})',
+    '([#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}[\\uFE0F\\uFE0E]?\\p{Emoji_Modifier}?(?:\\u200D\\p{Extended_Pictographic}[\\uFE0F\\uFE0E]?\\p{Emoji_Modifier}?)*(?:[\\u{E0020}-\\u{E007E}]+\\u{E007F})?|[\\u{1F1E6}-\\u{1F1FF}]{2})',
     'u',
 );
 

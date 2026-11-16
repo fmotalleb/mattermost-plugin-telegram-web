@@ -122,6 +122,8 @@ const registry = {
         'the chat header floats over the message list with a live backdrop blur');
     ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
         'the Vazirmatn webfont is inlined as a data URI');
+    ok(/font-family:\s*['"]TGW Emoji['"][^}]+src:\s*url\([^)]*data:font\/woff2;base64/.test(cssText),
+        'the cross-platform emoji artwork ships inside the bundle without a CDN');
     ok(cssText.includes('.tgw-root textarea') && cssText.includes('user-select: text'),
         'text fields force user-select back on so Ctrl+A cannot select the page around them');
     ok(!cssText.includes('.tgw-root.tgw-glassy .tgw-chat {') && !cssText.includes('.tgw-theme-dark .tgw-chat,') && !cssText.includes('.tgw-theme-midnight .tgw-chat,'),
