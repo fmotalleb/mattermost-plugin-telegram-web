@@ -163,7 +163,7 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                                             item.onPick(emoji.name);
                                         }}
                                     >
-                                        {emoji.char}
+                                        <span className="tgw-emoji">{emoji.char}</span>
                                     </button>
                                 );
                             })}

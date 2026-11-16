@@ -949,7 +949,7 @@ export function ReactionEmoji({name, customEmoji}: {name: string; customEmoji: R
         return <img className="tgw-reaction-emoji" src={api.customEmojiImageURL(custom.id)} alt={`:${name}:`}/>;
     }
     const char = emojiChar(name);
-    return <span className="tgw-reaction-emoji">{char || `:${name}:`}</span>;
+    return <span className={char ? 'tgw-reaction-emoji' : 'tgw-reaction-label'}>{char || `:${name}:`}</span>;
 }
 
 interface ReactionGroup {

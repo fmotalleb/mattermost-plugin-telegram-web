@@ -1,31 +1,31 @@
-# Telegram default emoji artwork
+# Bundled vector emoji artwork
 
-The Telegram view bundles the same default Apple-style PNG artwork shipped by
-Telegram Web A, rather than depending on installed operating-system emoji fonts.
-Custom Mattermost emoji keep their workspace-provided images.
+The Telegram view uses Twemoji vector artwork by Twitter and the Twemoji
+contributors (Jason Sofonia and Justine De Caires), licensed under CC BY 4.0.
+The COLRv0 font contains colored vector outlines, not embedded PNGs, so emoji
+stay sharp at different sizes, zoom levels and device pixel ratios.
 
-- Upstream: https://github.com/Ajaxy/telegram-tt
-- Pinned commit: `293ede7b20390d04934f4beee6304c3560bbb5d6`.
-- Artwork: `dist/img-apple-64/*.png` (5,172 source files, including aliases).
-- SHA-256 of the sorted source filenames and bytes (as checked by the build script):
-  `c61417cbdd2418658351dc3f2897d48a07b4bd0b994273d88977505e2c45da23`.
-- Telegram's emoji data dependency: `korenskoy/emoji-data-ios` at
-  `73efe6b65daa36dd6ec188d71ef4f06f78634c5f`.
-- Original artwork belongs to its respective owners; Telegram Web's upstream
-  license is included as [LICENSE-TELEGRAM](LICENSE-TELEGRAM).
+- Artwork: https://github.com/jdecked/twemoji (Emoji 17.0).
+- Font build: https://github.com/iebb/emojifonts/releases/tag/latest
+  (release published 2026-06-16).
+- Download: https://github.com/iebb/emojifonts/releases/download/latest/twemoji-colrv0.ttf
+- Original SHA-256: `14f379d101936cb0a57c5fa5606c6ca3bd14f117dcc37d10b8a8ad58199fdefa`.
+- Artwork license: [LICENSE-GRAPHICS](LICENSE-GRAPHICS).
+- Upstream code notice: [LICENSE](LICENSE).
 
-`webapp/src/fonts/TelegramEmoji.woff2` repackages the original 64px artwork into an
-sbix bitmap font. Pixels are preserved; duplicate images are shared, PNG metadata
-is removed, and Unicode ligatures map flags, skin tones, keycaps and ZWJ sequences
-to the appropriate images. The font is embedded in the plugin's single JS bundle
-and also works in text fields, without external image requests.
+`webapp/src/fonts/Twemoji.woff2` is a modified, compressed copy: existing keycap
+digit mappings were restored, layer bearings corrected to preserve their positions,
+and baseline metrics corrected to contain the glyph inside a single em.
+No artwork was redrawn. Ordinary English/Persian text and
+ASCII still use the text font. Emoji wrappers reserve one square em of the
+surrounding font size; complex sequences remain one glyph/cell. Custom Mattermost
+emoji retain their images and fit inside the same square without stretching.
 
-To reproduce it, obtain the pinned upstream checkout, install `fonttools[woff]`
-and Pillow in a temporary Python environment, then run:
+The font is embedded in the single JS bundle with no CDN or OS emoji dependency.
+COLRv0 is supported by modern Chromium, Firefox and Safari, including native text
+fields. To reproduce the font, install `fonttools[woff]` in a temporary Python
+environment and run:
 
 ```sh
-python scripts/prepare-emoji-font.py /path/to/telegram-tt/dist/img-apple-64
+python scripts/prepare-emoji-font.py /path/to/twemoji-colrv0.ttf
 ```
-
-The ordinary text font comes first so spaces, digits, `#`, and `*` remain normal
-text; emoji controls and message emoji wrappers explicitly select the artwork font.

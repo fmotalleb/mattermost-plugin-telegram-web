@@ -1,6 +1,7 @@
 const {React, ReactDOM, container, tick, ok, report} = require('./harness');
 const {splitEmoji} = require('../src/mm/emoji');
 const {wrapEmojiNodes} = require('../src/ui/render');
+const {ReactionEmoji} = require('../src/ui/MessageList');
 
 const root = ReactDOM.createRoot(container);
 (async () => {
@@ -26,6 +27,16 @@ const root = ReactDOM.createRoot(container);
         'custom workspace images are preserved even if their name matches a standard emoji');
     ok(container.querySelector('code').textContent === ':smile: 😀' && !container.querySelector('code .tgw-emoji'),
         'code keeps its literal text');
+    root.render(React.createElement('div', null,
+        React.createElement(ReactionEmoji, {name: 'thumbsup', customEmoji: {}}),
+        React.createElement(ReactionEmoji, {name: 'not_a_known_emoji', customEmoji: {}}),
+        React.createElement(ReactionEmoji, {name: 'party', customEmoji: {party: {id: 'custom'}}})));
+    await tick(30);
+    ok(container.querySelector('span.tgw-reaction-emoji')?.textContent === '👍', 'standard reactions use an emoji cell');
+    ok(container.querySelector('.tgw-reaction-label')?.textContent === ':not_a_known_emoji:',
+        'unknown reaction names remain readable text instead of overflowing a one-em cell');
+    ok(container.querySelector('img.tgw-reaction-emoji')?.src.includes('/emoji/custom/'),
+        'custom reactions retain their images in the same sized cell');
     root.unmount();
     report('EMOJI RENDERING TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

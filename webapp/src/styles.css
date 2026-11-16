@@ -17,12 +17,11 @@
     font-display: swap;
 }
 
-/* Telegram Web's default emoji artwork; provenance and upstream notices are in assets/emoji.
-   The sbix font keeps the same artwork in messages, pickers and native text fields.
-   Block briefly while loading so emoji do not flash the operating system's artwork. */
+/* Twemoji COLRv0 vector outlines stay sharp at every font size and device scale.
+   Notices and reproducible preparation instructions ship in assets/emoji. */
 @font-face {
     font-family: 'TGW Emoji';
-    src: url('./fonts/TelegramEmoji.woff2') format('woff2');
+    src: url('./fonts/Twemoji.woff2') format('woff2');
     font-weight: 100 900;
     font-style: normal;
     font-display: block;
@@ -1542,24 +1541,46 @@
     color: #ffffff;
 }
 
-/* Every emoji in a message — host-formatted or fallback — sits in one atomic box: emoji fonts
-   run far taller than these rows' 1.35 line box, which stretched the line around them, and a
-   sequence (⚙️, 👨‍👩‍👧‍👦, 🇷🇪) could break across lines. Fixed size keeps them all equal. */
-.tgw-emoji,
-.tgw-message-text .emoticon,
-.tgw-message-text .emoji {
-    display: inline-block;
+/* One complete grapheme per square em, including families, flags and skin tones.
+   Scope these rules above host span styles; headings inherit their own font size.
+   The font's baseline metrics do the alignment, without a second manual downshift. */
+.tgw-root .tgw-emoji,
+.tgw-root .tgw-reaction-emoji,
+.tgw-root .tgw-inline-emoji,
+.tgw-root .tgw-message-text .emoticon,
+.tgw-root .tgw-message-text .emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    flex: 0 0 1em;
+    font-family: 'TGW Emoji', var(--tgw-font);
+    font-size: 1em;
+    font-weight: 400;
+    font-style: normal;
+    font-synthesis: none;
+    letter-spacing: 0;
     white-space: nowrap;
-    font-size: 1.15em;
     line-height: 1;
-    vertical-align: -0.15em;
+    vertical-align: baseline;
+    text-align: center;
+    text-indent: 0;
+    object-fit: contain;
 }
 
-/* Emoji-only controls use the artwork face first, including text-presentation symbols.
-   General text keeps Vazirmatn first so spaces, digits, # and * remain ordinary text. */
-.tgw-root :is(.tgw-emoji, .tgw-reaction-emoji, .tgw-menu-emoji, .tgw-emoji-grid button, .tgw-emoji-tabs button),
-.tgw-root .tgw-message-text :is(.emoticon, .emoji) {
-    font-family: 'TGW Emoji', var(--tgw-font);
+/* Images use their bottom edge as the inline baseline; match the vector font's
+   0.2em descent. Custom picker artwork follows its button's font size as well. */
+.tgw-root img.tgw-inline-emoji,
+.tgw-root .tgw-message-text img.emoticon,
+.tgw-root .tgw-message-text img.emoji {
+    vertical-align: -0.2em;
+}
+
+.tgw-root .tgw-emoji-grid img {
+    width: 1em;
+    height: 1em;
+    object-fit: contain;
 }
 
 .tgw-msg-meta {
@@ -1681,27 +1702,6 @@
 .tgw-reaction-mine {
     background: var(--tgw-accent-soft);
     color: var(--tgw-link);
-}
-
-.tgw-reaction-emoji {
-    font-size: 15px;
-    line-height: 1;
-}
-
-.tgw-reaction-emoji img,
-img.tgw-reaction-emoji {
-    width: 16px;
-    height: 16px;
-}
-
-/* Custom emoji inside plain-text excerpts (chat row previews, reply bars, search hits): sized
-   to the surrounding text so the line does not jump. */
-.tgw-inline-emoji {
-    display: inline-block;
-    height: 1.2em;
-    width: auto;
-    vertical-align: -0.2em;
-    object-fit: contain;
 }
 
 .tgw-thread-link {

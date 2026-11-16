@@ -529,7 +529,7 @@ class CDP {
         for (const sample of ['inherited', 'reaction', 'wrapped', 'text']) {
             const {nodeId} = await cdp.send('DOM.querySelector', {nodeId: fontDocument.root.nodeId, selector: `#tgw-font-${sample}`});
             const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId});
-            const expected = sample === 'text' ? 'Vazirmatn' : 'TGW Telegram Emoji';
+            const expected = sample === 'text' ? 'Vazirmatn' : 'Twemoji';
             ok(fonts.length > 0 && fonts.every((font) => font.isCustomFont && font.familyName.includes(expected)),
                 `${sample} uses only bundled ${expected} glyphs (${fonts.map((font) => font.familyName).join(', ')})`);
             if (sample === 'inherited') {
@@ -538,6 +538,70 @@ class CDP {
             }
         }
         await cdp.eval("document.querySelector('#tgw-emoji-font-probe').remove()");
+
+        console.log('\n== fixed emoji cells ==');
+        const emojiLayout = await cdp.eval(`(async () => {
+            const probe = document.createElement('div');
+            probe.id = 'tgw-emoji-layout-probe';
+            probe.style.cssText = 'position:fixed;top:100px;left:450px;width:720px;padding:24px;z-index:10000;background:var(--tgw-bg);color:var(--tgw-text)';
+            const hostStyle = document.createElement('style');
+            hostStyle.textContent = 'h2 span { display: block; }';
+            probe.appendChild(hostStyle);
+            const rows = [];
+            for (const size of [12, 15, 24, 36]) {
+                const line = document.createElement('h2');
+                line.style.cssText = 'font-size:' + size + 'px;line-height:1.4;margin:12px 0';
+                line.appendChild(document.createTextNode('Root FS Used '));
+                const cells = ['🟥', '👍', '😀', '👨‍👩‍👧‍👦', '🇮🇷', '👍🏽', '1️⃣'].map(text => {
+                    const cell = document.createElement('span');
+                    cell.className = 'tgw-emoji';
+                    cell.textContent = text;
+                    line.appendChild(cell);
+                    return cell;
+                });
+                const plain = document.createElement('h2');
+                plain.style.cssText = line.style.cssText;
+                plain.textContent = 'Root FS Used';
+                probe.append(line, plain);
+                rows.push({line, plain, cells, size});
+            }
+            const reaction = document.createElement('button');
+            reaction.className = 'tgw-reaction';
+            reaction.innerHTML = '<span class="tgw-reaction-emoji">👍</span><span>1</span>';
+            probe.appendChild(reaction);
+            document.querySelector('.tgw-root').appendChild(probe);
+            await document.fonts.ready;
+            const result = rows.map(({line, plain, cells, size}) => {
+                const bounds = cells.map(cell => cell.getBoundingClientRect());
+                return {size, font: getComputedStyle(cells[0]).fontSize,
+                    square: bounds.every(rect => Math.abs(rect.width-size)<0.1 && Math.abs(rect.height-size)<0.1),
+                    aligned: bounds.every(rect => Math.abs(rect.top-bounds[0].top)<0.1),
+                    consecutive: bounds.slice(1).every((rect, i) => Math.abs(rect.left-bounds[i].right)<0.1),
+                    lineHeight: line.getBoundingClientRect().height, plainHeight: plain.getBoundingClientRect().height};
+            });
+            const icon = reaction.firstChild.getBoundingClientRect();
+            const count = reaction.lastChild.getBoundingClientRect();
+            return {rows: result, reaction: {width:icon.width, height:icon.height,
+                font: parseFloat(getComputedStyle(reaction).fontSize),
+                centerDelta: Math.abs((icon.top+icon.bottom-count.top-count.bottom)/2)}};
+        })()`);
+        for (const row of emojiLayout.rows) {
+            ok(row.square && row.font === row.size + 'px', `emoji cells match the ${row.size}px surrounding font height and width`);
+            ok(row.aligned && row.consecutive, `emoji keep a common baseline and fixed advance at ${row.size}px`);
+            ok(Math.abs(row.lineHeight-row.plainHeight)<0.1, `emoji do not enlarge or wrap the ${row.size}px heading line`);
+        }
+        ok(Math.abs(emojiLayout.reaction.width-emojiLayout.reaction.font)<0.1 && emojiLayout.reaction.centerDelta<0.5,
+            'reaction emoji match the count font height and stay vertically centered');
+        if (process.env.TGW_EMOJI_SCREENSHOT) {
+            for (const scale of [1, 2]) {
+                await cdp.send('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:scale,mobile:false});
+                const shot = await cdp.send('Page.captureScreenshot', {format:'png'});
+                fs.writeFileSync(process.env.TGW_EMOJI_SCREENSHOT + '-' + scale + 'x.png', Buffer.from(shot.data, 'base64'));
+            }
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:1,mobile:false});
+        }
+        await cdp.eval("document.querySelector('#tgw-emoji-layout-probe').remove()");
+
 
         const unreadOpening = await cdp.eval(`(() => {
             const list = document.querySelector('.tgw-messages');
