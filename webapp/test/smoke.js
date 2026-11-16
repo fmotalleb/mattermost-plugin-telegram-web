@@ -742,12 +742,26 @@ root.render(React.createElement(TelegramUI));
     ok(/^\d+:\d\d$/.test((document.querySelector('.tgw-voice-duration')?.textContent || '').trim()), 'voice duration label rendered');
     if (voicePlayer) {
         const playButton = voicePlayer.querySelector('.tgw-voice-play');
+        const audio = voicePlayer.querySelector('audio');
+        const mediaEvents = [];
+        ['play', 'playing', 'pause'].forEach((name) => audio.addEventListener(name, () => mediaEvents.push(name)));
         playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-        await tick(30);
+        await waitFor(() => !audio.paused && document.querySelector('.tgw-voice-play.tgw-voice-playing'));
         ok(!!document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'clicking play toggles the player into the playing state');
+        ok(!audio.paused && mediaEvents.join(',') === 'play,playing', 'play starts the media element and emits playback events');
         playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-        await tick(30);
+        await waitFor(() => audio.paused && !document.querySelector('.tgw-voice-play.tgw-voice-playing'));
         ok(!document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'clicking again pauses the player');
+        ok(audio.paused && mediaEvents.at(-1) === 'pause', 'pause stops the media element and emits a pause event');
+        const originalPlay = audio.play;
+        let rejectPlayback;
+        audio.play = () => new Promise((resolve, reject) => { rejectPlayback = reject; });
+        playButton.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+        await waitFor(() => document.querySelector('.tgw-voice-play.tgw-voice-playing'));
+        rejectPlayback(new Error('Playback denied'));
+        await waitFor(() => !document.querySelector('.tgw-voice-play.tgw-voice-playing'));
+        ok(audio.paused && !document.querySelector('.tgw-voice-play.tgw-voice-playing'), 'rejected playback restores the paused control');
+        audio.play = originalPlay;
     }
 
     // Telegram-style speed control: 1x → 1.5x → 2x → wrap.

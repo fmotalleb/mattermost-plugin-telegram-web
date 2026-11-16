@@ -14,12 +14,19 @@
  */
 
 const path = require('path');
-const {JSDOM} = require('jsdom');
+const {JSDOM, VirtualConsole} = require('jsdom');
 
 // --------------------------------------------------------------------------- jsdom environment
+const virtualConsole = new VirtualConsole();
+virtualConsole.sendTo(console, {omitJSDOMErrors: true});
+virtualConsole.on('jsdomError', (error) => {
+    console.error(error);
+    process.exitCode = 1;
+});
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
     url: 'https://mattermost.example.com/',
     pretendToBeVisual: true,
+    virtualConsole,
 });
 global.window = dom.window;
 global.document = dom.window.document;
@@ -64,6 +71,23 @@ window.WebappUtils = {
 // runs against these fakes so the record → upload → send path is covered end to end.
 global.Blob = dom.window.Blob;
 global.File = dom.window.File;
+// jsdom implements media elements but has no playback engine. Model the methods we
+// exercise instead of letting its not-implemented errors masquerade as passing tests.
+const playingMedia = new WeakSet();
+Object.defineProperty(dom.window.HTMLMediaElement.prototype, 'paused', {
+    configurable: true,
+    get() { return !playingMedia.has(this); },
+});
+dom.window.HTMLMediaElement.prototype.play = function () {
+    playingMedia.add(this);
+    this.dispatchEvent(new dom.window.Event('play'));
+    this.dispatchEvent(new dom.window.Event('playing'));
+    return Promise.resolve();
+};
+dom.window.HTMLMediaElement.prototype.pause = function () {
+    if (!playingMedia.delete(this)) return;
+    this.dispatchEvent(new dom.window.Event('pause'));
+};
 dom.window.navigator.mediaDevices = {
     getUserMedia: async () => ({getTracks: () => [{stop() {}}], getAudioTracks: () => [{stop() {}}]}),
 };
