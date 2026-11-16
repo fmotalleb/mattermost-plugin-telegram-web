@@ -70,12 +70,49 @@
     color: var(--tgw-text);
     background: var(--tgw-bg);
     -webkit-font-smoothing: antialiased;
+    color-scheme: light;
 }
 
 .tgw-root *,
 .tgw-root *::before,
 .tgw-root *::after {
     box-sizing: border-box;
+}
+
+/* Keep form controls in the same typeface; component rules supply their layout. */
+.tgw-root :where(button, input, textarea, select) {
+    font: inherit;
+    color: inherit;
+}
+
+.tgw-root :where(button) {
+    margin: 0;
+    padding: 0;
+    letter-spacing: normal;
+    text-transform: none;
+    -webkit-appearance: none;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.tgw-root :where(input, textarea)::placeholder {
+    color: var(--tgw-text-tertiary);
+    opacity: 1;
+}
+
+.tgw-root :where(button, a[href], input, select, textarea, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--tgw-accent);
+    outline-offset: 3px;
+}
+
+.tgw-root :where(button, input, textarea, select):disabled {
+    cursor: not-allowed;
+}
+
+.tgw-root:is(.tgw-theme-dark, .tgw-theme-midnight) {
+    color-scheme: dark;
 }
 
 /* Base dark palette — one notch deeper than before (#212121 family → #181818 family) so the
@@ -367,51 +404,17 @@
 
 /* One consistent thin scrollbar style for every scroll container, both axes, both engines. */
 
-.tgw-sidebar-body,
-.tgw-messages,
-.tgw-info-panel,
-.tgw-files-panel,
-.tgw-thread-body,
-.tgw-picker-list,
-.tgw-emoji-body,
-.tgw-modal-body,
-.tgw-image-viewer-body,
-.tgw-folders,
-.tgw-emoji-tabs,
-.tgw-code-block,
-.tgw-message-text pre {
+.tgw-root * {
     scrollbar-width: thin;
     scrollbar-color: var(--tgw-border-strong) transparent;
 }
 
-.tgw-sidebar-body::-webkit-scrollbar,
-.tgw-messages::-webkit-scrollbar,
-.tgw-info-panel::-webkit-scrollbar,
-.tgw-thread-body::-webkit-scrollbar,
-.tgw-picker-list::-webkit-scrollbar,
-.tgw-emoji-body::-webkit-scrollbar,
-.tgw-modal-body::-webkit-scrollbar,
-.tgw-image-viewer-body::-webkit-scrollbar,
-.tgw-folders::-webkit-scrollbar,
-.tgw-emoji-tabs::-webkit-scrollbar,
-.tgw-code-block::-webkit-scrollbar,
-.tgw-message-text pre::-webkit-scrollbar {
+.tgw-root ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
 }
 
-.tgw-sidebar-body::-webkit-scrollbar-thumb,
-.tgw-messages::-webkit-scrollbar-thumb,
-.tgw-info-panel::-webkit-scrollbar-thumb,
-.tgw-thread-body::-webkit-scrollbar-thumb,
-.tgw-picker-list::-webkit-scrollbar-thumb,
-.tgw-emoji-body::-webkit-scrollbar-thumb,
-.tgw-modal-body::-webkit-scrollbar-thumb,
-.tgw-image-viewer-body::-webkit-scrollbar-thumb,
-.tgw-folders::-webkit-scrollbar-thumb,
-.tgw-emoji-tabs::-webkit-scrollbar-thumb,
-.tgw-code-block::-webkit-scrollbar-thumb,
-.tgw-message-text pre::-webkit-scrollbar-thumb {
+.tgw-root ::-webkit-scrollbar-thumb {
     background: var(--tgw-border-strong);
     border-radius: 3px;
 }
@@ -1343,6 +1346,56 @@
 }.tgw-message-text a {
     color: var(--tgw-link);
     text-decoration: none;
+}
+
+/* Native checkbox semantics and keyboard behavior, with a theme-aware painted control. */
+.tgw-root input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    margin: 0;
+    border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+    border-radius: 6px;
+    background: var(--tgw-bg);
+    vertical-align: middle;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.tgw-root input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--tgw-accent);
+    box-shadow: 0 0 0 3px var(--tgw-accent-soft);
+}
+
+.tgw-root input[type="checkbox"]:is(:checked, :indeterminate) {
+    border-color: var(--tgw-accent);
+    background: var(--tgw-accent);
+}
+
+.tgw-root input[type="checkbox"]:checked::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border: solid #fff;
+    border-width: 0 0 2px 2px;
+    transform: translateY(-1px) rotate(-45deg);
+}
+
+.tgw-root input[type="checkbox"]:indeterminate::after {
+    content: "";
+    width: 9px;
+    height: 2px;
+    border-radius: 1px;
+    background: #fff;
+}
+
+.tgw-root input[type="checkbox"]:disabled {
+    opacity: .5;
+    cursor: not-allowed;
 }
 
 /* Markdown task lists should feel like controls in the chat, while staying compact beside text. */
@@ -2895,32 +2948,108 @@ img.tgw-reaction-emoji {
 
 .tgw-input:focus {
     border-color: var(--tgw-accent);
+    box-shadow: 0 0 0 3px var(--tgw-accent-soft);
 }
 
-.tgw-button {
-    border: none;
-    background: var(--tgw-accent);
-    color: #ffffff;
-    border-radius: 8px;
-    padding: 9px 16px;
-    font-size: 14px;
-    font-weight: 500;
+.tgw-root .tgw-input {
+    min-height: 40px;
+    line-height: 20px;
+    border-radius: 10px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.tgw-root .tgw-input:disabled {
+    opacity: .55;
+    background-color: var(--tgw-hover);
+}
+
+.tgw-root select.tgw-input {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-inline-end: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23818c99' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
     cursor: pointer;
-    font-family: inherit;
 }
 
-.tgw-button:disabled {
-    opacity: 0.5;
-    cursor: default;
+.tgw-root select.tgw-input:dir(rtl) {
+    background-position: left 12px center;
 }
 
-.tgw-button-secondary {
-    background: var(--tgw-hover);
+.tgw-root select option {
     color: var(--tgw-text);
+    background: var(--tgw-bg-secondary);
 }
 
-.tgw-button-danger {
-    background: #e5544b;
+.tgw-root input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    padding: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tgw-root input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    background-color: var(--tgw-accent-soft);
+}
+
+.tgw-root .tgw-button {
+    --tgw-button-bg: var(--tgw-accent);
+    --tgw-button-hover: var(--tgw-accent-hover);
+    --tgw-button-text: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: var(--tgw-button-bg);
+    color: var(--tgw-button-text);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.tgw-root .tgw-button svg {
+    flex-shrink: 0;
+}
+
+.tgw-root .tgw-button:is(:hover, :focus-visible, :visited) {
+    color: var(--tgw-button-text);
+    text-decoration: none;
+}
+
+.tgw-root .tgw-button:hover:not(:disabled) {
+    background: var(--tgw-button-hover);
+}
+
+.tgw-root .tgw-button:active:not(:disabled) {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .12);
+}
+
+.tgw-root .tgw-button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.tgw-root .tgw-button-secondary {
+    --tgw-button-bg: var(--tgw-hover);
+    --tgw-button-hover: var(--tgw-active);
+    --tgw-button-text: var(--tgw-text);
+    border-color: var(--tgw-border);
+}
+
+.tgw-root .tgw-button-danger {
+    --tgw-button-bg: #e5544b;
+    --tgw-button-hover: #d6473f;
 }
 
 .tgw-picker {
@@ -3095,14 +3224,16 @@ img.tgw-reaction-emoji {
 
 .tgw-field-check {
     justify-content: flex-start;
-    gap: 10px;
+    gap: 12px;
+    min-height: 40px;
+    padding: 8px;
+    border-radius: 10px;
     cursor: pointer;
+    transition: background-color 140ms ease;
 }
 
-.tgw-field-check input {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--tgw-accent);
+.tgw-field-check:hover {
+    background: var(--tgw-hover);
 }
 
 .tgw-accents {
@@ -4098,11 +4229,10 @@ body.tgw-root-active {
 .tgw-root .tgw-composer-toolbar button:disabled { opacity: .45; cursor: default; }
 .tgw-root .tgw-schedule-panel { position: absolute; bottom: calc(100% + 8px); right: 0; width: min(300px, calc(100vw - 32px)); padding: 14px; z-index: 40; border: 1px solid var(--tgw-border); border-radius: 12px; color: var(--tgw-text); background: var(--tgw-bg); box-shadow: 0 8px 28px rgba(0,0,0,.2); }
 .tgw-root .tgw-schedule-panel label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-.tgw-root .tgw-schedule-panel input { min-width: 0; width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid var(--tgw-border); border-radius: 6px; color: var(--tgw-text); background: var(--tgw-bg); }
+.tgw-root .tgw-schedule-panel .tgw-input { min-width: 0; width: 100%; }
 .tgw-root .tgw-schedule-panel small { display: block; margin-top: 8px; color: var(--tgw-text-secondary); }
 .tgw-root .tgw-schedule-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.tgw-root .tgw-schedule-actions button { width: auto; height: auto; padding: 8px; border-radius: 6px; font: inherit; font-size: 13px; }
-.tgw-root .tgw-schedule-actions button:last-child { color: var(--tgw-accent); background: var(--tgw-accent-soft); }
+.tgw-root .tgw-schedule-actions .tgw-button { width: auto; height: auto; padding: 8px 12px; font-size: 13px; }
 .tgw-root .tgw-schedule-error { margin-top: 8px; color: #c62828; font-size: 13px; }
 .tgw-root .tgw-msg-priority { color: #c62828; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
 @media (max-width: 480px) {
@@ -4185,4 +4315,66 @@ body.tgw-root-active {
 .tgw-root .tgw-file-preview-hint {
     font-size: 12px;
     color: var(--tgw-text-secondary);
+}
+
+/* Small recovery actions and file links use the same interactive affordances. */
+.tgw-root button:is(.tgw-command-message, .tgw-mention-message) {
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.tgw-root button:is(.tgw-command-message, .tgw-mention-message):hover {
+    color: var(--tgw-link);
+    background: var(--tgw-accent-soft);
+}
+
+.tgw-root .tgw-attachment-file:is(:hover, :focus-visible, :visited) {
+    color: inherit;
+    text-decoration: none;
+}
+
+.tgw-root .tgw-attachment-file:hover {
+    background: var(--tgw-accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tgw-root :is(button, a, input, select, textarea) {
+        transition: none;
+    }
+}
+
+@media (forced-colors: active) {
+    .tgw-root input[type="checkbox"] {
+        -webkit-appearance: auto;
+        appearance: auto;
+        border: revert;
+        background: revert;
+    }
+    .tgw-root input[type="checkbox"]::after {
+        content: none;
+    }
+    .tgw-root select.tgw-input {
+        -webkit-appearance: auto;
+        appearance: auto;
+        background-image: none;
+    }
+}
+
+.tgw-root .tgw-modal-footer,
+.tgw-root .tgw-wallpaper-opts {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+    .tgw-root .tgw-settings .tgw-field:not(.tgw-field-check) {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .tgw-root .tgw-settings .tgw-segmented {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }

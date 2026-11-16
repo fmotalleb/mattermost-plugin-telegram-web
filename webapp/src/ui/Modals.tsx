@@ -15,7 +15,7 @@ import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
 import {overlayRoot} from './portal';
-import {Avatar, IconBack, IconClose, IconForward} from './primitives';
+import {Avatar, IconBack, IconClose, IconDownload, IconForward} from './primitives';
 
 export function ModalShell({title, children, footer, width = 460, onClose, manageFocus = false}: {title: string; children: React.ReactNode; footer?: React.ReactNode; width?: number; onClose: () => void; manageFocus?: boolean}) {
     const dialog = useRef<HTMLDivElement>(null);
@@ -779,7 +779,7 @@ export function FilePreviewModal({file, post}: {file: MMFileInfo; post?: MMPost}
     }, [file.id, file.size, kind, attempt, post]);
     if (hostOpen) return null;
     return <ModalShell title={file.name} width={1000} manageFocus onClose={actions.closeModal} footer={
-        <a className="tgw-button" href={`${api.fileURL(file.id)}?download=1`} target="_blank" rel="noopener noreferrer">Download</a>
+        <a className="tgw-button" href={`${api.fileURL(file.id)}?download=1`} target="_blank" rel="noopener noreferrer"><IconDownload size={18}/>Download</a>
     }>
         <div className="tgw-file-preview">
             {error ? <div role="alert">{error} <button type="button" className="tgw-button" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>

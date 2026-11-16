@@ -83,7 +83,7 @@ export function QuickChat({channelId}: {channelId: string}) {
             <div className="tgw-quick-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Quick chat">
                 <button className="tgw-icon-button tgw-quick-close" type="button" title="Close quick chat" aria-label="Close quick chat" onClick={close}><IconClose size={22}/></button>
                 {channel ? <TgContext.Provider value={value}><ChatView quick/></TgContext.Provider> :
-                    <div className="tgw-quick-loading">{error ? <><span role="alert">Could not open chat.</span><button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry</button></> : 'Loading chat…'}</div>}
+                    <div className="tgw-quick-loading">{error ? <><span role="alert">Could not open chat.</span><button type="button" className="tgw-button tgw-button-secondary" onClick={() => setAttempt((n) => n + 1)}>Retry</button></> : 'Loading chat…'}</div>}
             </div>
         </div>, overlayRoot(),
     );

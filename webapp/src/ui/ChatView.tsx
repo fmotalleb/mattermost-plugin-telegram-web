@@ -501,7 +501,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
             )}
 
             <div className="tgw-chat-body">
-                {quick && block?.error && <div role="alert">Could not load messages. <button type="button" onClick={() => loadChannel(channelId, {force: true})}>Retry</button></div>}
+                {quick && block?.error && <div role="alert">Could not load messages. <button type="button" className="tgw-button tgw-button-secondary" onClick={() => loadChannel(channelId, {force: true})}>Retry</button></div>}
                 <MessageList
                     quick={quick}
                     channel={channel}

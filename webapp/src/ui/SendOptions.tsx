@@ -55,13 +55,13 @@ export function SendOptions({urgent, onUrgent, priorityDisabled, disabled, busy,
             disabled={disabled || busy} onClick={() => { setWhen(restoreSchedule ? when || localDateTime(restoreSchedule.scheduledAt) : localDateTime(Date.now() + 3600000)); setError(''); setOpen(!open); }}><IconClock size={16}/><span>Schedule</span>{count > 0 && <span className={`tgw-schedule-count ${failedCount ? 'tgw-schedule-count-error' : ''}`} aria-hidden="true">{count > 99 ? '99+' : count}</span>}</button>
         {open && !disabled && <div className="tgw-schedule-panel" role="group" aria-label="Schedule message"
             onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
-            <label>Send at<input ref={dateInput} aria-label="Scheduled send time" type="datetime-local" value={when} min={localDateTime(Date.now() + 60000)}
+            <label>Send at<input className="tgw-input" ref={dateInput} aria-label="Scheduled send time" type="datetime-local" value={when} min={localDateTime(Date.now() + 60000)}
                 disabled={busy} onChange={(event) => { setWhen(event.target.value); setError(''); }}/></label>
             <small>Local time ({Intl.DateTimeFormat().resolvedOptions().timeZone})</small>
             {error && <div className="tgw-schedule-error" role="alert">{error}</div>}
             <div className="tgw-schedule-actions">
-                <button type="button" disabled={busy} onClick={close}>Cancel</button>
-                <button type="button" disabled={busy || !canSend} onClick={async () => {
+                <button type="button" className="tgw-button tgw-button-secondary" disabled={busy} onClick={close}>Cancel</button>
+                <button type="button" className="tgw-button" disabled={busy || !canSend} onClick={async () => {
                     const timestamp = new Date(when).getTime();
                     if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { setError('Choose a time in the future'); return; }
                     if (await onSchedule(timestamp)) { close(); setWhen(''); }
