@@ -2,7 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {filePreviewKind} from '../mm/file-preview';
+import {canEmbedNativePDF, filePreviewKind, openHostPDFPreview} from '../mm/file-preview';
 import {api} from '../mm/api';
 import {useScheduledPosts} from '../mm/scheduled';
 import {useChannelPosts} from '../mm/posts';
@@ -730,18 +730,33 @@ export function ScheduledMessagesModal({channelId}: {channelId: string}) {
     </ModalShell>;
 }
 
-export function FilePreviewModal({file}: {file: MMFileInfo}) {
+export function FilePreviewModal({file, post}: {file: MMFileInfo; post?: MMPost}) {
     const {actions} = useTg();
     const kind = filePreviewKind(file);
     const [content, setContent] = useState<{text?: string; url?: string}>({});
     const [error, setError] = useState('');
     const [attempt, setAttempt] = useState(0);
+    const [hostOpen, setHostOpen] = useState(false);
+    const close = useRef(actions.closeModal);
+    close.current = actions.closeModal;
     useEffect(() => {
         const controller = new AbortController();
         let objectURL = '';
         setContent({});
         setError('');
+        setHostOpen(false);
         const load = async () => {
+            if (kind === 'pdf' && !canEmbedNativePDF()) {
+                if (openHostPDFPreview(file, post, () => {
+                    if (!controller.signal.aborted) close.current();
+                })) {
+                    // Keep ui.modal set while the stock modal is open so quick-chat's
+                    // focus trap yields to it. Its onExited callback restores plugin state.
+                    setHostOpen(true);
+                    return;
+                }
+                throw new Error('This Mattermost version does not expose a compatible PDF viewer. Use Download to open the PDF in your browser or PDF reader.');
+            }
             const maxBytes = (kind === 'pdf' ? 25 : 2) * 1024 * 1024;
             if (!kind) throw new Error('Preview is unavailable for this file.');
             if (file.size > maxBytes) throw new Error('This file is too large to preview. Please download it instead.');
@@ -761,7 +776,8 @@ export function FilePreviewModal({file}: {file: MMFileInfo}) {
             controller.abort();
             if (objectURL) URL.revokeObjectURL(objectURL);
         };
-    }, [file.id, file.size, kind, attempt]);
+    }, [file.id, file.size, kind, attempt, post]);
+    if (hostOpen) return null;
     return <ModalShell title={file.name} width={1000} manageFocus onClose={actions.closeModal} footer={
         <a className="tgw-button" href={`${api.fileURL(file.id)}?download=1`} target="_blank" rel="noopener noreferrer">Download</a>
     }>
@@ -782,7 +798,7 @@ export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
     case 'filePreview':
-        return ui.modalPayload?.file ? <FilePreviewModal key={ui.modalPayload.file.id} file={ui.modalPayload.file}/> : null;
+        return ui.modalPayload?.file ? <FilePreviewModal key={ui.modalPayload.file.id} file={ui.modalPayload.file} post={ui.modalPayload.post}/> : null;
     case 'scheduledMessages':
         return ui.modalPayload?.channelId ? <ScheduledMessagesModal key={ui.modalPayload.channelId} channelId={ui.modalPayload.channelId}/> : null;
     case 'channelNotifications':

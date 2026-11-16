@@ -795,7 +795,7 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
             onClick={previewable ? (event) => {
                 if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                actions.openModal('filePreview', {file});
+                actions.openModal('filePreview', {file, post});
             } : undefined}>
             <span className={`tgw-file-icon tgw-file-${kind}`}>{file.extension ? file.extension.slice(0, 4).toUpperCase() : 'FILE'}</span>
             <span className="tgw-file-meta">

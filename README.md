@@ -207,6 +207,10 @@ every call):
   takes over instead of breaking the chat screen.
 * File attachments are rendered from the server's public file URLs, so they need the same
   authentication/session the web app itself uses.
+* PDF previews use the browser's native viewer where supported. In Mattermost Desktop, the
+  plugin instead uses Mattermost's own PDF viewer when the host publishes the
+  `file_preview_modal` API. Older hosts offer Download to open the PDF in an external reader.
+  No PDF rendering library is bundled with the plugin.
 
 ## Licensing
 
