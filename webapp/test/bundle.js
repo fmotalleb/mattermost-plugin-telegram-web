@@ -100,8 +100,8 @@ const registry = {
     ok(registryCalls.rootComponents.length === 1, 'registered one root component');
     ok(registryCalls.headerButtons.length === 1, 'registered a channel header button');
     ok(registryCalls.menuItems.length === 1, 'registered a main menu entry');
-    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'post_deleted,post_edited,post_unread,posted,reaction_added,reaction_removed',
-        'registered the six websocket events it needs');
+    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'custom_com.telegramweb.ui_todos_changed,hello,post_deleted,post_edited,post_unread,posted,reaction_added,reaction_removed',
+        'registered post, todo, and reconnect websocket events');
 
     const body = document.body.innerHTML;
     console.log('\n== rendered UI ==');
@@ -138,6 +138,15 @@ const registry = {
     registryCalls.wsHandlers.posted({data: {post: {id: 'ws-1', create_at: Date.now(), update_at: Date.now(), edit_at: 0, delete_at: 0, user_id: state.entities.users.profiles['user-other'].id, channel_id: 'channel-dm', message: 'delivered over the websocket', type: '', props: {}, root_id: '', metadata: {}}}});
     await tick(60);
     ok(document.body.innerHTML.includes('delivered over the websocket'), 'a websocket post reaches the open chat');
+
+    globalThis.__todoTasks = [{id:'bundle-todo',channel_id:'channel-dm',text:'Task from another user',done:false,revision:1,created_at:Date.now()}];
+    registryCalls.wsHandlers['custom_com.telegramweb.ui_todos_changed']({data:{channel_id:'channel-dm'}});
+    await tick(120);
+    ok(document.querySelector('.tgw-todo-badge')?.textContent.includes('TODO 1'), 'channel-scoped todo events refresh sidebar counts in the production bundle');
+    const beforeReconnect = calls.filter((call) => call.includes('/todos/counts')).length;
+    registryCalls.wsHandlers.hello({});
+    await tick(120);
+    ok(calls.filter((call) => call.includes('/todos/counts')).length > beforeReconnect, 'reconnecting refreshes shared todo counts');
 
     console.log('\n== toggle ==');
     dom.window.dispatchEvent(new dom.window.Event('tgw:disable'));

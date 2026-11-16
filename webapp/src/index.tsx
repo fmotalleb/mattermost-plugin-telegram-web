@@ -7,6 +7,7 @@
 import React from 'react';
 import {PLUGIN_ID, getSettings, initSettings, setEnabled} from './mm/settings';
 import {api} from './mm/api';
+import {clearTodos, invalidateTodos} from './mm/todos';
 import {clearCache} from './mm/posts';
 import {handleSocketEvent} from './mm/socket';
 import {setStore} from './mm/store';
@@ -34,6 +35,7 @@ interface PluginRegistry {
 const TOGGLE_EVENT = 'tgw:disable';
 
 // Events whose payload the local post cache consumes (see ./mm/socket for the JSON parsing).
+const TODO_EVENT = `custom_${PLUGIN_ID}_todos_changed`;
 const CACHE_EVENTS = ['posted', 'post_edited', 'post_deleted', 'reaction_added', 'reaction_removed'];
 
 class TelegramWebPlugin {
@@ -63,6 +65,11 @@ class TelegramWebPlugin {
         CACHE_EVENTS.forEach((event) => {
             registry.registerWebSocketEventHandler(event, (message: any) => handleSocketEvent(event, message));
         });
+        registry.registerWebSocketEventHandler(TODO_EVENT, (message: any) => {
+            const channelId = message?.data?.channel_id;
+            if (typeof channelId === 'string') invalidateTodos(channelId);
+        });
+        registry.registerWebSocketEventHandler('hello', () => invalidateTodos());
         // Keep unread state in sync when the channel is marked unread from another session
         // (or by this one via the set_unread API, which the server echoes back).
         registry.registerWebSocketEventHandler('post_unread', (message: any) => {
@@ -99,11 +106,14 @@ class TelegramWebPlugin {
         try {
             CACHE_EVENTS.forEach((event) => this.registry?.unregisterWebSocketEventHandler(event));
             this.registry?.unregisterWebSocketEventHandler('post_unread');
+            this.registry?.unregisterWebSocketEventHandler(TODO_EVENT);
+            this.registry?.unregisterWebSocketEventHandler('hello');
         } catch (error) {
             // eslint-disable-next-line no-console
             console.warn('[telegram-web-ui] cleanup failed', error);
         }
         clearCache();
+        clearTodos();
     }
 }
 

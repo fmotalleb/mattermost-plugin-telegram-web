@@ -88,6 +88,16 @@ packaging) via `.github/workflows/ci.yml`. The version stamping alone is availab
   **Keep unchanged**; only selected fields are changed after **Apply to everyone**.
   The dialog reports failed member updates and supports retry. This is a one-time override;
   members can change their settings afterward and future members are not affected.
+* **Shared chat todos** — every direct message, group and channel has a **TODO** panel beside
+  the shared-files list. Current members with posting permission can add and remove tasks and
+  mark them done or undone. **Add to TODO** in a message menu attaches that message to a new task;
+  text is optional for linked tasks, which show **Linked todo** when blank and a **Go to message**
+  button. The sidebar's **TODO N** badge counts unfinished tasks, and opening a chat with unfinished
+  tasks opens its todo panel automatically. Closing the panel keeps it closed until the next chat
+  entry. Each change posts a short activity message using normal chat notification settings.
+  Tasks persist in the plugin's SQL table and synchronize through channel-scoped events;
+  this requires both the updated server binary and webapp bundle. Completed tasks remain until
+  deleted. Concurrent edits return a refreshable conflict rather than overwriting each other.
 * **Profile photos** — click a user's picture in a chat, member list, profile card, or quick chat
   to open a larger photo modal. Escape, the close control, or the backdrop closes it and returns
   focus to the picture; Enter and Space also open a focused photo.

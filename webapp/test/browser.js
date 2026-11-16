@@ -1308,6 +1308,38 @@ class CDP {
         await cdp.eval(`document.querySelector('.tgw-modal [title="Close"]').click(); delete window.desktopAPI;`);
         await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 
+        console.log('\n== shared todo panel ==');
+        await cdp.clickSelector('.tgw-chat-header [title="TODO"]');
+        await cdp.waitFor('!!document.querySelector(".tgw-todos-panel")', 5000, 'todo panel');
+        await cdp.eval(`(() => {
+            const input = document.querySelector('[aria-label="New todo"]');
+            Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, 'Review shared deployment');
+            input.dispatchEvent(new Event('input', {bubbles:true}));
+        })()`);
+        await cdp.waitFor('!document.querySelector(".tgw-todo-add button[type=submit]").disabled', 5000, 'todo form');
+        await cdp.clickSelector('.tgw-todo-add button[type=submit]');
+        await cdp.waitFor('document.querySelector(".tgw-todo-row")?.textContent.includes("Review shared deployment")', 5000, 'saved todo');
+        const todoDesktop = await cdp.eval(`(() => {
+            const panel = document.querySelector('.tgw-todos-panel').getBoundingClientRect();
+            const body = document.querySelector('.tgw-todos-panel .tgw-files-body');
+            const text = document.querySelector('.tgw-todo-text').getBoundingClientRect();
+            return {width:panel.width, fits:panel.right<=innerWidth+1&&text.right<=panel.right, scrollable:getComputedStyle(body).overflowY, addBackground:getComputedStyle(document.querySelector('.tgw-todo-add button[type=submit]')).backgroundColor};
+        })()`);
+        ok(todoDesktop.width >= 300 && todoDesktop.fits && todoDesktop.scrollable === 'auto', 'todo panel uses the shared-file gutter and a scrolling task list');
+        ok(todoDesktop.addBackground !== 'rgba(0, 0, 0, 0)', 'todo Add uses the existing primary button styling');
+        await cdp.waitFor('!!document.querySelector(".tgw-todo-badge")',5000,'todo sidebar count');
+        await cdp.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+        await sleep(150);
+        const todoMobile = await cdp.eval(`(() => {
+            const panel = document.querySelector('.tgw-todos-panel').getBoundingClientRect();
+            const input = document.querySelector('[aria-label="New todo"]').getBoundingClientRect();
+            return {fits:panel.left>=0&&panel.right<=innerWidth+1&&input.right<=panel.right,width:panel.width};
+        })()`);
+        ok(todoMobile.fits && todoMobile.width <= 390, 'todo controls fit inside the mobile overlay');
+        fs.writeFileSync('/tmp/tgw-todos-mobile.png',Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        await cdp.clickSelector('[title="Collapse todos"]');
+        await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+
         const pageErrors = [...bootErrors, ...await cdp.eval('window.__pageErrors'), ...cdp.pageErrors];
         ok(pageErrors.length === 0, `no page errors during the run${pageErrors.length ? ` (${pageErrors[0]})` : ''}`);
     } catch (error) {

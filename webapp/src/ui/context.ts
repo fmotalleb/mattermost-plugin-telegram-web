@@ -41,6 +41,8 @@ export interface TgUIState {
     infoOpen: boolean;
     /** Right-hand "shared files" menu — collapsible, starts minimized. */
     filesOpen: boolean;
+    todosOpen?: boolean;
+    todoLinkedPost?: MMPost | null;
     menuOpen: boolean;
     settingsAnchor: {x: number; y: number} | null;
     modal: ModalKind;

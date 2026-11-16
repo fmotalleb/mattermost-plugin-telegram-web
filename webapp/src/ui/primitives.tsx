@@ -37,6 +37,7 @@ const make = (path: string, opts: {filled?: boolean; viewBox?: string; fillRule?
     };
 };
 
+export const IconTodo = make('M3 6l1.5 1.5L7 4M10 6h11M3 13l1.5 1.5L7 11M10 13h11M3 20l1.5 1.5L7 18M10 20h11');
 export const IconMenu = make('M3 6h18M3 12h18M3 18h18');
 export const IconSearch = make('M10.5 3a7.5 7.5 0 1 0 4.55 13.45l4.25 4.25 1.4-1.4-4.25-4.25A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z', {filled: true});
 export const IconMattermost = ({size = 24}: IconProps) => (

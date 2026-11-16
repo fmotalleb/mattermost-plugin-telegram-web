@@ -250,6 +250,24 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/todos')) {
+        const items = globalThis.__todoTasks || (globalThis.__todoTasks = []);
+        const channel = parsed.searchParams.get('channel_id');
+        if (p.endsWith('/counts')) {
+            return json(Object.fromEntries(parsed.searchParams.get('channel_ids').split(',').map((id) => [id, items.filter((item) => item.channel_id === id && !item.done).length])));
+        }
+        if (!options.method || options.method === 'GET') return json(items.filter((item) => item.channel_id === channel));
+        if (options.method === 'POST') {
+            const task = {id: 'todo-' + Date.now(), channel_id: channel, text: post.text || '', post_id: post.post_id, done: false, revision: 1, created_at: Date.now()};
+            items.push(task); return json({task, notification_failed: false});
+        }
+        const index = items.findIndex((item) => item.id === p.split('/').pop() && item.channel_id === channel);
+        if (index < 0 || items[index].revision !== post.revision) return json({message: 'This task changed. Refresh and try again.'}, 409);
+        if (options.method === 'DELETE') return json({task: items.splice(index, 1)[0]});
+        items[index] = {...items[index], done: post.done, revision: items[index].revision + 1};
+        return json({task: items[index]});
+    }
+
     if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/scheduled-posts/') && options.method === 'DELETE') {
         const id = decodeURIComponent(p.split('/').pop());
         const item = scheduledMessages.find((entry) => entry.id === id && (!entry.user_id || entry.user_id === ME));

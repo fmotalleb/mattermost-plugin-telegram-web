@@ -36,11 +36,15 @@ type Plugin struct {
 
 	client      *pluginapi.Client
 	scheduleJob *cluster.Job
+	todos       todoRepository
 }
 
 func (p *Plugin) OnActivate() error {
 	p.client = pluginapi.NewClient(p.API, p.Driver)
 	if err := p.ensureViewTable(); err != nil {
+		return err
+	}
+	if err := p.ensureTodoTable(); err != nil {
 		return err
 	}
 	job, err := cluster.Schedule(p.API, "telegram-scheduled-posts", cluster.MakeWaitForInterval(30*time.Second), p.runScheduledPosts)
@@ -61,6 +65,8 @@ func (p *Plugin) OnDeactivate() error {
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	switch {
+	case strings.HasSuffix(path, todoPath), strings.Contains(path, todoPath+"/"):
+		p.handleTodos(w, r)
 	case strings.Contains(path, schedulePath+"/"):
 		p.handleDeleteScheduledPost(w, r, strings.TrimPrefix(path[strings.Index(path, schedulePath):], schedulePath+"/"))
 	case strings.HasSuffix(path, schedulePath):

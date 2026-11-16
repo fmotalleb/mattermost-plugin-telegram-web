@@ -260,3 +260,20 @@ export interface MMChannelNotificationOverrides {
     ignore_channel_mentions?: 'default' | 'on' | 'off';
     channel_auto_follow_threads?: 'on' | 'off';
 }
+
+export interface MMTodo {
+    id: string;
+    channel_id: string;
+    text: string;
+    post_id?: string;
+    done: boolean;
+    creator_id: string;
+    created_at: number;
+    updated_at: number;
+    revision: number;
+}
+
+export interface MMTodoResult {
+    task: MMTodo;
+    notification_failed: boolean;
+}

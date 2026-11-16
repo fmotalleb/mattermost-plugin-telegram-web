@@ -16,6 +16,8 @@ import {ChatView} from './ChatView';
 import {ConfirmModal, ImageViewer, Modals} from './Modals';
 import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
+import {TodoPanel} from './TodoPanel';
+import {invalidateTodos, useTodoCount} from '../mm/todos';
 import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
 import type {MenuEntry, MenuItem} from './menu';
@@ -41,6 +43,7 @@ const INITIAL_UI: TgUIState = {
     searchOpen: false,
     infoOpen: false,
     filesOpen: false,
+    todosOpen: false,
     menuOpen: false,
     settingsAnchor: null,
     modal: null,
@@ -107,6 +110,24 @@ export function TelegramUI() {
     const timeFormat = useSelector(getTimeFormat);
     const mmCurrentChannelId = useSelector((state) => state.entities?.channels?.currentChannelId);
     const channel = useSelector((state) => (ui.selectedChannelId ? state.entities?.channels?.channels?.[ui.selectedChannelId] : undefined));
+    const todoCount = useTodoCount(ui.selectedChannelId, ui.chatSeq);
+    const todoEntry = useRef('');
+    const connection = useSelector((state) => state.websocket?.connected);
+    useEffect(() => {
+        const refresh = () => invalidateTodos();
+        window.addEventListener('focus', refresh);
+        window.addEventListener('online', refresh);
+        refresh();
+        return () => { window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
+    }, [connection]);
+    useEffect(() => {
+        const entry = `${ui.selectedChannelId}:${ui.chatSeq}`;
+        if (!ui.selectedChannelId || (isMobile && ui.mobilePane !== 'chat') || todoCount === undefined || todoEntry.current === entry) return;
+        todoEntry.current = entry;
+        if (todoCount > 0 && !ui.highlightedPostId && !ui.threadRootId) {
+            setUIState((current) => ({...current, todosOpen: true, filesOpen: false, infoOpen: false}));
+        }
+    }, [ui.selectedChannelId, ui.chatSeq, todoCount, isMobile, ui.mobilePane]);
     const [fallbackChannel, setFallbackChannel] = useState<MMChannel | undefined>(undefined);
 
     // Channels that were just created are not in the store yet: fetch them once.
@@ -188,6 +209,8 @@ export function TelegramUI() {
             chatSeq: current.chatSeq + 1,
             search: opts.keepSearch ? current.search : '',
             searchOpen: false,
+            todosOpen: channelId === current.selectedChannelId ? current.todosOpen : false,
+            todoLinkedPost: channelId === current.selectedChannelId ? current.todoLinkedPost : null,
             mobilePane: 'chat',
             highlightedPostId: opts.postId || null,
             replyTo: null,
@@ -233,7 +256,7 @@ export function TelegramUI() {
             chatClosed.current = true;
             writeLocal('tgw.lastChannel', '');
             setUI({selectedChannelId: '', unreadEntry: undefined, mobilePane: 'list',
-                infoOpen: false, filesOpen: false, searchOpen: false,
+                infoOpen: false, filesOpen: false, todosOpen: false, todoLinkedPost: null, searchOpen: false,
                 replyTo: null, editing: null, threadRootId: null,
                 highlightedPostId: null, contextMenu: null, imageViewer: null});
             setContextMenu(null);
@@ -250,7 +273,7 @@ export function TelegramUI() {
         },
         // Going back to the list also drops the right-hand panels: on a phone the files panel
         // sits on top of the chat, so leaving it open would cover the list we just revealed.
-        backToList: () => setUI({mobilePane: 'list', filesOpen: false}),
+        backToList: () => setUI({mobilePane: 'list', filesOpen: false, todosOpen: false, todoLinkedPost: null}),
         openModal: (modal, payload) => setUI({modal, modalPayload: payload}),
         closeModal: () => setUI({modal: null, modalPayload: undefined}),
         askConfirm: (dialog) => setUI({confirm: dialog}),
@@ -263,6 +286,10 @@ export function TelegramUI() {
                 return;
             }
             const menuItems = buildPostMenu(target.post, {
+                todo: (post) => {
+                    if (latestUI.current.selectedChannelId !== post.channel_id) openChat(post.channel_id);
+                    setUI({todosOpen: true, filesOpen: false, infoOpen: false, threadRootId: null, todoLinkedPost: post, mobilePane: 'chat'});
+                },
                 reply: (post) => setUI({replyTo: post, editing: null}),
                 edit: (post) => setUI({editing: post, replyTo: null}),
                 del: (post) => setUI({
@@ -406,8 +433,9 @@ export function TelegramUI() {
                                 onClose={() => actions.setUI({threadRootId: null})}
                             />
                         )}
-                        {ui.infoOpen && !ui.threadRootId && <InfoPanel/>}
-                        {ui.filesOpen && !ui.threadRootId && <SharedFilesPanel/>}
+                        {ui.infoOpen && !ui.todosOpen && !ui.threadRootId && <InfoPanel/>}
+                        {ui.filesOpen && !ui.todosOpen && !ui.threadRootId && <SharedFilesPanel/>}
+                        {ui.todosOpen && !ui.threadRootId && <TodoPanel key={activeChannel?.id}/>}
                     </div>
                     {ui.quickChatId && <QuickChat key={ui.quickChatId} channelId={ui.quickChatId}/>}
                     <Modals/>
@@ -463,6 +491,7 @@ export function TelegramUI() {
 }
 
 interface BuildMenuHandlers {
+    todo: (post: MMPost) => void;
     reply: (post: MMPost) => void;
     edit: (post: MMPost) => void;
     del: (post: MMPost) => void;
@@ -512,6 +541,7 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers, ur
         },
         'separator',
         {key: 'reply', label: 'Reply', onClick: () => handlers.reply(post)},
+        {key: 'todo', label: 'Add to TODO', onClick: () => handlers.todo(post)},
         {key: 'forward', label: 'Forward', onClick: () => handlers.forward(post)},
         {key: 'react', label: 'Add reaction', onClick: () => handlers.react(post)},
         {

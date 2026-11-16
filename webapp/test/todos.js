@@ -1,0 +1,103 @@
+const {dom, React, ReactDOM, container, store, tick, ok, report, ids} = require('./harness');
+const {setStore} = require('../src/mm/store');
+const {initSettings, updateSettings} = require('../src/mm/settings');
+const {invalidateTodos, clearTodos} = require('../src/mm/todos');
+const {TelegramUI} = require('../src/ui/TelegramUI');
+const originalFetch = global.fetch;
+const tasks = [{id:'todo1',channel_id:ids.DM,text:'Shared deployment',done:false,revision:1,created_at:1}];
+const writes = [], countBatches = [];
+let failNotification = false, conflict = false;
+global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url, 'https://mattermost.example.com');
+    const path = parsed.pathname, channel = parsed.searchParams.get('channel_id');
+    if (!path.includes('/api/v1/todos')) return originalFetch(url, options);
+    let status=200, result;
+    const method = options.method || 'GET';
+    if (path.endsWith('/counts')) {
+        const channels = parsed.searchParams.get('channel_ids').split(','); countBatches.push(channels);
+        result=Object.fromEntries(channels.map((id)=>[id,tasks.filter((t)=>t.channel_id===id&&!t.done).length]));
+    } else if(method==='GET') result=tasks.filter((t)=>t.channel_id===channel);
+    else {
+        const body=JSON.parse(options.body); writes.push({method,channel,body});
+        if(conflict) {status=409;result={message:'This task changed. Refresh and try again.'};}
+        else if(method==='POST') {
+            const task={id:`todo${tasks.length+2}`,channel_id:channel,text:body.text.trim(),post_id:body.post_id,done:false,revision:1,created_at:Date.now()};tasks.push(task);result={task,notification_failed:failNotification};
+        } else {
+            const index=tasks.findIndex((t)=>t.id===path.split('/').pop());
+            if(method==='DELETE') result={task:tasks.splice(index,1)[0]};
+            else {tasks[index]={...tasks[index],done:body.done,revision:tasks[index].revision+1};result={task:tasks[index]};}
+        }
+    }
+    return {ok:status===200,status,text:async()=>JSON.stringify(result)};
+};
+setStore(store);initSettings();updateSettings({mode:'on'});
+const root=ReactDOM.createRoot(container);root.render(React.createElement(TelegramUI));
+const wait=async(fn)=>{for(let n=0;n<100&&!fn();n++)await tick(25);return fn();};
+const click=(node)=>node?.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
+const panel=()=>document.querySelector('.tgw-todos-panel');
+const button=(label)=>Array.from(document.querySelectorAll('button')).find((b)=>b.textContent.trim()===label);
+const row=(name)=>Array.from(document.querySelectorAll('.tgw-chat-row')).find((r)=>r.textContent.includes(name));
+const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagName==='TEXTAREA'?'HTMLTextAreaElement':'HTMLInputElement'].prototype,'value').set.call(node,value);node.dispatchEvent(new dom.window.Event('input',{bubbles:true}));};
+(async()=>{
+    ok(await wait(()=>panel()?.textContent.includes('Shared deployment')),'opening a chat with unfinished tasks automatically opens TODO');
+    ok(row('Alice')?.querySelector('.tgw-todo-badge')?.textContent.includes('TODO 1'),'sidebar badge counts unfinished tasks');
+    ok(countBatches.some((b)=>b.length>1),'sidebar count requests are batched');
+    click(document.querySelector('[title="Collapse todos"]'));await tick(50);
+    invalidateTodos(ids.DM);await tick(150);
+    ok(!panel(),'background refresh does not reopen a manually closed panel');
+    click(row('Town Square'));await tick(80);ok(!panel(),'chat without todos stays closed');
+    click(row('Alice'));ok(await wait(()=>panel()),'returning to an unfinished chat reopens its TODO panel');
+    const form=()=>document.querySelector('.tgw-todo-add');
+    ok(form().querySelector('button[type="submit"]').disabled,'blank standalone task cannot be added');
+    input(document.querySelector('[aria-label="New todo"]'),'Deploy next version');await tick(40);click(form().querySelector('button[type="submit"]'));
+    await wait(()=>document.querySelectorAll('.tgw-todo-row').length===2);
+    ok(tasks.some((t)=>t.text==='Deploy next version'),'text tasks are shared through the server API');
+    await wait(()=>row('Alice')?.textContent.includes('TODO 2'));
+    click(document.querySelector('[aria-label="Complete Shared deployment"]'));
+    await wait(()=>document.querySelector('[aria-label="Reopen Shared deployment"]'));
+    ok(panel().textContent.includes('Completed')&&tasks[0].done,'completion moves a task into Completed');
+    await wait(()=>row('Alice')?.textContent.includes('TODO 1'));
+    click(document.querySelector('[aria-label="Reopen Shared deployment"]'));
+    await wait(()=>document.querySelector('[aria-label="Complete Shared deployment"]'));
+    ok(!tasks[0].done,'completed tasks can be reopened');
+    click(document.querySelector('[title="Collapse todos"]'));await tick(50);
+    const message=document.querySelector('.tgw-msg-row[data-post-id="p1"]') || document.querySelector('.tgw-msg-row');
+    message.dispatchEvent(new dom.window.MouseEvent('contextmenu',{bubbles:true,clientX:300,clientY:200}));await tick(70);
+    click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((n)=>n.textContent.trim()==='Add to TODO'));
+    await wait(()=>document.querySelector('.tgw-todo-linked'));
+    ok(!!document.querySelector('.tgw-todo-linked')&&!form().querySelector('button[type="submit"]').disabled,'message context menu attaches a message with optional text');
+    failNotification=true;click(form().querySelector('button[type="submit"]'));
+    await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((n)=>n.textContent==='Linked todo'));
+    const linked=tasks.find((t)=>t.post_id);
+    ok(linked&&linked.text===''&&!!button('Go to message'),'blank linked tasks show Linked todo and a message button');
+    ok(Array.from(document.querySelectorAll('.tgw-toast')).some((n)=>n.textContent.includes('notification could not be posted')),'notification failure explicitly reports the already-saved change');
+    click(button('Go to message'));await wait(()=>document.querySelector('.tgw-post-highlight'));
+    ok(!!document.querySelector('.tgw-post-highlight'),'linked task jumps to and highlights its message');
+    // A conflict refreshes shared state while keeping the error visible.
+    conflict=true;click(document.querySelector('[aria-label="Complete Shared deployment"]'));
+    await wait(()=>document.querySelector('.tgw-todo-error'));
+    await tick(150);
+    ok(document.querySelector('.tgw-todo-error')?.textContent.includes('This task changed'),'concurrent-change errors remain visible after refresh');
+    conflict=false;click(document.querySelector('.tgw-todo-error button'));await tick(80);
+    const deleteRow=Array.from(document.querySelectorAll('.tgw-todo-row')).find((n)=>n.textContent.includes('Deploy next version'));
+    click(deleteRow.querySelector('[title="Delete todo"]'));await tick(50);click(button('Delete'));
+    await wait(()=>!tasks.some((t)=>t.text==='Deploy next version'));
+    ok(!tasks.some((t)=>t.text==='Deploy next version'),'confirmed deletion removes the shared task');
+    tasks.push({id:'remote',channel_id:ids.DM,text:'Other user added this',done:false,revision:1,created_at:Date.now()});invalidateTodos(ids.DM);
+    await wait(()=>panel()?.textContent.includes('Other user added this'));
+    ok(panel().textContent.includes('Other user added this'),'remote todo changes refresh an open panel');
+    input(document.querySelector('[aria-label="Search todos"]'),'Other user');await tick(60);
+    ok(document.querySelectorAll('.tgw-todo-row').length===1,'search filters shared tasks');
+    click(row('Town Square'));await tick(100);click(document.querySelector('[title="TODO"]'));await tick(100);
+    ok(!panel().textContent.includes('Shared deployment'),'switching chats clears the previous chat tasks');
+    tasks.forEach((task)=>{task.done=true;});invalidateTodos(ids.DM);
+    await wait(()=>!row('Alice')?.querySelector('.tgw-todo-badge'));
+    ok(!row('Alice')?.querySelector('.tgw-todo-badge'),'badge disappears when all tasks are completed');
+    click(document.querySelector('[title="Collapse todos"]'));click(row('Alice'));await tick(150);
+    ok(!panel(),'a chat with only completed tasks does not auto-open TODO');
+    click(row('Town Square'));await tick(60);
+    tasks[0].done=false; // A change missed while disconnected leaves the sidebar cache at zero.
+    click(row('Alice'));await wait(()=>panel());
+    ok(!!panel(),'entering a chat revalidates a cached zero count before deciding whether to auto-open');
+    root.unmount();clearTodos();report('TODO TEST');
+})().catch((err)=>{console.error(err);root.unmount();clearTodos();process.exitCode=1;});

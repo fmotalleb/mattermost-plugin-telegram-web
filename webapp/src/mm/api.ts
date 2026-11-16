@@ -6,7 +6,7 @@
 //   * the httpOnly session cookie (same-origin fetch sends it automatically)
 //   * the non-httpOnly MMCSRF cookie echoed back through the X-CSRF-Token header on writes
 
-import type {MMChannelNotificationOverrides, MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
+import type {MMTodo, MMTodoResult, MMChannelNotificationOverrides, MMPostPriority, MMScheduledPost, MMBot, MMCommand, MMChannel, MMChannelCategory, MMCustomEmoji, MMFileInfo, MMPost, MMReaction, MMPreference, MMServerDraft, MMUser} from './types';
 import {getState, getStore} from './store';
 import {emitScheduledPostCreated, emitScheduledPostRemoved} from './scheduled-events';
 
@@ -395,6 +395,25 @@ export class MattermostAPI {
 
     createPost(post: {channel_id: string; message: string; root_id?: string; file_ids?: string[]; pending_post_id?: string; props?: Record<string, any>; metadata?: {priority?: MMPostPriority}}): Promise<MMPost> {
         return this.request<MMPost>('/posts', {method: 'POST', body: post});
+    }
+
+    getTodos(channelId: string): Promise<MMTodo[]> {
+        return this.pluginRequest('/api/v1/todos', {query: {channel_id: channelId}});
+    }
+
+    getTodoCounts(channelIds: string[]): Promise<Record<string, number>> {
+        return this.pluginRequest('/api/v1/todos/counts', {query: {channel_ids: channelIds.join(',')}});
+    }
+
+    createTodo(channelId: string, text: string, postId?: string): Promise<MMTodoResult> {
+        return this.pluginRequest('/api/v1/todos', {method: 'POST', query: {channel_id: channelId}, body: {text, post_id: postId}});
+    }
+
+    changeTodo(task: MMTodo, done: boolean | null): Promise<MMTodoResult> {
+        return this.pluginRequest(`/api/v1/todos/${encodeURIComponent(task.id)}`, {
+            method: done === null ? 'DELETE' : 'PATCH', query: {channel_id: task.channel_id},
+            body: {revision: task.revision, ...(done === null ? {} : {done})},
+        });
     }
 
     getScheduledPosts(channelId: string): Promise<MMScheduledPost[]> {

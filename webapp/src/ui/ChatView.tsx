@@ -1,3 +1,4 @@
+import {IconTodo} from './primitives';
 // The chat screen: header, message list, composer and the thread side panel.
 
 import React, {useCallback, useEffect, useState} from 'react';
@@ -309,9 +310,10 @@ export function ChatView({quick = false}: {quick?: boolean}) {
         }
         const position = menuPositionFromElement(headerMoreRef.current, 'right');
         const items: MenuEntry[] = [
-            {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Group info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true})},
+            {key: 'info', label: channel.type === 'D' ? 'Contact info' : 'Group info', icon: <IconUsers size={18}/>, onClick: () => actions.setUI({infoOpen: true, todosOpen: false, todoLinkedPost: null})},
             {key: 'search', label: 'Search in chat', icon: <IconSearch size={18}/>, onClick: () => setSearchOpen(true)},
-            {key: 'files', label: ui.filesOpen ? 'Hide shared files' : 'Shared files', icon: <IconFile size={18}/>, onClick: () => actions.setUI({filesOpen: !ui.filesOpen})},
+            ...(!quick ? [{key: 'todos', label: ui.todosOpen ? 'Hide TODO' : 'TODO', icon: <IconTodo size={18}/>, onClick: () => actions.setUI({todosOpen: !ui.todosOpen, filesOpen: false, infoOpen: false, threadRootId: null, todoLinkedPost: null})}] : []),
+            {key: 'files', label: ui.filesOpen ? 'Hide shared files' : 'Shared files', icon: <IconFile size={18}/>, onClick: () => actions.setUI({filesOpen: !ui.filesOpen, todosOpen: false, todoLinkedPost: null})},
             {
                 key: 'unread',
                 label: 'Mark as unread',
@@ -437,7 +439,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                         <IconBack size={22}/>
                     </button>
                 )}
-                <button type="button" className="tgw-chat-header-main" onClick={() => !quick && actions.setUI({infoOpen: true})}>
+                <button type="button" className="tgw-chat-header-main" onClick={() => !quick && actions.setUI({infoOpen: true, todosOpen: false, todoLinkedPost: null})}>
                     <Avatar
                         userId={summary.avatarUserId}
                         profile={peer}
@@ -453,6 +455,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                     </span>
                 </button>
                 <div className="tgw-chat-header-actions">
+                    {!quick && <button type="button" className={`tgw-icon-button tgw-todo-header ${ui.todosOpen ? 'tgw-icon-button-active' : ''}`} title="TODO" aria-label="TODO" onClick={() => actions.setUI({todosOpen: !ui.todosOpen, filesOpen: false, infoOpen: false, threadRootId: null, todoLinkedPost: null})}><IconTodo size={22}/></button>}
                     <button type="button" className="tgw-icon-button" title="Search in chat" onClick={() => setSearchOpen((value) => !value)}>
                         <IconSearch size={22}/>
                     </button>
@@ -460,7 +463,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                         type="button"
                         className={`tgw-icon-button ${ui.filesOpen ? 'tgw-icon-button-active' : ''}`}
                         title="Shared files"
-                        onClick={() => actions.setUI({filesOpen: !ui.filesOpen})}
+                        onClick={() => actions.setUI({filesOpen: !ui.filesOpen, todosOpen: false, todoLinkedPost: null})}
                     >
                         <IconFile size={20}/>
                     </button>
