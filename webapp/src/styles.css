@@ -69,7 +69,11 @@
     font-size: 14px;
     color: var(--tgw-text);
     background: var(--tgw-bg);
-    -webkit-font-smoothing: antialiased;
+    /* Let the browser use native text rasterization instead of forcing thinner grayscale text. */
+    -webkit-font-smoothing: auto;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-shadow: none;
     color-scheme: light;
 }
 
@@ -115,41 +119,35 @@
     color-scheme: dark;
 }
 
-/* Base dark palette — one notch deeper than before (#212121 family → #181818 family) so the
-   night theme actually reads as night next to Mattermost's own dark UI. */
+/* Telegram's blue night palette: slate panels, an ink chat canvas and blue own messages. */
 .tgw-root.tgw-theme-dark {
-    --tgw-bg: #181818;
-    --tgw-bg-secondary: #181818;
-    --tgw-sidebar: #181818;
-    --tgw-border: #282828;
-    --tgw-border-strong: #333333;
-    --tgw-text: #ffffff;
-    --tgw-text-secondary: #aaaaaa;
-    --tgw-text-tertiary: #7d7f82;
-    --tgw-hover: #242424;
-    --tgw-active: #2b2b2b;
-    --tgw-chat-bg: #0d0d0d;
-    --tgw-wallpaper-tint: rgba(255, 255, 255, 0.085);
-    --tgw-header-bg: rgba(24, 24, 26, 0.78);
-    --tgw-in-bubble: #181818;
-    /* Telegram's night themes don't paint own messages in an accent colour: the outgoing bubble
-       is the incoming one, one step lighter. */
-    --tgw-out-bubble: #2e2e2e;
-    --tgw-reaction: #242424;
-    --tgw-accent-soft: rgba(106, 178, 242, 0.16);
-    --tgw-voice-bar: rgba(255, 255, 255, 0.28);
-    /* Telegram's dark theme paints link text #6ab3f3; #3390ec disappears into #181818. */
-    --tgw-link: #6ab3f3;
-    --tgw-link-hover: #8bc7f8;
-    /* Own messages sit one step lighter than the chat background; near-white links keep URLs
-       legible and visually distinct from the chrome links. */
-    --tgw-out-link: #e8f1fb;
+    --tgw-bg: #17212b;
+    --tgw-bg-secondary: #17212b;
+    --tgw-sidebar: #17212b;
+    --tgw-border: #253442;
+    --tgw-border-strong: #344657;
+    --tgw-text: #f5f5f5;
+    --tgw-text-secondary: #a8b6c4;
+    --tgw-text-tertiary: #8b9baa;
+    --tgw-hover: #202e3b;
+    --tgw-active: #2b4054;
+    --tgw-chat-bg: #0e1621;
+    --tgw-wallpaper-tint: rgba(255, 255, 255, 0.065);
+    --tgw-header-bg: rgba(23, 33, 43, 0.96);
+    --tgw-in-bubble: #182533;
+    --tgw-out-bubble: #2b5278;
+    --tgw-reaction: #243648;
+    --tgw-accent-soft: rgba(106, 179, 243, 0.18);
+    --tgw-voice-bar: rgba(255, 255, 255, 0.35);
+    --tgw-link: #75bfff;
+    --tgw-link-hover: #a3d5ff;
+    --tgw-out-link: #d5ecff;
     --tgw-out-link-hover: #ffffff;
-    --tgw-composer-bar: #181818;
-    --tgw-composer-input-bg: #242424;
-    --tgw-composer-input-border: #323232;
-    --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.6);
+    --tgw-composer-bar: #17212b;
+    --tgw-composer-input-bg: #17212b;
+    --tgw-composer-input-border: #344657;
+    --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.5);
 }
 
 /* Tinted — Telegram's warm sepia day theme: cream panels over a sand wallpaper. */
@@ -198,31 +196,31 @@
 
 /* Midnight — Telegram's deep-blue night theme, blue-grey chrome over a near-black sea. */
 .tgw-root.tgw-theme-midnight {
-    --tgw-bg: #101821;
-    --tgw-bg-secondary: #101821;
-    --tgw-sidebar: #131c27;
-    --tgw-border: #1f2c3b;
-    --tgw-border-strong: #2b3b4e;
-    --tgw-text: #e6edf5;
-    --tgw-text-secondary: #93a6ba;
-    --tgw-text-tertiary: #64788d;
+    --tgw-bg: #131e29;
+    --tgw-bg-secondary: #131e29;
+    --tgw-sidebar: #17212b;
+    --tgw-border: #253442;
+    --tgw-border-strong: #344657;
+    --tgw-text: #f5f5f5;
+    --tgw-text-secondary: #a8b6c4;
+    --tgw-text-tertiary: #8b9baa;
     --tgw-hover: #1a2635;
     --tgw-active: #213045;
-    --tgw-chat-bg: #0a1017;
+    --tgw-chat-bg: #0e1621;
     --tgw-wallpaper-tint: rgba(255, 255, 255, 0.075);
-    --tgw-header-bg: rgba(19, 28, 39, 0.8);
-    --tgw-in-bubble: #16212e;
-    --tgw-out-bubble: #2f5377;
+    --tgw-header-bg: rgba(23, 33, 43, 0.96);
+    --tgw-in-bubble: #182533;
+    --tgw-out-bubble: #2b5278;
     --tgw-reaction: #1a2635;
     --tgw-accent-soft: rgba(106, 178, 242, 0.16);
     --tgw-voice-bar: rgba(255, 255, 255, 0.28);
-    --tgw-link: #6ab3f3;
-    --tgw-link-hover: #8bc7f8;
-    --tgw-out-link: #e8f1fb;
+    --tgw-link: #75bfff;
+    --tgw-link-hover: #a3d5ff;
+    --tgw-out-link: #d5ecff;
     --tgw-out-link-hover: #ffffff;
-    --tgw-composer-bar: #131c27;
-    --tgw-composer-input-bg: #1c2938;
-    --tgw-composer-input-border: #2b3c52;
+    --tgw-composer-bar: #17212b;
+    --tgw-composer-input-bg: #17212b;
+    --tgw-composer-input-border: #344657;
     --tgw-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     --tgw-shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
@@ -1310,8 +1308,8 @@
 
 .tgw-message-text {
     display: block;
-    font-size: 14.5px;
-    line-height: 1.35;
+    font-size: 15px;
+    line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;
     /* Per-paragraph first-strong direction, the way Telegram renders mixed LTR/RTL chats.
@@ -1553,14 +1551,14 @@
     gap: 5px;
     float: right;
     margin: 6px 0 -2px 10px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--tgw-text-tertiary);
     user-select: none;
     min-height: 16px;
 }
 
-.tgw-theme-dark .tgw-msg-out .tgw-msg-meta {
-    color: rgba(255, 255, 255, 0.75);
+.tgw-root:is(.tgw-theme-dark, .tgw-theme-midnight) .tgw-msg-out .tgw-msg-meta {
+    color: #a8c9e7;
 }
 
 .tgw-msg-status {
@@ -1568,8 +1566,8 @@
     color: var(--tgw-accent);
 }
 
-.tgw-theme-dark .tgw-msg-out .tgw-msg-status {
-    color: rgba(255, 255, 255, 0.9);
+.tgw-root:is(.tgw-theme-dark, .tgw-theme-midnight) .tgw-msg-out .tgw-msg-status {
+    color: #75bfff;
 }
 
 .tgw-msg-edited {
@@ -4091,10 +4089,7 @@ body.tgw-root-active {
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-sidebar,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-sidebar {
-    background:
-        radial-gradient(140% 90% at 0% 0%, rgba(106, 178, 242, 0.07), transparent 62%),
-        radial-gradient(120% 80% at 100% 100%, rgba(255, 255, 255, 0.03), transparent 60%),
-        rgba(22, 22, 25, 0.97);
+    background: var(--tgw-sidebar);
 }
 
 /* The info header is plain chrome: a static translucent tint, nothing sampled behind it. The
@@ -4106,7 +4101,7 @@ body.tgw-root-active {
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-info-header,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-header {
-    background: rgba(26, 26, 28, 0.6);
+    background: var(--tgw-bg-secondary);
 }
 
 /* Frost the messages beneath the composer. The input pill gets a stronger blur so it reads as
@@ -4119,7 +4114,7 @@ body.tgw-root-active {
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-composer,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-composer {
-    background: rgba(22, 22, 24, 0.58);
+    background: var(--tgw-composer-bar);
 }
 
 .tgw-root.tgw-glassy .tgw-composer-input {
@@ -4130,7 +4125,7 @@ body.tgw-root-active {
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-composer-input,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-composer-input {
-    background: rgba(36, 36, 39, 0.38);
+    background: var(--tgw-composer-input-bg);
 }
 
 /* Information / shared files / thread panels: a near-opaque frosted tint, painted once. The
@@ -4145,7 +4140,7 @@ body.tgw-root-active {
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-thread-panel,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-info-panel,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-thread-panel {
-    background: rgba(24, 24, 26, 0.94);
+    background: var(--tgw-bg-secondary);
 }
 
 .tgw-root.tgw-glassy .tgw-modal {
@@ -4154,7 +4149,7 @@ body.tgw-root-active {
 
 .tgw-root.tgw-glassy.tgw-theme-dark .tgw-modal,
 .tgw-root.tgw-glassy.tgw-theme-midnight .tgw-modal {
-    background: rgba(28, 28, 30, 0.96);
+    background: var(--tgw-bg-secondary);
 }
 
 .tgw-root.tgw-glassy .tgw-modal-backdrop {
