@@ -2,7 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {canEmbedNativePDF, filePreviewKind, openHostPDFPreview} from '../mm/file-preview';
+import {filePreviewKind} from '../mm/file-preview';
 import {api} from '../mm/api';
 import {useScheduledPosts} from '../mm/scheduled';
 import {useChannelPosts} from '../mm/posts';
@@ -14,6 +14,7 @@ import type {MMChannelNotificationOverrides, MMFileInfo, MMPost, MMScheduledPost
 import {displayName, fileKindOf, toPlainPreview} from '../mm/utils';
 import {useTg} from './context';
 import {filesOfPost} from './MessageList';
+import {PDFPreview} from './PDFPreview';
 import {overlayRoot} from './portal';
 import {Avatar, IconBack, IconClose, IconDownload, IconForward} from './primitives';
 
@@ -730,66 +731,34 @@ export function ScheduledMessagesModal({channelId}: {channelId: string}) {
     </ModalShell>;
 }
 
-export function FilePreviewModal({file, post}: {file: MMFileInfo; post?: MMPost}) {
+export function FilePreviewModal({file}: {file: MMFileInfo}) {
     const {actions} = useTg();
     const kind = filePreviewKind(file);
-    const [content, setContent] = useState<{text?: string; url?: string}>({});
+    const [text, setText] = useState<string | undefined>();
     const [error, setError] = useState('');
     const [attempt, setAttempt] = useState(0);
-    const [hostOpen, setHostOpen] = useState(false);
-    const close = useRef(actions.closeModal);
-    close.current = actions.closeModal;
     useEffect(() => {
+        if (kind === 'pdf') return;
         const controller = new AbortController();
-        let objectURL = '';
-        setContent({});
-        setError('');
-        setHostOpen(false);
+        setText(undefined); setError('');
         const load = async () => {
-            if (kind === 'pdf' && !canEmbedNativePDF()) {
-                if (openHostPDFPreview(file, post, () => {
-                    if (!controller.signal.aborted) close.current();
-                })) {
-                    // Keep ui.modal set while the stock modal is open so quick-chat's
-                    // focus trap yields to it. Its onExited callback restores plugin state.
-                    setHostOpen(true);
-                    return;
-                }
-                throw new Error('This Mattermost version does not expose a compatible PDF viewer. Use Download to open the PDF in your browser or PDF reader.');
-            }
-            const maxBytes = (kind === 'pdf' ? 25 : 2) * 1024 * 1024;
-            if (!kind) throw new Error('Preview is unavailable for this file.');
-            if (file.size > maxBytes) throw new Error('This file is too large to preview. Please download it instead.');
-            const blob = await api.getFilePreview(file.id, maxBytes, controller.signal);
-            if (controller.signal.aborted) return;
-            if (kind === 'pdf') {
-                // A blob URL avoids the server's attachment Content-Disposition forcing a download.
-                objectURL = URL.createObjectURL(new Blob([blob], {type: 'application/pdf'}));
-                setContent({url: objectURL});
-            } else {
-                const text = await blob.text();
-                if (!controller.signal.aborted) setContent({text});
-            }
+            if (kind !== 'text') throw new Error('Preview is unavailable for this file.');
+            if (file.size > 2 * 1024 * 1024) throw new Error('This file is too large to preview. Please download it instead.');
+            const blob = await api.getFilePreview(file.id, 2 * 1024 * 1024, controller.signal);
+            const content = await blob.text();
+            if (!controller.signal.aborted) setText(content);
         };
         load().catch((err) => { if (!controller.signal.aborted) setError(err.message || 'Could not load this file.'); });
-        return () => {
-            controller.abort();
-            if (objectURL) URL.revokeObjectURL(objectURL);
-        };
-    }, [file.id, file.size, kind, attempt, post]);
-    if (hostOpen) return null;
+        return () => controller.abort();
+    }, [file.id, file.size, kind, attempt]);
     return <ModalShell title={file.name} width={1000} manageFocus onClose={actions.closeModal} footer={
         <a className="tgw-button" href={`${api.fileURL(file.id)}?download=1`} target="_blank" rel="noopener noreferrer"><IconDownload size={18}/>Download</a>
     }>
         <div className="tgw-file-preview">
-            {error ? <div role="alert">{error} <button type="button" className="tgw-button" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>
-                : content.url ? <>
-                    <object className="tgw-file-preview-pdf" data={content.url} type="application/pdf" aria-label={file.name}>
-                        <p>This browser cannot display PDFs here. Use Download to open the file.</p>
-                    </object>
-                    <div className="tgw-file-preview-hint">PDF not displaying? Use Download to open it in your PDF reader.</div>
-                </> : content.text !== undefined ? <pre className="tgw-file-preview-text" tabIndex={0}>{content.text || 'This file is empty.'}</pre>
-                    : <div role="status">Loading file…</div>}
+            {kind === 'pdf' ? <PDFPreview file={file}/>
+                : error ? <div role="alert">{error} <button type="button" className="tgw-button" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>
+                    : text !== undefined ? <pre className="tgw-file-preview-text" tabIndex={0}>{text || 'This file is empty.'}</pre>
+                        : <div role="status">Loading file…</div>}
         </div>
     </ModalShell>;
 }
@@ -798,7 +767,7 @@ export function Modals() {
     const {ui} = useTg();
     switch (ui.modal) {
     case 'filePreview':
-        return ui.modalPayload?.file ? <FilePreviewModal key={ui.modalPayload.file.id} file={ui.modalPayload.file} post={ui.modalPayload.post}/> : null;
+        return ui.modalPayload?.file ? <FilePreviewModal key={ui.modalPayload.file.id} file={ui.modalPayload.file}/> : null;
     case 'scheduledMessages':
         return ui.modalPayload?.channelId ? <ScheduledMessagesModal key={ui.modalPayload.channelId} channelId={ui.modalPayload.channelId}/> : null;
     case 'channelNotifications':

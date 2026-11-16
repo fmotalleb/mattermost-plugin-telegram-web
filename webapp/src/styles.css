@@ -4293,21 +4293,13 @@ body.tgw-root-active {
 .tgw-root .tgw-mermaid-stage { box-sizing: border-box; padding: 24px; user-select: none; }
 .tgw-root .tgw-mermaid-stage .tgw-mermaid-svg svg { width: 100%; max-width: none !important; height: auto; pointer-events: none; }
 
-/* Native PDF and plain-text attachment previews. */
+/* PDF and plain-text attachment previews. */
 .tgw-root .tgw-file-preview {
     height: 65vh;
     min-height: 160px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-.tgw-root .tgw-file-preview-pdf {
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    border: 0;
-    background: #fff;
 }
 
 .tgw-root .tgw-file-preview-text {
@@ -4325,10 +4317,7 @@ body.tgw-root-active {
     user-select: text;
 }
 
-.tgw-root .tgw-file-preview-hint {
-    font-size: 12px;
-    color: var(--tgw-text-secondary);
-}
+
 
 /* Small recovery actions and file links use the same interactive affordances. */
 .tgw-root button:is(.tgw-command-message, .tgw-mention-message) {
@@ -4391,3 +4380,15 @@ body.tgw-root-active {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
+
+/* PDF.js renders one page at a time; the engine and worker are separate lazy assets. */
+.tgw-root .tgw-pdf-viewer { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
+.tgw-root .tgw-pdf-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.tgw-root .tgw-pdf-toolbar .tgw-button { min-height: 36px; padding: 6px 10px; }
+.tgw-root .tgw-pdf-page-count { font-size: 13px; white-space: nowrap; }
+.tgw-root .tgw-pdf-toolbar-spacer { flex: 1; }
+.tgw-root .tgw-pdf-viewport { flex: 1; min-height: 0; overflow: auto; padding: 16px; background: var(--tgw-hover); border: 1px solid var(--tgw-border); border-radius: 10px; position: relative; direction: ltr; }
+.tgw-root .tgw-pdf-viewport canvas { display: block; margin: 0 auto; background: white; box-shadow: var(--tgw-shadow); }
+.tgw-root .tgw-pdf-rendering { position: sticky; top: 0; left: 0; height: 0; overflow: visible; z-index: 1; color: var(--tgw-text); font-size: 12px; }
+.tgw-root .tgw-pdf-password { display: flex; flex-direction: column; gap: 12px; max-width: 360px; margin: auto; }
+.tgw-root .tgw-pdf-password label { display: flex; flex-direction: column; gap: 10px; }

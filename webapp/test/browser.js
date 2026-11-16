@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const http = require('http');
+const pdfFixture = require('./pdf-fixture');
 const os = require('os');
 const path = require('path');
 const {spawn, execSync} = require('child_process');
@@ -123,6 +124,10 @@ const posts = ${sub(posts)};
 let scheduledMessages = [];
 // Include a real diagram in the built-bundle browser run (no CDN/chunk server).
 posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
+posts.p2.metadata.files = [
+    {id:'browser-pdf',name:'local-preview.pdf',extension:'pdf',mime_type:'application/pdf',size:2000},
+    {id:'browser-text',name:'local-notes.txt',extension:'txt',mime_type:'text/plain',size:100},
+];
 const stockExtraIds = [];
 // Enough unread history to distinguish opening at the boundary from opening at the bottom.
 for (let n = 0; n < 30; n++) {
@@ -141,7 +146,11 @@ const viewTracking = new Map([
 ]);
 
 // --- the harness' fetch stub, running in the page ----------------------------------------------
+const nativeFetch = window.fetch.bind(window);
 window.fetch = ${String(global.fetch)};
+const fixtureFetch = window.fetch;
+window.fetch = (url, options) => /^\\/api\\/v4\\/files\\/browser-(pdf|text)$/.test(String(url))
+    ? nativeFetch(url, options) : fixtureFetch(url, options);
 
 // --- the fake redux store ------------------------------------------------------------------------
 function revive(value) {
@@ -377,7 +386,33 @@ class CDP {
     const major = chromeMajor(binary);
     const headlessFlag = major >= 120 ? '--headless=new' : '--headless';
 
+    const pdfRequests = [];
+    let failPDFModule = true;
     const server = http.createServer((request, response) => {
+        const pathname = new URL(request.url, 'http://localhost').pathname;
+        const pdfPrefix = '/plugins/com.telegramweb.ui/public/pdfjs/';
+        if (pathname.startsWith(pdfPrefix)) {
+            pdfRequests.push(pathname);
+            if (failPDFModule && pathname.endsWith('/pdf.min.mjs')) {
+                failPDFModule = false;
+                response.writeHead(503); response.end('temporary asset failure'); return;
+            }
+            const base = path.resolve(__dirname, '..', '..', 'public', 'pdfjs');
+            const file = path.resolve(base, pathname.slice(pdfPrefix.length));
+            if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+                response.writeHead(404); response.end('not found'); return;
+            }
+            const type = /\.m?js$/.test(file) ? 'text/javascript' : file.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream';
+            response.writeHead(200, {'Content-Type': type, 'Cache-Control': 'public, max-age=3600'});
+            response.end(fs.readFileSync(file)); return;
+        }
+        if (pathname === '/api/v4/files/browser-pdf') {
+            response.writeHead(200, {'Content-Type':'application/pdf', 'Content-Disposition':'attachment'});
+            response.end(pdfFixture()); return;
+        }
+        if (pathname === '/api/v4/files/browser-text') {
+            response.writeHead(200, {'Content-Type':'text/plain'}); response.end('A plain text attachment.'); return;
+        }
         if (request.url === '/' || request.url.startsWith('/?')) {
             response.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
             response.end(page);
@@ -1103,6 +1138,59 @@ class CDP {
         await cdp.clickSelector('.tgw-scheduled-actions button:last-child');
         await cdp.waitFor('!document.querySelector(".tgw-schedule-count") && !document.querySelector(".tgw-scheduled-message")',5000,'scheduled removal');
         ok(await cdp.eval('document.querySelector(".tgw-modal").textContent.includes("No scheduled messages")'),'Remove refreshes the queue and clears its indicator');
+
+        console.log('\n== lazy local PDF viewer ==');
+        await cdp.eval(`document.querySelector('.tgw-modal [title="Close"]')?.click()`);
+        await cdp.eval(`Array.from(document.querySelectorAll('.tgw-chat-row')).find(row=>row.textContent.includes('Alice')).click()`);
+        await cdp.waitFor(`!!document.querySelector('[aria-label="Preview local-notes.txt"]')`,5000,'PDF fixture chat');
+        ok(pdfRequests.length === 0, 'PDF.js assets are not requested at startup or during normal chat use');
+        await cdp.eval(`document.querySelector('[aria-label="Preview local-notes.txt"]').click()`);
+        await cdp.waitFor(`!!document.querySelector('.tgw-file-preview-text')`,5000,'text attachment');
+        ok(pdfRequests.length === 0, 'text previews do not request the PDF engine');
+        await cdp.eval(`(() => {
+            document.querySelector('.tgw-modal [title="Close"]').click(); window.desktopAPI = {};
+            window.__pdfWorkers = [];
+            const NativeWorker = window.Worker;
+            window.Worker = class extends NativeWorker {
+                constructor(url, options) {
+                    super(url, options);
+                    this.record = {url:String(url), terminated:false}; window.__pdfWorkers.push(this.record);
+                }
+                terminate() {this.record.terminated = true; return super.terminate();}
+            };
+        })()`);
+        await cdp.eval(`document.querySelector('[aria-label="Preview local-preview.pdf"]').click()`);
+        await cdp.waitFor(`!!document.querySelector('.tgw-file-preview [role="alert"]')`,8000,'module loading error');
+        ok(await cdp.eval(`document.querySelector('.tgw-file-preview').textContent.includes('Could not load the PDF viewer')`),'module failure shows a retry action');
+        await cdp.eval(`Array.from(document.querySelectorAll('.tgw-file-preview button')).find(b=>b.textContent==='Retry').click()`);
+        await cdp.waitFor(`document.querySelector('.tgw-pdf-viewport')?.getAttribute('aria-busy')==='false' && document.querySelector('.tgw-pdf-viewport canvas')?.width>0`,15000,'real PDF.js page render');
+        const pixel = await cdp.eval(`Array.from(document.querySelector('.tgw-pdf-viewport canvas').getContext('2d').getImageData(10,10,1,1).data)`);
+        ok(pixel[0]>150 && pixel[2]<80, 'the packaged engine and module worker render the first PDF page in desktop mode');
+        ok(pdfRequests.some(url=>url.endsWith('/pdf.worker.min.mjs')) && !await cdp.eval(`!!document.querySelector('object, iframe')`), 'PDF viewer uses the local worker without a native PDF embed');
+        await cdp.clickSelector('[aria-label="Next PDF page"]');
+        await cdp.waitFor(`document.querySelector('.tgw-pdf-page-count').textContent==='Page 2 of 2' && document.querySelector('.tgw-pdf-viewport').getAttribute('aria-busy')==='false'`,8000,'second PDF page');
+        const secondPixel = await cdp.eval(`Array.from(document.querySelector('.tgw-pdf-viewport canvas').getContext('2d').getImageData(10,10,1,1).data)`);
+        ok(secondPixel[2]>150 && secondPixel[0]<80, 'page navigation renders a different PDF page');
+        const width = await cdp.eval(`document.querySelector('.tgw-pdf-viewport canvas').width`);
+        await cdp.clickSelector('[aria-label="Zoom PDF in"]');
+        await cdp.waitFor(`document.querySelector('.tgw-pdf-viewport canvas').width>${width} && document.querySelector('.tgw-pdf-viewport').getAttribute('aria-busy')==='false'`,8000,'PDF zoom');
+        ok(await cdp.eval(`document.querySelector('.tgw-pdf-viewport canvas').width>${width}`), 'zoom increases the rendered page resolution');
+        await cdp.clickSelector('[title="Fit PDF to width"]');
+        await cdp.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
+        await cdp.waitFor(`document.querySelector('.tgw-pdf-viewport canvas').getBoundingClientRect().width<390 && document.querySelector('.tgw-pdf-viewport').getAttribute('aria-busy')==='false'`,8000,'responsive PDF width');
+        ok(await cdp.eval(`(() => {const modal=document.querySelector('.tgw-modal');return modal.scrollWidth<=modal.clientWidth+1 && document.querySelector('.tgw-pdf-viewport canvas').width>0;})()`), 'PDF toolbar and fit-to-width page work on narrow screens');
+        fs.writeFileSync('/tmp/tgw-local-pdf.png', Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+        const activeWorker = `window.__pdfWorkers.some(worker=>worker.url.includes('pdf.worker.min.mjs') && !worker.terminated)`;
+        ok(await cdp.eval(activeWorker), 'PDF parsing runs in a real background worker');
+        await cdp.eval(`document.querySelector('.tgw-modal [title="Close"]').click()`);
+        await cdp.waitFor(`!(${activeWorker})`,5000,'PDF worker cleanup');
+        ok(!await cdp.eval(activeWorker), 'closing the PDF terminates its background worker');
+        const modulesBefore = pdfRequests.filter(url=>url.endsWith('/pdf.min.mjs')).length;
+        await cdp.eval(`document.querySelector('[aria-label="Preview local-preview.pdf"]').click()`);
+        await cdp.waitFor(`document.querySelector('.tgw-pdf-viewport')?.getAttribute('aria-busy')==='false'`,10000,'reopened PDF');
+        ok(pdfRequests.filter(url=>url.endsWith('/pdf.min.mjs')).length===modulesBefore, 'reopening reuses the loaded renderer module');
+        await cdp.eval(`document.querySelector('.tgw-modal [title="Close"]').click(); delete window.desktopAPI;`);
+        await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
 
         const pageErrors = [...bootErrors, ...await cdp.eval('window.__pageErrors'), ...cdp.pageErrors];
         ok(pageErrors.length === 0, `no page errors during the run${pageErrors.length ? ` (${pageErrors[0]})` : ''}`);

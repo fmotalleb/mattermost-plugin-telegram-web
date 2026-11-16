@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Mattermost webapp plugin (`com.telegramweb.ui`) that overlays a Telegram-Web-style UI on the host app. Two deliverables: a webpack bundle (`webapp/dist/main.js`, CSS inlined) and a small Go server binary (`server/dist/plugin-linux-{amd64,arm64}`). Installable tarball layout is built by `make release`.
+Mattermost webapp plugin (`com.telegramweb.ui`) that overlays a Telegram-Web-style UI on the host app. Deliverables: a webpack bundle (`webapp/dist/main.js`, CSS inlined), lazy PDF.js assets (`public/pdfjs/<version>/`), and a small Go server binary (`server/dist/plugin-linux-{amd64,arm64}`). Installable tarball layout is built by `make release`.
 
 ## Commands (all from repo root)
 
@@ -16,6 +16,7 @@ Minimum toolchains: Node 24+, Go 1.26 (see `server/go.mod`). There is no linter 
 ## Architecture facts that are easy to get wrong
 
 - **React is never bundled.** `react`, `react-dom`, `redux`, `react-redux`, etc. are webpack `externals` resolved from host globals (`window.React`, …). Do not add them as runtime dependencies or change `webapp/webpack.config.js` externals without understanding this.
+- **PDF.js is loaded only on PDF open.** Webpack runs `scripts/prepare-pdfjs.js` to copy the pinned legacy renderer, worker, CMaps, fonts, WASM and license into the plugin public directory. `src/mm/pdf.ts` uses a native `webpackIgnore` import; do not bundle the engine into `main.js` or use a CDN. `make release` must include `public/`.
 - **JSX runtime is intentionally `classic`** (`babel.config.js`) so output calls `React.createElement`, compatible across Mattermost's React 16–19. Do not switch to the automatic runtime.
 - **No `mattermost-redux` dependency.** The data layer is `webapp/src/mm/` (store bridge, selectors, REST `api.ts`, socket, post cache). It reads the Redux store the host passes to `initialize(registry, store)` and calls the REST API with session cookie + CSRF. New data access belongs there.
 - Entry point: `webapp/src/index.tsx` registers via `window.registerPlugin(PLUGIN_ID, …)`. UI lives in `webapp/src/ui/`; all styling is one file, `webapp/src/styles.css`, scoped under `.tgw-root` and inlined into the bundle by style-loader.

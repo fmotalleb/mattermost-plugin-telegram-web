@@ -24,7 +24,7 @@ SERVER_DIST   := $(SERVER_DIR)/dist
 SERVER_OUTPUT := $(SERVER_DIST)/plugin-linux-amd64 $(SERVER_DIST)/plugin-linux-arm64
 
 # Files that go into the installable tarball, laid out the way a Mattermost server expects them.
-PACKAGE_FILES := plugin.json assets $(BUNDLE_PATH)
+PACKAGE_FILES := plugin.json assets public $(BUNDLE_PATH)
 
 .PHONY: all bundle server test test-smoke test-bundle check-types release version clean
 
@@ -62,7 +62,7 @@ test-smoke: $(WEBAPP_DIR)/node_modules
 	cd $(WEBAPP_DIR) && node test/unread-position.js && node test/scheduled-list.js && node test/profile-photos.js && node test/file-preview.js && node test/autolinks.js && node test/emoji-rendering.js && node test/chat-header-menu.js && node test/mermaid.js && node test/channel-notifications.js && node test/unread-settings.js && node test/send-options.js && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
 
 test-bundle: bundle
-	cd $(WEBAPP_DIR) && node test/bundle.js
+	cd $(WEBAPP_DIR) && node test/pdf-assets.js && node test/bundle.js
 
 test-server:
 	cd $(SERVER_DIR) && go test ./... && go vet ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null .
@@ -79,6 +79,7 @@ release: bundle server
 	@cp plugin.json $(RELEASE_DIR)/$(PLUGIN_ID)/
 	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_ID)/assets
 	@cp -r assets/. $(RELEASE_DIR)/$(PLUGIN_ID)/assets/
+	@cp -r public $(RELEASE_DIR)/$(PLUGIN_ID)/public
 	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_ID)/$(WEBAPP_DIR)/dist
 	@cp $(BUNDLE_PATH) $(RELEASE_DIR)/$(PLUGIN_ID)/$(WEBAPP_DIR)/dist/main.js
 	@mkdir -p $(RELEASE_DIR)/$(PLUGIN_ID)/server/dist
@@ -88,4 +89,4 @@ release: bundle server
 	@echo "packaged $(RELEASE_DIR)/$(BUNDLE_NAME)"
 
 clean:
-	rm -rf $(RELEASE_DIR) $(WEBAPP_DIR)/dist $(SERVER_DIST)
+	rm -rf $(RELEASE_DIR) $(WEBAPP_DIR)/dist $(SERVER_DIST) public/pdfjs

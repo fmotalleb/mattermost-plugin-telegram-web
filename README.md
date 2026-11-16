@@ -207,10 +207,12 @@ every call):
   takes over instead of breaking the chat screen.
 * File attachments are rendered from the server's public file URLs, so they need the same
   authentication/session the web app itself uses.
-* PDF previews use the browser's native viewer where supported. In Mattermost Desktop, the
-  plugin instead uses Mattermost's own PDF viewer when the host publishes the
-  `file_preview_modal` API. Older hosts offer Download to open the PDF in an external reader.
-  No PDF rendering library is bundled with the plugin.
+* PDF previews use a locally packaged PDF.js renderer and worker, loaded only when a PDF is
+  opened. No PDF engine is downloaded or initialized at startup, and no CDN is used. The modal
+  supports page navigation, zoom, fit-to-width, password-protected PDFs and Download. Rendering
+  uses one bounded canvas at a time; closing releases the document and worker. The build copies
+  the pinned PDF.js runtime, fonts, CMaps, WASM decoders and license into `public/pdfjs/<version>/`,
+  which `make release` includes in the plugin archive. PDF previews are limited to 25 MB.
 
 ## Licensing
 
