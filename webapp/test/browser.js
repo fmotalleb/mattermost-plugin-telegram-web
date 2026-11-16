@@ -603,6 +603,58 @@ class CDP {
         await cdp.eval("document.querySelector('#tgw-emoji-layout-probe').remove()");
 
 
+        console.log('\n== readable code digits ==');
+        const codeSamples = await cdp.eval(`(async () => {
+            const probe = document.createElement('div');
+            probe.id = 'tgw-code-font-probe';
+            probe.className = 'tgw-message-text';
+            probe.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none';
+            const samples = [];
+            for (const kind of ['inline', 'fenced']) {
+                for (const fallback of [false, true]) {
+                    const holder = document.createElement(kind === 'fenced' ? 'pre' : 'div');
+                    if (kind === 'fenced') holder.className = 'tgw-code-block';
+                    const code = document.createElement('code');
+                    code.className = 'tgw-inline-code';
+                    code.id = 'tgw-code-' + kind + '-' + fallback;
+                    code.textContent = '00:04:34.192 43.00 pnpm@11.17.0 0123456789 # *';
+                    holder.appendChild(code);
+                    probe.appendChild(holder);
+                    samples.push({code, kind, fallback});
+                }
+            }
+            document.querySelector('.tgw-root').appendChild(probe);
+            await document.fonts.ready;
+            return samples.map(({code, kind, fallback}) => {
+                if (fallback) {
+                    // Emulate a platform without any of the named code fonts. Keep the
+                    // actual stylesheet's fallback order so this reproduces the regression.
+                    code.style.fontFamily = getComputedStyle(code).fontFamily.split(',').map((name, i) =>
+                        /^(?:["']?)(ui-monospace|SFMono-Regular|Menlo|Consolas)(?:["']?)$/.test(name.trim())
+                            ? '"TGW missing code font ' + i + '"' : name).join(',');
+                }
+                const style = getComputedStyle(code);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = style.fontSize + ' ' + style.fontFamily;
+                const widths = Array.from('0123456789#*').map(char => ctx.measureText(char));
+                const advance = ctx.measureText('M').width;
+                return {id:code.id, kind, fallback,
+                    visible: widths.every(metric => metric.actualBoundingBoxRight-metric.actualBoundingBoxLeft>0),
+                    monospace: widths.every(metric => Math.abs(metric.width-advance)<0.1)};
+            });
+        })()`);
+        const codeDocument = await cdp.send('DOM.getDocument');
+        for (const sample of codeSamples) {
+            const {nodeId} = await cdp.send('DOM.querySelector', {nodeId:codeDocument.root.nodeId, selector:'#'+sample.id});
+            const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId});
+            const label = sample.kind + (sample.fallback ? ' with unavailable platform fonts' : '');
+            ok(sample.visible && sample.monospace, label + ' code paints digits, # and * at monospace width');
+            ok(fonts.length>0 && fonts.every(font => !font.familyName.includes('Twemoji')),
+                label + ' code uses text fonts for timestamps and version numbers');
+        }
+        await cdp.eval("document.querySelector('#tgw-code-font-probe').remove()");
+
         const unreadOpening = await cdp.eval(`(() => {
             const list = document.querySelector('.tgw-messages');
             const unread = list.querySelector('[data-post-id="unread-browser-14"]');

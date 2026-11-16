@@ -1485,7 +1485,9 @@
     background: rgba(0, 0, 0, 0.07);
     padding: 1px 4px;
     border-radius: 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'TGW Emoji', monospace;
+    /* A guaranteed text face must precede the emoji font: its bare keycap digits
+       are empty shaping glyphs, not printable code characters. */
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace, 'TGW Emoji';
     font-size: 13px;
 }
 
@@ -1524,7 +1526,7 @@
     border-radius: 8px;
     margin: 4px 0;
     overflow-x: auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'TGW Emoji', monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace, 'TGW Emoji';
     font-size: 13px;
     white-space: pre;
 }
