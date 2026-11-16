@@ -4149,3 +4149,40 @@ body.tgw-root-active {
 .tgw-root .tgw-mermaid-viewport:active { cursor: grabbing; }
 .tgw-root .tgw-mermaid-stage { box-sizing: border-box; padding: 24px; user-select: none; }
 .tgw-root .tgw-mermaid-stage .tgw-mermaid-svg svg { width: 100%; max-width: none !important; height: auto; pointer-events: none; }
+
+/* Native PDF and plain-text attachment previews. */
+.tgw-root .tgw-file-preview {
+    height: 65vh;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tgw-root .tgw-file-preview-pdf {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    border: 0;
+    background: #fff;
+}
+
+.tgw-root .tgw-file-preview-text {
+    margin: 0;
+    padding: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+    color: var(--tgw-text);
+    background: var(--tgw-bg);
+    font: 13px/1.6 monospace;
+    user-select: text;
+}
+
+.tgw-root .tgw-file-preview-hint {
+    font-size: 12px;
+    color: var(--tgw-text-secondary);
+}

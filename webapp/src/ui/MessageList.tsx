@@ -1,6 +1,7 @@
 // The chat screen message list: grouping, date separators, attachments, reactions and scrolling.
 
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {filePreviewKind} from '../mm/file-preview';
 import {api} from '../mm/api';
 import {emojiChar} from '../mm/emoji';
 import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm/posts';
@@ -755,6 +756,8 @@ export function filesOfPost(post: MMPost): MMFileInfo[] {
 }
 
 export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: MMPost; onOpenImage: () => void}) {
+    const {actions} = useTg();
+    const previewable = !!filePreviewKind(file);
     const kind = fileKindOf(file.mime_type || file.name);
     const url = api.fileURL(file.id);
     // The 480px /thumbnail is visibly pixelated at the bubble's display size — render the
@@ -787,7 +790,13 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
         );
     }
     return (
-        <a className="tgw-attachment-file" href={`${url}?download=1`} target="_blank" rel="noopener noreferrer">
+        <a className="tgw-attachment-file" href={`${url}?download=1`} target="_blank" rel="noopener noreferrer"
+            aria-label={previewable ? `Preview ${file.name}` : undefined}
+            onClick={previewable ? (event) => {
+                if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                actions.openModal('filePreview', {file});
+            } : undefined}>
             <span className={`tgw-file-icon tgw-file-${kind}`}>{file.extension ? file.extension.slice(0, 4).toUpperCase() : 'FILE'}</span>
             <span className="tgw-file-meta">
                 <span className="tgw-file-name">{file.name}</span>

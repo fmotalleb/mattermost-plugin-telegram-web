@@ -167,6 +167,36 @@ export class MattermostAPI {
 
     // ---------------------------------------------------------------- files (binary, keeps cookies)
 
+    async getFilePreview(fileId: string, maxBytes: number, signal: AbortSignal): Promise<Blob> {
+        const headers: Record<string, string> = {'X-Requested-With': 'XMLHttpRequest'};
+        if (this.token) headers.Authorization = `Bearer ${this.token}`;
+        const response = await fetch(this.fileURL(fileId), {credentials: 'same-origin', headers, signal});
+        if (!response.ok) throw new APIError('Could not load this file. Please try again.', response.status);
+        if (Number(response.headers.get('Content-Length')) > maxBytes) {
+            await response.body?.cancel();
+            throw new Error('This file is too large to preview. Please download it instead.');
+        }
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('File preview is unavailable in this browser. Please download it instead.');
+        const chunks: BlobPart[] = [];
+        let size = 0;
+        try {
+            for (;;) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                size += value.byteLength;
+                if (size > maxBytes) {
+                    await reader.cancel();
+                    throw new Error('This file is too large to preview. Please download it instead.');
+                }
+                chunks.push(value);
+            }
+        } finally {
+            reader.releaseLock();
+        }
+        return new Blob(chunks);
+    }
+
     fileURL(fileId: string, thumbnail = false): string {
         return this.getURL(`/files/${fileId}${thumbnail ? '/thumbnail' : ''}`);
     }
