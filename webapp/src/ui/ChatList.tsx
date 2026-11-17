@@ -179,9 +179,9 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 savedMessages={summary.title === 'Saved Messages'}
             />
             {!!todoCount && <span className="tgw-todo-badge" role="img" aria-label={`${todoCount} unfinished todos`} title={`${todoCount} open TODOs`}>
-                <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-                    <path className="tgw-todo-badge-band" d="M 7 31 A 25 25 0 0 0 57 31"/>
-                    <defs><path id={todoBadgePath} d="M 7 34 A 25 25 0 0 0 57 34"/></defs>
+                <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true" focusable="false">
+                    <path className="tgw-todo-badge-band" d="M 4.7 32.5 A 23 23 0 0 0 49.3 32.5"/>
+                    <defs><path id={todoBadgePath} d="M 2.9 32.5 A 24.7 24.7 0 0 0 51.1 32.5"/></defs>
                     <text><textPath href={`#${todoBadgePath}`} startOffset="50%" textAnchor="middle">OPEN TODO</textPath></text>
                 </svg>
             </span>}

@@ -4411,10 +4411,10 @@ body.tgw-root-active {
 /* Shared todos use the same side panel and mobile gutter as shared files. */
 .tgw-root .tgw-chat-avatar-todos { position: relative; flex: none; display: inline-flex; }
 .tgw-root .tgw-has-open-todos .tgw-status-dot { top: 2px; bottom: auto; }
-.tgw-root .tgw-todo-badge { position: absolute; inset: -5px; pointer-events: none; }
-.tgw-root .tgw-todo-badge svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.tgw-root .tgw-todo-badge-band { fill: none; stroke: #16865b; stroke-width: 12px; stroke-linecap: round; }
-.tgw-root .tgw-todo-badge text { fill: #fff; font-family: var(--tgw-font); font-size: 7.5px; font-weight: 800; letter-spacing: .7px; }
+.tgw-root .tgw-todo-badge { position: absolute; inset: 0; width: 54px; height: 54px; border-radius: 50%; overflow: hidden; pointer-events: none; }
+.tgw-root .tgw-todo-badge svg { display: block; width: 54px; height: 54px; overflow: hidden; border-radius: 50%; background: transparent; direction: ltr; }
+.tgw-root .tgw-todo-badge-band { fill: none; stroke: #16865b; stroke-width: 7px; stroke-linecap: butt; }
+.tgw-root .tgw-todo-badge text { fill: #fff; font-family: var(--tgw-font); font-size: 6.5px; font-weight: 700; letter-spacing: .4px; }
 .tgw-root .tgw-todo-header { position: relative; font-size: 24px; }
 .tgw-root .tgw-todo-header-count { position: absolute; top: 0; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border: 2px solid var(--tgw-bg-secondary); border-radius: 10px; background: #16865b; color: #fff; font-size: 10px; font-weight: 700; line-height: 12px; text-align: center; }
 .tgw-root .tgw-todo-add { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-bottom: 1px solid var(--tgw-border); }

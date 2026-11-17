@@ -1349,6 +1349,13 @@ class CDP {
         ok(todoDesktop.width >= 300 && todoDesktop.fits && todoDesktop.scrollable === 'auto', 'todo panel uses the shared-file gutter and a scrolling task list');
         ok(todoDesktop.addBackground !== 'rgba(0, 0, 0, 0)', 'todo Add uses the existing primary button styling');
         await cdp.waitFor('!!document.querySelector(".tgw-todo-badge")',5000,'todo sidebar count');
+        const ribbonContained = await cdp.eval(`Array.from(document.querySelectorAll('.tgw-todo-badge')).every((badge) => {
+            const avatar = badge.parentElement.getBoundingClientRect();
+            const ribbon = badge.getBoundingClientRect();
+            const svg = badge.querySelector('svg').getBoundingClientRect();
+            return [ribbon, svg].every((rect) => rect.left >= avatar.left && rect.top >= avatar.top && rect.right <= avatar.right && rect.bottom <= avatar.bottom);
+        })`);
+        ok(ribbonContained, 'TODO ribbons stay inside their avatar bounds without protruding into the chat row');
         await cdp.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
         await sleep(150);
         const todoMobile = await cdp.eval(`(() => {
