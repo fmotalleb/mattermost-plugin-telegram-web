@@ -276,14 +276,18 @@
     flex: 1;
     background: var(--tgw-hover);
     border-radius: 22px;
-    height: 40px;
+    height: 34px;
     padding: 0 12px;
     gap: 8px;
 }
 
-.tgw-search input {
+.tgw-root .tgw-search input {
     flex: 1;
     min-width: 0;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
     border: none;
     outline: none;
     background: transparent;
@@ -2132,11 +2136,7 @@
     padding: 3px 4px;
 }
 
-.tgw-composer-input:focus-within {
-    border-color: var(--tgw-accent);
-}
-
-.tgw-composer-input textarea {
+.tgw-root .tgw-composer-input textarea {
     flex: 1;
     resize: none;
     border: none;
@@ -2144,6 +2144,7 @@
     background: transparent;
     font-family: inherit;
     font-size: 14.5px;
+    box-shadow: none;
     line-height: 1.4;
     color: var(--tgw-text);
     padding: 7px 4px;

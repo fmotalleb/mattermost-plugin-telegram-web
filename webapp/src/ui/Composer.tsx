@@ -375,8 +375,8 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         if (editing) {
             return 'Edit message';
         }
-        return placeholder || `Message ${channel.display_name || ''}`.trim();
-    }, [editing, placeholder, channel.display_name]);
+        return placeholder || 'Write a message ...';
+    }, [editing, placeholder]);
 
     return (
         <div className={`tgw-composer ${editing ? 'tgw-composer-editing' : ''}`}>

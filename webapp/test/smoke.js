@@ -94,7 +94,7 @@ root.render(React.createElement(TelegramUI));
     ok(folderCount('All') === '13', `the All tab carries the total unread message count (${folderCount('All') || 'none'})`);
     ok(folderCount('Unread') === '13', `the Unread tab counts unread messages across conversations (${folderCount('Unread') || 'none'})`);
     ok(folderCount('Groups') === '11', `the Groups tab counts only its channel (${folderCount('Groups') || 'none'})`);
-    ok(folderCount('Direct Messages') === '2', `the Direct Messages tab counts the DM (${folderCount('Direct Messages') || 'none'})`);
+    ok(folderCount('Direct') === '2', `the Direct tab counts the DM (${folderCount('Direct') || 'none'})`);
     ok(folderCount('Work stuff') === '13', `a custom folder sums its chats (${folderCount('Work stuff') || 'none'})`);
     ok(!folderBtn('Contacts')?.querySelector('.tgw-folder-badge'), 'tabs without unread chats carry no badge');
 
@@ -147,7 +147,7 @@ root.render(React.createElement(TelegramUI));
         await tick(30);
         ok(groupsTabBtn.classList.contains('tgw-folder-dragover'), 'the drop target folder highlights');
         groupsTabBtn.dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
-        const expectedTabOrder = 'All,Unread,Drafts,Work stuff,Groups,Direct Messages,Contacts';
+        const expectedTabOrder = 'All,Unread,Drafts,Work stuff,Groups,Direct,Contacts';
         await waitFor(() => folderLabels().join(',') === expectedTabOrder);
         const reordered = folderLabels().join(',');
         ok(reordered === expectedTabOrder,

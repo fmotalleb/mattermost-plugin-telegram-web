@@ -1021,6 +1021,27 @@ class CDP {
             ok(focused.isComposer, `composer owns the keyboard after opening a chat, even when the host app steals it (focus on: ${focused.where})`);
         }
 
+        console.log('\n== compact message and search inputs ==');
+        const inputStyles = await cdp.eval(`(() => {
+            const composer = document.querySelector('.tgw-composer textarea');
+            const box = composer.closest('.tgw-composer-input');
+            composer.blur();
+            const neutralBorder = getComputedStyle(box).borderColor;
+            composer.focus();
+            const style = getComputedStyle(composer);
+            const search = document.querySelector('.tgw-sidebar-header .tgw-search');
+            const searchInput = search.querySelector('input');
+            return {placeholder: composer.placeholder, outline: style.outlineStyle, shadow: style.boxShadow,
+                border: getComputedStyle(box).borderColor,
+                neutralBorder,
+                searchHeight: search.getBoundingClientRect().height, inputHeight: searchInput.getBoundingClientRect().height};
+        })()`);
+        ok(inputStyles.placeholder === 'Write a message ...', 'the composer uses the requested placeholder');
+        ok(inputStyles.outline === 'none' && inputStyles.shadow === 'none' && inputStyles.border === inputStyles.neutralBorder,
+            `the focused message input keeps its neutral border without a blue ring (${JSON.stringify(inputStyles)})`);
+        ok(inputStyles.searchHeight === 34 && inputStyles.inputHeight <= 34,
+            `the search field stays compact (${JSON.stringify(inputStyles)})`);
+
         console.log('\n== shared files scrolling ==');
         await cdp.eval(`document.querySelector('.tgw-chat-header button[title="Shared files"]').click()`);
         await cdp.waitFor('!!document.querySelector(".tgw-files-panel .tgw-files-search")', 6000, 'the shared files panel');
