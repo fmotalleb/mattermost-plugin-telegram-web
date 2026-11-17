@@ -562,6 +562,15 @@ function ForwardModal({post}: {post: MMPost}) {
             <div className="tgw-picker-list tgw-picker-list-tall">
                 {choices.map((chat) => (
                     <button type="button" className="tgw-picker-row" key={chat.id} disabled={busy} onClick={() => forward(chat.id)}>
+                        <Avatar
+                            userId={chat.type === 'D' ? chat.avatarUserId || chat.peerIds[0] : undefined}
+                            name={chat.title}
+                            colorKey={chat.type === 'D' ? chat.avatarUserId || chat.peerIds[0] || chat.id : chat.id}
+                            imageUrl={chat.avatarUrl}
+                            savedMessages={chat.title === 'Saved Messages'}
+                            previewProfile={false}
+                            size={40}
+                        />
                         <span className="tgw-picker-body"><span className="tgw-picker-name">{chat.title}</span></span>
                     </button>
                 ))}
