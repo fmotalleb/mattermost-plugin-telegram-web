@@ -416,6 +416,12 @@ export class MattermostAPI {
         });
     }
 
+    renameTodo(task: MMTodo, text: string): Promise<MMTodoResult> {
+        return this.pluginRequest(`/api/v1/todos/${encodeURIComponent(task.id)}`, {
+            method: 'PATCH', query: {channel_id: task.channel_id}, body: {revision: task.revision, text},
+        });
+    }
+
     getScheduledPosts(channelId: string): Promise<MMScheduledPost[]> {
         return this.pluginRequest('/api/v1/scheduled-posts', {query: {channel_id: channelId}});
     }

@@ -4421,8 +4421,8 @@ body.tgw-root-active {
 .tgw-root .tgw-todo-badge { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); border-radius: 6px; padding: 1px 4px; background: var(--tgw-accent); color: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; border: 1px solid var(--tgw-bg-secondary); }
 .tgw-root .tgw-todo-header { font-size: 24px; }
 .tgw-root .tgw-todo-add { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-bottom: 1px solid var(--tgw-border); }
-.tgw-root .tgw-todo-add textarea, .tgw-root .tgw-todo-search { width: 100%; min-width: 0; border: 1px solid var(--tgw-border); border-radius: 8px; background: var(--tgw-bg-secondary); color: var(--tgw-text); padding: 8px; font: inherit; }
-.tgw-root .tgw-todo-add textarea { resize: vertical; min-height: 64px; max-height: 160px; }
+.tgw-root .tgw-todo-add textarea, .tgw-root .tgw-todo-edit textarea, .tgw-root .tgw-todo-search { width: 100%; min-width: 0; border: 1px solid var(--tgw-border); border-radius: 8px; background: var(--tgw-bg-secondary); color: var(--tgw-text); padding: 8px; font: inherit; }
+.tgw-root .tgw-todo-add textarea, .tgw-root .tgw-todo-edit textarea { resize: vertical; min-height: 64px; max-height: 160px; }
 .tgw-root .tgw-todo-linked { width: 100%; font-size: 12px; }
 .tgw-root .tgw-todo-linked button, .tgw-root .tgw-todo-error button, .tgw-root .tgw-todo-jump { border: 0; background: transparent; color: var(--tgw-accent); cursor: pointer; }
 .tgw-root .tgw-todo-section { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--tgw-text-tertiary); }
@@ -4431,7 +4431,8 @@ body.tgw-root-active {
 .tgw-root .tgw-todo-content { flex: 1; min-width: 0; }
 .tgw-root .tgw-todo-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
 .tgw-root .tgw-todo-done .tgw-todo-text { text-decoration: line-through; color: var(--tgw-text-tertiary); }
-.tgw-root .tgw-todo-jump { padding: 4px 0; font-size: 12px; }
+.tgw-root .tgw-todo-edit { display: flex; flex-wrap: wrap; gap: 8px; }
+.tgw-root .tgw-todo-jump { margin-right: 10px; padding: 4px 0; font-size: 12px; }
 .tgw-root .tgw-todo-error { padding: 10px 14px; color: var(--tgw-danger, #d43c48); }
 
 /* Keep suggestions readable over messages, including every glass theme. */

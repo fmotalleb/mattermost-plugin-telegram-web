@@ -113,14 +113,25 @@ func TestTodoSQLRepository(t *testing.T) {
 			d.query = func(string, []driver.NamedValue) (driver.Rows, error) { return row(), nil }
 			done := true
 			d.exec = func(q string, args []driver.NamedValue) (driver.Result, error) {
-				if !strings.Contains(q, "AND revision = ") || len(args) != 6 || args[0].Value != int64(1) || args[2].Value != int64(2) || args[5].Value != int64(1) {
+				if !strings.Contains(q, "AND revision = ") || len(args) != 7 || args[0].Value != int64(1) || args[1].Value != task.Text || args[3].Value != int64(2) || args[6].Value != int64(1) {
 					t.Fatal("unsafe completion", q, args)
 				}
 				return driver.RowsAffected(1), nil
 			}
-			changed, err := repo.Change(task.ChannelID, task.ID, 1, &done)
+			changed, err := repo.Change(task.ChannelID, task.ID, 1, &done, nil)
 			if err != nil || !changed.Done || changed.Revision != 2 {
 				t.Fatal(changed, err)
+			}
+			label := "renamed task"
+			d.exec = func(q string, args []driver.NamedValue) (driver.Result, error) {
+				if !strings.Contains(q, "task_text = ") || !strings.Contains(q, "AND revision = ") || len(args) != 7 || args[0].Value != int64(0) || args[1].Value != label || args[3].Value != int64(2) || args[6].Value != int64(1) {
+					t.Fatal("unsafe rename", q, args)
+				}
+				return driver.RowsAffected(1), nil
+			}
+			renamed, err := repo.Change(task.ChannelID, task.ID, 1, nil, &label)
+			if err != nil || renamed.Text != label || renamed.Done != task.Done || renamed.PostID != task.PostID || renamed.Revision != 2 {
+				t.Fatal(renamed, err)
 			}
 			// Simulate another node changing the row after SELECT, before UPDATE/DELETE.
 			d.exec = func(q string, args []driver.NamedValue) (driver.Result, error) {
@@ -129,18 +140,21 @@ func TestTodoSQLRepository(t *testing.T) {
 				}
 				return driver.RowsAffected(0), nil
 			}
-			if _, err := repo.Change(task.ChannelID, task.ID, 1, &done); err != errTodoConflict {
+			if _, err := repo.Change(task.ChannelID, task.ID, 1, &done, nil); err != errTodoConflict {
 				t.Fatal("lost update not detected", err)
 			}
-			if _, err := repo.Change(task.ChannelID, task.ID, 1, nil); err != errTodoConflict {
+			if _, err := repo.Change(task.ChannelID, task.ID, 1, nil, nil); err != errTodoConflict {
 				t.Fatal("stale delete not detected", err)
+			}
+			if _, err := repo.Change(task.ChannelID, task.ID, 1, nil, &label); err != errTodoConflict {
+				t.Fatal("stale rename not detected", err)
 			}
 			task.Revision = 2
 			d.exec = func(string, []driver.NamedValue) (driver.Result, error) {
 				t.Fatal("stale version attempted a write")
 				return nil, nil
 			}
-			if _, err := repo.Change(task.ChannelID, task.ID, 1, &done); err != errTodoConflict {
+			if _, err := repo.Change(task.ChannelID, task.ID, 1, &done, nil); err != errTodoConflict {
 				t.Fatal("stale revision not rejected", err)
 			}
 		})

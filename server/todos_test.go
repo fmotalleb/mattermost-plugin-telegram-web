@@ -52,17 +52,22 @@ func (m *memoryTodos) Create(task todoItem) error {
 	m.tasks[task.ID] = task
 	return nil
 }
-func (m *memoryTodos) Change(channel, id string, revision int64, done *bool) (*todoItem, error) {
+func (m *memoryTodos) Change(channel, id string, revision int64, done *bool, text *string) (*todoItem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	t, ok := m.tasks[id]
 	if !ok || t.ChannelID != channel || t.Revision != revision {
 		return nil, errTodoConflict
 	}
-	if done == nil {
+	if done == nil && text == nil {
 		delete(m.tasks, id)
 	} else {
-		t.Done = *done
+		if done != nil {
+			t.Done = *done
+		}
+		if text != nil {
+			t.Text = *text
+		}
 		t.Revision++
 		m.tasks[id] = t
 	}
@@ -210,5 +215,48 @@ func TestTodoActivityEscaping(t *testing.T) {
 	got := todoActivityLabel("hello\n@all `code` **bold**")
 	if got != "`` hello @all `code` **bold** ``" {
 		t.Fatal(got)
+	}
+}
+
+func TestRenameTodo(t *testing.T) {
+	p, a, repo := todoTestPlugin()
+	w := todoRequest(p, "POST", todoPath+"?channel_id="+scheduleChannelID, `{"text":"Original","post_id":"`+scheduleRootID+`"}`, scheduleUserID)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var result struct {
+		Task todoItem `json:"task"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	original := result.Task
+	item := todoPath + "/" + original.ID + "?channel_id=" + scheduleChannelID
+	w = todoRequest(p, "PATCH", item, `{"done":true,"revision":1}`, scheduleFileID)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = todoRequest(p, "PATCH", item, `{"text":"  Renamed label  ","revision":2}`, scheduleFileID)
+	renamed := repo.tasks[original.ID]
+	if w.Code != 200 || renamed.Text != "Renamed label" || !renamed.Done || renamed.PostID != original.PostID || renamed.CreatorID != original.CreatorID || renamed.CreatedAt != original.CreatedAt || renamed.Revision != 3 {
+		t.Fatal("rename must preserve task identity and completion", w.Code, renamed)
+	}
+	if len(a.broadcasts) != 3 || a.posts[2].Props["tgw_todo_action"] != "renamed" || !strings.Contains(a.posts[2].Message, "Renamed label") {
+		t.Fatal("missing rename activity", a.posts)
+	}
+	for _, body := range []string{`{"text":" ","revision":3}`, `{"text":"` + strings.Repeat("x", 4001) + `","revision":3}`, `{"revision":3}`} {
+		if w := todoRequest(p, "PATCH", item, body, scheduleUserID); w.Code != 400 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	if w := todoRequest(p, "PATCH", item, `{"text":"Stale","revision":2}`, scheduleUserID); w.Code != 409 {
+		t.Fatal(w.Code)
+	}
+	if repo.tasks[original.ID].Text != "Renamed label" {
+		t.Fatal("failed write changed label")
+	}
+	a.readonly = true
+	if w := todoRequest(p, "PATCH", item, `{"text":"Forbidden","revision":3}`, scheduleUserID); w.Code != 403 {
+		t.Fatal(w.Code)
 	}
 }

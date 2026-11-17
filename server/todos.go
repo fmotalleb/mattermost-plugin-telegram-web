@@ -33,7 +33,7 @@ type todoRepository interface {
 	List(string) ([]todoItem, error)
 	Counts([]string) (map[string]int, error)
 	Create(todoItem) error
-	Change(string, string, int64, *bool) (*todoItem, error)
+	Change(string, string, int64, *bool, *string) (*todoItem, error)
 }
 
 type sqlTodoRepository struct {
@@ -113,8 +113,8 @@ func (s *sqlTodoRepository) Create(t todoItem) error {
 	return err
 }
 
-// The revision condition makes completion and deletion compete on the same row across nodes.
-func (s *sqlTodoRepository) Change(channel, id string, revision int64, done *bool) (*todoItem, error) {
+// The revision condition makes completion, renaming and deletion compete on the same row across nodes.
+func (s *sqlTodoRepository) Change(channel, id string, revision int64, done *bool, text *string) (*todoItem, error) {
 	t, err := scanTodo(s.db.QueryRow("SELECT "+todoColumns+" FROM tg_webui_todos WHERE channel_id = "+s.p.ph(1)+" AND id = "+s.p.ph(2), channel, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errTodoConflict
@@ -126,17 +126,22 @@ func (s *sqlTodoRepository) Change(channel, id string, revision int64, done *boo
 		return nil, errTodoConflict
 	}
 	var result sql.Result
-	if done == nil {
+	if done == nil && text == nil {
 		result, err = s.db.Exec("DELETE FROM tg_webui_todos WHERE channel_id = "+s.p.ph(1)+" AND id = "+s.p.ph(2)+" AND revision = "+s.p.ph(3), channel, id, revision)
 	} else {
+		if done != nil {
+			t.Done = *done
+		}
+		if text != nil {
+			t.Text = *text
+		}
 		n := 0
-		if *done {
+		if t.Done {
 			n = 1
 		}
-		t.Done = *done
 		t.UpdatedAt = model.GetMillis()
 		t.Revision++
-		result, err = s.db.Exec("UPDATE tg_webui_todos SET done = "+s.p.ph(1)+", updated_at = "+s.p.ph(2)+", revision = "+s.p.ph(3)+" WHERE channel_id = "+s.p.ph(4)+" AND id = "+s.p.ph(5)+" AND revision = "+s.p.ph(6), n, t.UpdatedAt, t.Revision, channel, id, revision)
+		result, err = s.db.Exec("UPDATE tg_webui_todos SET done = "+s.p.ph(1)+", task_text = "+s.p.ph(2)+", updated_at = "+s.p.ph(3)+", revision = "+s.p.ph(4)+" WHERE channel_id = "+s.p.ph(5)+" AND id = "+s.p.ph(6)+" AND revision = "+s.p.ph(7), n, t.Text, t.UpdatedAt, t.Revision, channel, id, revision)
 	}
 	if err != nil {
 		return nil, err
@@ -220,10 +225,10 @@ func (p *Plugin) handleTodos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Text     string `json:"text"`
-		PostID   string `json:"post_id"`
-		Done     *bool  `json:"done"`
-		Revision int64  `json:"revision"`
+		Text     *string `json:"text"`
+		PostID   string  `json:"post_id"`
+		Done     *bool   `json:"done"`
+		Revision int64   `json:"revision"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32768))
 	if err := decoder.Decode(&body); err != nil {
@@ -242,8 +247,11 @@ func (p *Plugin) handleTodos(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 404, "not found")
 			return
 		}
-		body.Text = strings.TrimSpace(body.Text)
-		if utf8.RuneCountInString(body.Text) > 4000 || (body.Text == "" && body.PostID == "") {
+		text := ""
+		if body.Text != nil {
+			text = strings.TrimSpace(*body.Text)
+		}
+		if utf8.RuneCountInString(text) > 4000 || (text == "" && body.PostID == "") {
 			writeError(w, 400, "text (up to 4000 characters) or a linked message is required")
 			return
 		}
@@ -259,24 +267,34 @@ func (p *Plugin) handleTodos(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		now := model.GetMillis()
-		task = &todoItem{ID: model.NewId(), ChannelID: channel, Text: body.Text, PostID: body.PostID, CreatorID: user, CreatedAt: now, UpdatedAt: now, Revision: 1}
+		task = &todoItem{ID: model.NewId(), ChannelID: channel, Text: text, PostID: body.PostID, CreatorID: user, CreatedAt: now, UpdatedAt: now, Revision: 1}
 		err = p.todos.Create(*task)
 	} else {
 		id := strings.TrimPrefix(tail, "/")
-		if !strings.HasPrefix(tail, "/") || !model.IsValidId(id) || body.Revision < 1 || (r.Method == http.MethodPatch && body.Done == nil) {
-			writeError(w, 400, "task ID, revision and completion state are required")
+		if !strings.HasPrefix(tail, "/") || !model.IsValidId(id) || body.Revision < 1 || (r.Method == http.MethodPatch && body.Done == nil && body.Text == nil) {
+			writeError(w, 400, "task ID, revision and a label or completion state are required")
 			return
 		}
-		done := body.Done
+		if r.Method == http.MethodPatch && body.Text != nil {
+			text := strings.TrimSpace(*body.Text)
+			if text == "" || utf8.RuneCountInString(text) > 4000 {
+				writeError(w, 400, "a label of up to 4000 characters is required")
+				return
+			}
+			body.Text = &text
+		}
+		done, text := body.Done, body.Text
 		if r.Method == http.MethodDelete {
-			done = nil
+			done, text = nil, nil
 			action = "removed"
+		} else if text != nil {
+			action = "renamed"
 		} else if *done {
 			action = "completed"
 		} else {
 			action = "reopened"
 		}
-		task, err = p.todos.Change(channel, id, body.Revision, done)
+		task, err = p.todos.Change(channel, id, body.Revision, done, text)
 	}
 	if errors.Is(err, errTodoConflict) {
 		writeError(w, 409, err.Error())

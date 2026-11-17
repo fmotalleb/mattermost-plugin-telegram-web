@@ -19,13 +19,13 @@ global.fetch = async (url, options = {}) => {
     } else if(method==='GET') result=tasks.filter((t)=>t.channel_id===channel);
     else {
         const body=JSON.parse(options.body); writes.push({method,channel,body});
-        if(conflict) {status=409;result={message:'This task changed. Refresh and try again.'};}
+        if(conflict || (method!=='POST' && tasks.find((task)=>task.id===path.split('/').pop())?.revision!==body.revision)) {status=409;result={message:'This task changed. Refresh and try again.'};}
         else if(method==='POST') {
             const task={id:`todo${tasks.length+2}`,channel_id:channel,text:body.text.trim(),post_id:body.post_id,done:false,revision:1,created_at:Date.now()};tasks.push(task);result={task,notification_failed:failNotification};
         } else {
             const index=tasks.findIndex((t)=>t.id===path.split('/').pop());
             if(method==='DELETE') result={task:tasks.splice(index,1)[0]};
-            else {tasks[index]={...tasks[index],done:body.done,revision:tasks[index].revision+1};result={task:tasks[index]};}
+            else {tasks[index]={...tasks[index],...(body.done === undefined ? {} : {done:body.done}),...(body.text === undefined ? {} : {text:body.text.trim()}),revision:tasks[index].revision+1};result={task:tasks[index]};}
         }
     }
     return {ok:status===200,status,text:async()=>JSON.stringify(result)};
@@ -106,6 +106,32 @@ const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagNa
     ok(document.querySelector('[aria-label="New todo"]').value === '', 'a message without text keeps the optional label empty');
     click(form().querySelector('button[type="submit"]'));
     ok(await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((node)=>node.textContent==='Linked todo')), 'a textless message still saves with the Linked todo fallback');
+    await wait(()=>!document.querySelector('.tgw-todo-linked'));
+    click(document.querySelector(`[aria-label="Rename ${posts.p1.message}"]`));await tick(40);
+    input(document.querySelector('[aria-label="Rename todo"]'),'   ');await tick(40);
+    ok(document.querySelector('.tgw-todo-edit button[type="submit"]').disabled,'an empty renamed label cannot be saved');
+    click(button('Cancel'));await tick(40);
+    ok(!document.querySelector('.tgw-todo-edit')&&tasks.find((task)=>task.id===linked.id).text===posts.p1.message,'Cancel preserves the saved label');
+    click(document.querySelector(`[aria-label="Complete ${posts.p1.message}"]`));
+    await wait(()=>document.querySelector(`[aria-label="Reopen ${posts.p1.message}"]`));
+    click(document.querySelector(`[aria-label="Rename ${posts.p1.message}"]`));await tick(40);
+    input(document.querySelector('[aria-label="Rename todo"]'),'Renamed linked task');await tick(40);
+    click(button('Save'));
+    ok(await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((node)=>node.textContent==='Renamed linked task')),'an existing completed TODO can be renamed');
+    const renamed = tasks.find((task)=>task.id===linked.id);
+    ok(renamed.post_id==='p1'&&renamed.done,'renaming preserves the linked message and completed state');
+    ok(writes.some((write)=>write.method==='PATCH'&&write.body.text==='Renamed linked task'&&write.body.revision>0&&write.body.done===undefined),'rename uses a revision-checked label patch');
+    click(document.querySelector('[aria-label="Rename Renamed linked task"]'));await tick(40);
+    input(document.querySelector('[aria-label="Rename todo"]'),'Unsaved draft');await tick(40);
+    tasks.find((task)=>task.id===linked.id).revision++;
+    conflict=true;click(button('Save'));await wait(()=>document.querySelector('.tgw-todo-error'));
+    ok(document.querySelector('[aria-label="Rename todo"]')?.value==='Unsaved draft'&&tasks.find((task)=>task.id===linked.id).text==='Renamed linked task','failed renaming preserves the draft and saved label');
+    conflict=false;click(document.querySelector('.tgw-todo-error button'));await tick(150);
+    click(button('Save'));
+    ok(await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((node)=>node.textContent==='Unsaved draft')),'Refresh allows retrying a conflicted rename with the current revision');
+    click(document.querySelector('[aria-label="Rename Unsaved draft"]'));await tick(40);
+    document.querySelector('[aria-label="Rename todo"]').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await tick(40);
+    ok(!document.querySelector('.tgw-todo-edit')&&!!panel(),'Escape cancels renaming without closing TODO');
     // A conflict refreshes shared state while keeping the error visible.
     conflict=true;click(document.querySelector('[aria-label="Complete Shared deployment"]'));
     await wait(()=>document.querySelector('.tgw-todo-error'));
