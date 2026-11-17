@@ -39,8 +39,12 @@ const button=(label)=>Array.from(document.querySelectorAll('button')).find((b)=>
 const row=(name)=>Array.from(document.querySelectorAll('.tgw-chat-row')).find((r)=>r.textContent.includes(name));
 const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagName==='TEXTAREA'?'HTMLTextAreaElement':'HTMLInputElement'].prototype,'value').set.call(node,value);node.dispatchEvent(new dom.window.Event('input',{bubbles:true}));};
 (async()=>{
-    ok(await wait(()=>panel()?.textContent.includes('Shared deployment')),'opening a chat with unfinished tasks automatically opens TODO');
-    ok(row('Alice')?.querySelector('.tgw-todo-badge')?.textContent.includes('TODO 1'),'sidebar badge counts unfinished tasks');
+    const headerCount = () => document.querySelector('.tgw-todo-header-count')?.textContent;
+    ok(await wait(()=>headerCount()==='1')&&!panel(),'opening a chat shows its TODO indicator without opening the list');
+    ok(row('Alice')?.querySelector('.tgw-todo-badge')?.getAttribute('aria-label')==='1 unfinished todos','avatar badge exposes the unfinished task count');
+    ok(row('Alice')?.querySelector('.tgw-todo-badge textPath')?.textContent==='OPEN TODO','avatar badge uses a curved OPEN TODO label');
+    click(document.querySelector('.tgw-todo-header'));
+    ok(await wait(()=>panel()?.textContent.includes('Shared deployment')),'the header TODO icon opens the list on demand');
     ok(countBatches.some((b)=>b.length>1),'sidebar count requests are batched');
     const folder = (label) => Array.from(document.querySelectorAll('.tgw-folder')).find((node) => node.firstChild?.textContent === label);
     const folders = Array.from(document.querySelectorAll('.tgw-folder')).map((node) => node.firstChild?.textContent);
@@ -63,18 +67,19 @@ const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagNa
     click(document.querySelector('[title="Collapse todos"]'));await tick(50);
     invalidateTodos(ids.DM);await tick(150);
     ok(!panel(),'background refresh does not reopen a manually closed panel');
-    click(row('Town Square'));await tick(80);ok(!panel(),'chat without todos stays closed');
-    click(row('Alice'));ok(await wait(()=>panel()),'returning to an unfinished chat reopens its TODO panel');
+    click(row('Town Square'));await tick(80);ok(!panel()&&!headerCount(),'chat without todos stays closed and has no TODO count');
+    click(row('Alice'));ok(await wait(()=>headerCount()==='1')&&!panel(),'returning to a chat with tasks keeps its TODO list closed');
+    click(document.querySelector('.tgw-todo-header'));await wait(()=>panel());
     const form=()=>document.querySelector('.tgw-todo-add');
     ok(form().querySelector('button[type="submit"]').disabled,'blank standalone task cannot be added');
     input(document.querySelector('[aria-label="New todo"]'),'Deploy next version');await tick(40);click(form().querySelector('button[type="submit"]'));
     await wait(()=>document.querySelectorAll('.tgw-todo-row').length===2);
     ok(tasks.some((t)=>t.text==='Deploy next version'),'text tasks are shared through the server API');
-    await wait(()=>row('Alice')?.textContent.includes('TODO 2'));
+    await wait(()=>headerCount()==='2');
     click(document.querySelector('[aria-label="Complete Shared deployment"]'));
     await wait(()=>document.querySelector('[aria-label="Reopen Shared deployment"]'));
     ok(panel().textContent.includes('Completed')&&tasks[0].done,'completion moves a task into Completed');
-    await wait(()=>row('Alice')?.textContent.includes('TODO 1'));
+    await wait(()=>headerCount()==='1');
     click(document.querySelector('[aria-label="Reopen Shared deployment"]'));
     await wait(()=>document.querySelector('[aria-label="Complete Shared deployment"]'));
     ok(!tasks[0].done,'completed tasks can be reopened');
@@ -156,7 +161,9 @@ const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagNa
     ok(!panel(),'a chat with only completed tasks does not auto-open TODO');
     click(row('Town Square'));await tick(60);
     tasks[0].done=false; // A change missed while disconnected leaves the sidebar cache at zero.
-    click(row('Alice'));await wait(()=>panel());
-    ok(!!panel(),'entering a chat revalidates a cached zero count before deciding whether to auto-open');
+    click(row('Alice'));await wait(()=>headerCount()==='1');
+    ok(headerCount()==='1'&&!panel(),'entering a chat revalidates a stale zero count without opening the list');
+    tasks[0].done=true;invalidateTodos(ids.DM);await wait(()=>!headerCount());
+    ok(!headerCount()&&!panel(),'completing the last task clears the header indicator without opening the list');
     root.unmount();clearTodos();report('TODO TEST');
 })().catch((err)=>{console.error(err);root.unmount();clearTodos();process.exitCode=1;});

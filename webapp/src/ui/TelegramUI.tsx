@@ -17,7 +17,7 @@ import {ConfirmModal, ImageViewer, Modals} from './Modals';
 import {EmojiPicker} from './EmojiPicker';
 import {InfoPanel} from './InfoPanel';
 import {TodoPanel} from './TodoPanel';
-import {invalidateTodos, useTodoCount} from '../mm/todos';
+import {invalidateTodos} from '../mm/todos';
 import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
 import type {MenuEntry, MenuItem} from './menu';
@@ -110,8 +110,6 @@ export function TelegramUI() {
     const timeFormat = useSelector(getTimeFormat);
     const mmCurrentChannelId = useSelector((state) => state.entities?.channels?.currentChannelId);
     const channel = useSelector((state) => (ui.selectedChannelId ? state.entities?.channels?.channels?.[ui.selectedChannelId] : undefined));
-    const todoCount = useTodoCount(ui.selectedChannelId, ui.chatSeq);
-    const todoEntry = useRef('');
     const connection = useSelector((state) => state.websocket?.connected);
     useEffect(() => {
         const refresh = () => invalidateTodos();
@@ -120,14 +118,6 @@ export function TelegramUI() {
         refresh();
         return () => { window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
     }, [connection]);
-    useEffect(() => {
-        const entry = `${ui.selectedChannelId}:${ui.chatSeq}`;
-        if (!ui.selectedChannelId || (isMobile && ui.mobilePane !== 'chat') || todoCount === undefined || todoEntry.current === entry) return;
-        todoEntry.current = entry;
-        if (todoCount > 0 && !ui.highlightedPostId && !ui.threadRootId) {
-            setUIState((current) => ({...current, todosOpen: true, filesOpen: false, infoOpen: false}));
-        }
-    }, [ui.selectedChannelId, ui.chatSeq, todoCount, isMobile, ui.mobilePane]);
     const [fallbackChannel, setFallbackChannel] = useState<MMChannel | undefined>(undefined);
 
     // Channels that were just created are not in the store yet: fetch them once.

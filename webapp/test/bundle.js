@@ -142,7 +142,7 @@ const registry = {
     globalThis.__todoTasks = [{id:'bundle-todo',channel_id:'channel-dm',text:'Task from another user',done:false,revision:1,created_at:Date.now()}];
     registryCalls.wsHandlers['custom_com.telegramweb.ui_todos_changed']({data:{channel_id:'channel-dm'}});
     await tick(120);
-    ok(document.querySelector('.tgw-todo-badge')?.textContent.includes('TODO 1'), 'channel-scoped todo events refresh sidebar counts in the production bundle');
+    ok(document.querySelector('.tgw-todo-badge')?.getAttribute('aria-label') === '1 unfinished todos', 'channel-scoped todo events refresh sidebar counts in the production bundle');
     const beforeReconnect = calls.filter((call) => call.includes('/todos/counts')).length;
     registryCalls.wsHandlers.hello({});
     await tick(120);

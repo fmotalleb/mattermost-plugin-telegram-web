@@ -3,6 +3,7 @@ import {IconTodo} from './primitives';
 
 import React, {useCallback, useEffect, useState} from 'react';
 import {api} from '../mm/api';
+import {useTodoCount} from '../mm/todos';
 import {setChannelFavorite} from '../mm/favorites';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {addOptimistic, getBlock, getReactions, loadChannel, markFailed, receivePost, receiveReaction, useChannelPosts} from '../mm/posts';
@@ -50,6 +51,7 @@ function minimalSummary(channel: MMChannel, peerId?: string, peer?: MMUser) {
 export function ChatView({quick = false}: {quick?: boolean}) {
     const {ui, actions, timeFormat, me, isMobile, channel} = useTg();
     const channelId = ui.selectedChannelId;
+    const todoCount = useTodoCount(quick ? undefined : channelId, ui.chatSeq);
     const activeChatRef = React.useRef(channelId);
     activeChatRef.current = channelId;
     useEffect(() => () => { activeChatRef.current = undefined; }, []);
@@ -455,7 +457,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                     </span>
                 </button>
                 <div className="tgw-chat-header-actions">
-                    {!quick && <button type="button" className={`tgw-icon-button tgw-todo-header ${ui.todosOpen ? 'tgw-icon-button-active' : ''}`} title="TODO" aria-label="TODO" onClick={() => actions.setUI({todosOpen: !ui.todosOpen, filesOpen: false, infoOpen: false, threadRootId: null, todoLinkedPost: null})}><IconTodo size={22}/></button>}
+                    {!quick && <button type="button" className={`tgw-icon-button tgw-todo-header ${ui.todosOpen ? 'tgw-icon-button-active' : ''}`} title="TODO" aria-label={todoCount ? `TODO · ${todoCount} open ${todoCount === 1 ? 'task' : 'tasks'}` : 'TODO'} aria-expanded={ui.todosOpen} onClick={() => actions.setUI({todosOpen: !ui.todosOpen, filesOpen: false, infoOpen: false, threadRootId: null, todoLinkedPost: null})}><IconTodo size={22}/>{!!todoCount && <span className="tgw-todo-header-count" aria-hidden="true">{todoCount > 99 ? '99+' : todoCount}</span>}</button>}
                     <button type="button" className="tgw-icon-button" title="Search in chat" onClick={() => setSearchOpen((value) => !value)}>
                         <IconSearch size={22}/>
                     </button>
