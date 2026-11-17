@@ -162,6 +162,37 @@ export function MessageBody({message, postId, mentionKeys, className, onTaskTogg
     return <span className={className}>{parts}</span>;
 }
 
+// The host may leave @all as plain text. Normalize it in both rendering paths,
+// while leaving code, URLs, email addresses and longer usernames untouched.
+function styleAllMentions(node: React.ReactNode): React.ReactNode {
+    if (typeof node === 'string') {
+        const pattern = /(^|[^\p{L}\p{N}_@./-])(@all)(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}_-])/giu;
+        const parts: React.ReactNode[] = [];
+        let end = 0;
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(node))) {
+            const start = match.index + match[1].length;
+            parts.push(node.slice(end, start));
+            parts.push(<span key={`all-${start}`} data-mention="all" className="tgw-mention tgw-mention-all">{match[2]}</span>);
+            end = start + match[2].length;
+        }
+        if (!parts.length) return node;
+        parts.push(node.slice(end));
+        return parts;
+    }
+    if (Array.isArray(node)) return node.map(styleAllMentions);
+    if (!React.isValidElement(node)) return node;
+    const element = node as React.ReactElement<any>;
+    if (['code', 'pre', 'a', 'button', 'script', 'style'].includes(element.type as string)) return element;
+    const props = element.props || {};
+    const mention = String(props['data-mention'] || '').replace(/^@/, '').toLowerCase();
+    if (mention === 'all') {
+        return React.cloneElement(element, {className: `${props.className || ''} tgw-mention tgw-mention-all`});
+    }
+    if (mention || props.children === undefined) return element;
+    return React.cloneElement(element, undefined, styleAllMentions(props.children));
+}
+
 function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
     const bodyRef = React.useRef<HTMLSpanElement>(null);
@@ -173,6 +204,7 @@ function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: 
     };
     React.useLayoutEffect(() => {
         bodyRef.current?.querySelectorAll(mentionSelector).forEach((node) => {
+            if (usernameOf(node).toLowerCase() === 'all' && !node.closest('code, pre')) node.classList.add('tgw-mention-all');
             if (!isUserMention(node)) return;
             node.setAttribute('role', 'button');
             node.setAttribute('tabindex', '0');
@@ -235,7 +267,7 @@ function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: 
         // fallback-font metrics stretch the row (or split a sequence over two lines). Same box
         // the fallback renderer uses, applied to the whole rendered tree; linkify first so the
         // bare-domain links it creates pass through the emoji walk untouched.
-        rendered = wrapEmojiNodes(linkifyNodes(rendered));
+        rendered = styleAllMentions(wrapEmojiNodes(linkifyNodes(rendered)));
         rendered = isolateLatinRuns(rendered);
         rendered = wireTaskCheckboxes(rendered, markdownTaskStates(message), onTaskToggle);
     } catch (error) {
@@ -320,7 +352,7 @@ function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key:
             }
             const name = mention.slice(1).toLowerCase();
             const isSelf = mentionNames.includes(name);
-            nodes.push(<span key={key} data-mention={mention.slice(1)} className={`tgw-mention ${isSelf ? 'tgw-mention-self' : ''}`}>{mention}</span>);
+            nodes.push(<span key={key} data-mention={mention.slice(1)} className={`tgw-mention ${isSelf ? 'tgw-mention-self' : ''}${name === 'all' ? ' tgw-mention-all' : ''}`}>{mention}</span>);
         } else if (bare) {
             // Typed without a scheme (google.com, openai.com): link it — unless it is the tail
             // of an address (bob@openai.com) or part of a larger word.

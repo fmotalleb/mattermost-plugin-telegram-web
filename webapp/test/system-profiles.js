@@ -113,6 +113,22 @@ const render = async (post) => { root.render(React.createElement(Surface, {post,
         ok(!document.querySelector('[data-mention="example.com"]'), 'email addresses do not become profile links');
         ok(hostClicks === 0, 'mention click stays in the plugin profile overlay');
     }
+    for (const host of [false, true]) {
+        if (host) window.PostUtils = {
+            formatText: (value) => value,
+            messageHtmlToComponent: () => React.createElement('span', null,
+                'Ping @all, @ALL! @allen bob@all.example ',
+                React.createElement('code', null, '@all'),
+                React.createElement('a', {href:'https://example.com/@all'}, '@all'),
+                React.createElement('span', {className:'mention', 'data-mention':'all'}, '@all')),
+        };
+        else delete window.PostUtils;
+        await render({id:`all-mention-${host}`,body:true,message:'Ping @all, @ALL! @allen bob@all.example `@all` [@all](https://example.com/@all)'});
+        const pills = document.querySelectorAll('.tgw-mention-all');
+        ok(pills.length === (host ? 3 : 2), `${host ? 'host' : 'fallback'} renderer styles standalone @all mentions as pills`);
+        ok(!document.querySelector('code .tgw-mention-all, a .tgw-mention-all, [data-mention="allen"].tgw-mention-all'), '@all styling leaves code, links and longer usernames untouched');
+        ok(!Array.from(pills).some((node)=>node.getAttribute('role')==='button'), '@all pills do not become user-profile buttons');
+    }
     delete window.PostUtils;
     root.unmount();
     report('SYSTEM PROFILE TEST');
