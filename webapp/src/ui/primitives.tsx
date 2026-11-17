@@ -55,7 +55,8 @@ export const IconForward = make('M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.
 export const IconClose = make('M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3 1.4 1.4Z', {filled: true});
 export const IconStar = make('M12 17.3 18.2 21l-1.6-7L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.8-1.6 7L12 17.3Z', {filled: true});
 export const IconStarOutline = make('M12 4.5 13.6 9h4.7l-3.8 3.4 1.2 5-3.7-2.6-3.7 2.6 1.2-5L5.7 9h4.7L12 4.5Z');
-export const IconMute = make('M21 4.8 19.2 3 15 7.2V6a3 3 0 0 0-6 0v6c0 .3 0 .6.1.8L3 12.9v2l4.2-.8 2.2 2.2c.3.5.9.9 1.6.9l1.4-1.4 6.6 6.6 1.8-1.8-9.8-9.8M18 12v-2.2l-4.5 4.5c.3.9 1.2 1.5 2.2 1.5 1.3 0 2.3-1 2.3-2.3V12Zm-3 6.5L6.5 10 5 11.5 12 18.5l3-3v3.8c0 1.5 1.2 2.7 2.7 2.7H20v-2h-2a1 1 0 0 1-1-1v-3.3l-2-2Z', {filled: true});
+// A simple bell-off outline remains readable beside chat names at 16px.
+export const IconMute = make('M9.5 4.6A6 6 0 0 1 18 10v3.5M6.3 6.3A6 6 0 0 0 6 10v4l-2 3h13M10 20a2 2 0 0 0 4 0M3 3l18 18');
 export const IconBell = make('M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22Zm7-5.5V11a7 7 0 0 0-5-6.7V3.5a2 2 0 1 0-4 0v.8A7 7 0 0 0 5 11v5.5L3 18.5v1h18v-1l-2-2Z', {filled: true});
 export const IconCheck = make('M9.6 17.2 4.4 12l-1.4 1.4 6.6 6.6L21 8.6 19.6 7.2 9.6 17.2Z', {filled: true});
 // Telegram's double check: two parallel ticks where the second one tucks behind

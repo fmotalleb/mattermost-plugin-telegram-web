@@ -595,6 +595,10 @@
     min-width: 0;
 }
 
+.tgw-chat-row-mute {
+    flex-shrink: 0;
+}
+
 .tgw-chat-row-inactive-peer:not(.tgw-chat-row-active) .tgw-avatar {
     filter: grayscale(.8);
     opacity: .72;
