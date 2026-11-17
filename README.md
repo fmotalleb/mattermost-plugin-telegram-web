@@ -21,7 +21,7 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 | --- | --- |
 | Target Mattermost | **v12.0+** (built and verified against the React 19 web app that ships with v12.0); also runs on v11.x hosts (React 18), which the classic JSX output stays compatible with |
 | `min_server_version` | `12.0.0` |
-| Server component | Go binary (`server/`) — view counts, chat actions, and plugin-owned scheduled sending; only linux-amd64/arm64 builds ship |
+| Server component | Go binary (`server/`) — view counts, chat actions, and plugin-owned scheduled sending; separate Linux amd64/ARMv7/ARM64/RISC-V64 and macOS amd64/ARM64 archives |
 | Bundle | `webapp/dist/main.js` (a single ~190 KB minified file, CSS inlined) |
 | React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance (React 19 on Mattermost v12); the test harness runs on React 19 to match |
 
@@ -31,19 +31,29 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 
 1. Download the latest release from [Releases](./releases) in github
 2. Open **System Console → Plugin Management → Plugin Management**.
-3. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0.tar.gz`.
+3. *Upload Plugin* → choose `release/com.telegramweb.ui-1.0.0-linux-amd64.tar.gz`.
 4. **Enable** the plugin. Reload the web app.
 
 **From source** (Node 24+ and Go 1.26+ — the minimum tested versions)
 
 ```bash
-make release         # npm install + webpack build + go build (linux amd64/arm64) + package
-# → release/com.telegramweb.ui-1.0.0.tar.gz   (plugin.json + assets/ + webapp/dist/main.js + server/dist/)
+make                 # default: webapp + Linux amd64 server + installable archive
+make amd64           # same as make (Linux amd64)
+make arm             # Linux ARMv7 (32-bit)
+make arm64           # Linux ARM64
+make riscv64         # Linux RISC-V64
+make darwin          # macOS amd64 and ARM64 (two separate archives)
+make release-all     # all six platform archives; shares one webapp build
+make server-all      # just the six server executables
+make release PLATFORM=darwin-arm64   # one explicit OS/architecture
+# → release/com.telegramweb.ui-<version>-<os>-<arch>.tar.gz
+# → release/com.telegramweb.ui-<version>-<os>-<arch>.tar.gz.sha256
 ```
 
 **Cutting a release** — push a version tag. GitHub Actions applies the tag as the version in
 `plugin.json` and `webapp/package.json` (plus the lockfile), runs the checks, packages
-`release/com.telegramweb.ui-<version>.tar.gz` and attaches it and its `checksums.txt` to the
+a separate `release/com.telegramweb.ui-<version>-<os>-<arch>.tar.gz` for each platform,
+and attaches every archive, its individual checksum, and a combined `checksums.txt` to the
 GitHub release for that tag:
 
 ```bash
@@ -52,8 +62,20 @@ git push origin v1.2.3
 ```
 
 Every push and pull request also runs the same checks (type check, smoke tests, bundle tests,
-packaging) via `.github/workflows/ci.yml`. The version stamping alone is available locally as
+packaging) via `.github/workflows/ci.yml`. The shared `build.yml` workflow builds the webapp once,
+then cross-compiles and uploads one Actions artifact per platform. Tag releases use the same
+workflow before publishing. The version stamping alone is available locally as
 `make version VERSION=1.2.3`.
+
+Choose the platform of the **Mattermost server**, not the browser or desktop client. Each archive
+contains the shared webapp/PDF.js assets, one server binary, and a manifest advertising only that
+binary. ARMv7, RISC-V64 and macOS targets require a matching Mattermost server; cross-compilation
+does not verify runtime compatibility on those hosts. Existing platform archives are retained
+when another platform is built. Use `make clean` to remove all build output.
+
+For an existing webapp build, `make package PLATFORM=linux-arm64` builds only the selected server
+binary and packages it. Explicit targets such as `make server-linux-riscv64` and
+`make release-darwin-arm64` are also available.
 
 ## Using it
 

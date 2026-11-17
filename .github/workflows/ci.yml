@@ -1,5 +1,4 @@
-# Builds and tests every push and pull request. Tag pushes are handled by release.yml.
-
+# Every branch push and pull request tests once and uploads separate platform archives.
 name: CI
 
 on:
@@ -8,29 +7,9 @@ on:
     tags-ignore: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
-    name: Type check, tests, bundle
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: webapp/package-lock.json
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
-
-      - name: Install dependencies
-        run: make webapp/node_modules
-
-      - name: Type check + smoke tests + bundle tests
-        run: make test
-
-      - name: Package the plugin tarball
-        run: make release
+  build:
+    uses: ./.github/workflows/build.yml

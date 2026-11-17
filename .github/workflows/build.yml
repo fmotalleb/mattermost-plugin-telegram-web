@@ -1,0 +1,80 @@
+name: Build platform artifacts
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: ''
+        description: Optional release tag to stamp before building
+
+permissions:
+  contents: read
+
+jobs:
+  webapp:
+    name: Test and build shared webapp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Apply release version
+        if: inputs.version != ''
+        env:
+          PLUGIN_RELEASE_VERSION: ${{ inputs.version }}
+        run: make version VERSION="$PLUGIN_RELEASE_VERSION"
+      - name: Install dependencies
+        run: make webapp/node_modules
+      - name: Run all checks
+        run: make test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webapp-build
+          path: |
+            webapp/dist/main.js
+            public/
+          if-no-files-found: error
+
+  packages:
+    name: Package ${{ matrix.platform }}
+    needs: webapp
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux-amd64, linux-arm, linux-arm64, linux-riscv64, darwin-amd64, darwin-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Apply release version
+        if: inputs.version != ''
+        env:
+          PLUGIN_RELEASE_VERSION: ${{ inputs.version }}
+        run: make version VERSION="$PLUGIN_RELEASE_VERSION"
+      - uses: actions/download-artifact@v4
+        with:
+          name: webapp-build
+          path: .
+      - name: Build and package one platform
+        run: make package PLATFORM=${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            release/*.tar.gz
+            release/*.tar.gz.sha256
+          if-no-files-found: error

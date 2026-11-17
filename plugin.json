@@ -14,7 +14,11 @@
     "server": {
         "executables": {
             "linux-amd64": "server/dist/plugin-linux-amd64",
-            "linux-arm64": "server/dist/plugin-linux-arm64"
+            "linux-arm": "server/dist/plugin-linux-arm",
+            "linux-arm64": "server/dist/plugin-linux-arm64",
+            "linux-riscv64": "server/dist/plugin-linux-riscv64",
+            "darwin-amd64": "server/dist/plugin-darwin-amd64",
+            "darwin-arm64": "server/dist/plugin-darwin-arm64"
         }
     },
     "settings_schema": {
