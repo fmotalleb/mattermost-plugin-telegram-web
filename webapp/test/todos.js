@@ -42,7 +42,8 @@ const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagNa
     const headerCount = () => document.querySelector('.tgw-todo-header-count')?.textContent;
     ok(await wait(()=>headerCount()==='1')&&!panel(),'opening a chat shows its TODO indicator without opening the list');
     ok(row('Alice')?.querySelector('.tgw-todo-badge')?.getAttribute('aria-label')==='1 unfinished todos','avatar badge exposes the unfinished task count');
-    ok(row('Alice')?.querySelector('.tgw-todo-badge textPath')?.textContent==='OPEN TODO','avatar badge uses a curved OPEN TODO label');
+    const todoBorder = row('Alice')?.querySelector('.tgw-todo-badge');
+    ok(todoBorder?.textContent===''&&todoBorder?.childElementCount===0,'avatar TODO indicator has no ribbon or visible label');
     click(document.querySelector('.tgw-todo-header'));
     ok(await wait(()=>panel()?.textContent.includes('Shared deployment')),'the header TODO icon opens the list on demand');
     ok(countBatches.some((b)=>b.length>1),'sidebar count requests are batched');

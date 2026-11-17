@@ -17,8 +17,6 @@ import {isUnreadChat} from '../mm/selectors';
 import {EmojiText} from './EmojiText';
 import {Avatar, Badge, IconMute, IconStar} from './primitives';
 
-let todoBadgeSequence = 0;
-
 function usePreview(channelId: string): {post: MMPost | null; loading: boolean} {
     const [post, setPost] = useState<MMPost | null>(() => getCachedPreview(channelId));
     const [loading, setLoading] = useState(() => isPreviewLoading(channelId));
@@ -71,7 +69,6 @@ export interface ChatRowProps {
 export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd, peerUser: resolvedPeer, peerUnavailable}: ChatRowProps) {
     const {timeFormat, settings, actions} = useTg();
     const todoCount = useTodoCount(summary.id);
-    const [todoBadgePath] = useState(() => `tgw-todo-arc-${++todoBadgeSequence}`);
     const draft = useSelector((state) => selectComposerDraft(state, summary.id)?.message || '');
     const myId = useSelector(getMyId);
     const {post: preview, loading: previewLoading} = usePreview(summary.id);
@@ -167,7 +164,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
             onDrop={(event) => onDrop?.(event)}
             onDragEnd={() => onDragEnd?.()}
         >
-            <span className={`tgw-chat-avatar-todos${todoCount ? ' tgw-has-open-todos' : ''}`}>
+            <span className="tgw-chat-avatar-todos">
             <Avatar
                 userId={summary.avatarUserId || peerUser?.id || summary.peerIds[0]}
                 name={title}
@@ -178,13 +175,7 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 showStatus={summary.type === 'D'}
                 savedMessages={summary.title === 'Saved Messages'}
             />
-            {!!todoCount && <span className="tgw-todo-badge" role="img" aria-label={`${todoCount} unfinished todos`} title={`${todoCount} open TODOs`}>
-                <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true" focusable="false">
-                    <path className="tgw-todo-badge-band" d="M 4.7 32.5 A 23 23 0 0 0 49.3 32.5"/>
-                    <defs><path id={todoBadgePath} d="M 2.9 32.5 A 24.7 24.7 0 0 0 51.1 32.5"/></defs>
-                    <text><textPath href={`#${todoBadgePath}`} startOffset="50%" textAnchor="middle">OPEN TODO</textPath></text>
-                </svg>
-            </span>}
+            {!!todoCount && <span className="tgw-todo-badge" role="img" aria-label={`${todoCount} unfinished todos`}/>}
             </span>
             <span className="tgw-chat-row-body">
                 <span className="tgw-chat-row-top">
