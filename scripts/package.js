@@ -14,7 +14,12 @@ if (!executable || !/^(linux-(amd64|arm|arm64|riscv64)|darwin-(amd64|arm64))$/.t
 }
 
 // Fail before touching an existing archive when an input is missing.
-for (const input of [executable, 'webapp/dist/main.js', 'assets', 'public']) {
+const lazyAssets = JSON.parse(fs.readFileSync(path.join(root, 'public/webapp/manifest.json'), 'utf8'));
+if (!Array.isArray(lazyAssets.files) || !lazyAssets.files.length) throw new Error('Missing lazy webapp assets');
+for (const file of lazyAssets.files) {
+    if (!path.resolve(root, file).startsWith(path.join(root, 'public', 'webapp') + path.sep)) throw new Error('Invalid lazy asset path');
+}
+for (const input of [executable, 'webapp/dist/main.js', 'assets', 'public', ...lazyAssets.files]) {
     if (!fs.existsSync(path.join(root, input))) throw new Error(`Missing build input: ${input}`);
 }
 manifest.server.executables = {[platform]: executable};

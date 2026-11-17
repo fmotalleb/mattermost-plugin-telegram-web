@@ -47,6 +47,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // are tagged on the way out and rebuilt in the page.
 const sub = (value) => JSON.stringify(value, (key, item) => (item instanceof Set ? {__set: [...item]} : item));
 
+if (process.env.TGW_LAZY_ONLY) state.entities.general.config.PluginSettings.Plugins['com.telegramweb.ui'].DefaultMode = false;
+
 // React 19 removed the UMD builds, so the page gets the production cjs files through a tiny
 // CommonJS shim. window.React / window.ReactDOM mirror the globals the Mattermost plugin loader
 // exposes to bundles; window.ReactDOMClient provides createRoot (which the main react-dom entry
@@ -123,8 +125,8 @@ const users = ${sub(users)};
 const channels = ${sub(channels)};
 const posts = ${sub(posts)};
 let scheduledMessages = [];
-// Include a real diagram in the built-bundle browser run (no CDN/chunk server).
-posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
+// Include a real diagram in the built-bundle browser run (local plugin assets only).
+if (!${JSON.stringify(Boolean(process.env.TGW_LAZY_ONLY))}) posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
 posts.p2.metadata.files = [
     {id:'browser-pdf',name:'local-preview.pdf',extension:'pdf',mime_type:'application/pdf',size:2000},
     {id:'browser-text',name:'local-notes.txt',extension:'txt',mime_type:'text/plain',size:100},
@@ -205,9 +207,9 @@ try {
             root.render(React.createElement(component));
             return 'root-1';
         },
-        registerChannelHeaderButtonAction: () => 'header-1',
+        registerChannelHeaderButtonAction: (_icon, action) => {window.__toggleTelegram=action;return 'header-1';},
         registerMainMenuAction: () => 'menu-1',
-        registerWebSocketEventHandler: () => undefined,
+        registerWebSocketEventHandler: (event,handler) => {window.__wsHandlers=window.__wsHandlers||{};window.__wsHandlers[event]=handler;},
         unregisterWebSocketEventHandler: () => undefined,
         unregisterComponent: () => undefined,
     };
@@ -387,12 +389,28 @@ class CDP {
     const major = chromeMajor(binary);
     const headlessFlag = major >= 120 ? '--headless=new' : '--headless';
 
+    const webappRequests = [];
+    let failUIChunk = Boolean(process.env.TGW_LAZY_ONLY);
     const pdfRequests = [];
     let failPDFModule = true;
     const server = http.createServer((request, response) => {
         const pathname = new URL(request.url, 'http://localhost').pathname;
         const pdfPrefix = '/plugins/com.telegramweb.ui/public/pdfjs/';
-        if (process.env.TGW_IMAGE_VIEWER_ONLY && /^\/api\/v4\/files\/file-[12](?:\/thumbnail)?$/.test(pathname)) {
+        const webappPrefix = '/plugins/com.telegramweb.ui/public/webapp/';
+        if (pathname.startsWith(webappPrefix)) {
+            webappRequests.push(pathname);
+            if (failUIChunk && pathname.includes('/telegram-ui.')) { failUIChunk=false;response.writeHead(503);response.end('temporary chunk failure');return; }
+            const base=path.resolve(__dirname,'..','..','public','webapp');
+            const file=path.resolve(base,pathname.slice(webappPrefix.length));
+            if(!file.startsWith(base+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){response.writeHead(404);response.end('not found');return;}
+            const send = () => {
+                response.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.woff2')?'font/woff2':'application/octet-stream'});
+                response.end(fs.readFileSync(file));
+            };
+            if (process.env.TGW_LAZY_ONLY && pathname.includes('/emoji-picker.')) setTimeout(send,200); else send();
+            return;
+        }
+        if ((process.env.TGW_IMAGE_VIEWER_ONLY || process.env.TGW_LAZY_ONLY) && /^\/api\/v4\/files\/file-[12](?:\/thumbnail)?$/.test(pathname)) {
             if (process.env.TGW_IMAGE_FIXTURE && pathname.includes('file-1')) {
                 response.writeHead(200, {'Content-Type':'image/png'}); response.end(fs.readFileSync(process.env.TGW_IMAGE_FIXTURE)); return;
             }
@@ -501,6 +519,40 @@ class CDP {
         await cdp.send('Page.enable');
         await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
         await cdp.send('Page.navigate', {url: baseUrl});
+
+        if (process.env.TGW_LAZY_ONLY) {
+            await cdp.waitFor('window.__BOOTED===true',10000,'plugin boot');await sleep(150);
+            ok(webappRequests.length===0&&await cdp.eval('!document.querySelector(".tgw-root")&&!document.querySelector("style[data-webpack]")'),'disabled plugin requests no UI, engine or font assets');
+            await cdp.eval('window.__toggleTelegram()');
+            await cdp.waitFor('document.querySelector("[role=alert]")?.textContent.includes("Could not load the Telegram view")',10000,'chunk failure feedback');
+            await cdp.clickSelector('[role=alert] button');
+            await cdp.waitFor('!!document.querySelector(".tgw-composer textarea")',20000,'retry loads UI');await sleep(300);
+            ok(webappRequests.filter(url=>url.includes('/telegram-ui.')).length===2,'failed UI chunks can be retried in the browser');
+            ok(!webappRequests.some(url=>/mermaid-engine|modals|imageviewer|emoji-picker/.test(url)),'normal chat does not download optional feature chunks');
+            ok(webappRequests.some(url=>url.includes('/fonts/')),'fonts load from packaged local assets when the UI is enabled');
+            await cdp.waitFor('!!document.querySelector(".tgw-attachment-image")');
+            await cdp.eval(`(async () => {const node=document.querySelector('.tgw-attachment-image');node.scrollIntoView({block:'center'});await Promise.all(Array.from(node.querySelectorAll('img')).map(image=>image.decode().catch(()=>{})));await new Promise(requestAnimationFrame);})()`);
+            await cdp.clickSelector('.tgw-attachment-image');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer")');
+            const imageLoads=webappRequests.filter(url=>url.includes('/imageviewer.')).length;
+            ok(imageLoads===1,'image viewer code downloads on first image open');
+            await cdp.clickSelector('.tgw-image-viewer-close');await cdp.clickSelector('.tgw-attachment-image');await cdp.waitFor('!!document.querySelector(".tgw-image-viewer")');
+            ok(webappRequests.filter(url=>url.includes('/imageviewer.')).length===imageLoads,'reopening an image reuses its loaded module');
+            await cdp.clickSelector('.tgw-image-viewer-close');
+            await cdp.clickSelector('.tgw-composer [title="Emoji"]');
+            await cdp.waitFor('!!document.querySelector(".tgw-lazy-status")');
+            await cdp.clickSelector('.tgw-chat-header');await sleep(350);
+            ok(await cdp.eval('!document.querySelector(".tgw-emoji-picker")'),'clicking away while picker code loads prevents a late popup');
+            await cdp.clickSelector('.tgw-composer [title="Emoji"]');await cdp.waitFor('!!document.querySelector(".tgw-emoji-picker")');
+            ok(webappRequests.some(url=>url.includes('/emoji-picker.')),'emoji picker code downloads only when opened');
+            await cdp.eval(`window.__wsHandlers.post_edited({data:{post:{...posts.p2,message:'\`\`\`mermaid\\nflowchart LR\\nA-->B\\n\`\`\`',edit_at:Date.now()}}})`);
+            await cdp.waitFor('!!document.querySelector(".tgw-mermaid")');
+            await cdp.eval('document.querySelector(".tgw-mermaid").scrollIntoView({block:"center"})');
+            await cdp.waitFor('!!document.querySelector(".tgw-mermaid svg")',30000,'lazy Mermaid render');
+            ok(webappRequests.some(url=>url.includes('/mermaid-engine.')),'Mermaid engine downloads only for a diagram');
+            ok((await cdp.eval('window.__pageErrors')).length===0,'lazy feature loads produce no browser errors');
+            report('LAZY LOADING BROWSER TEST');return;
+        }
 
         await cdp.waitFor('window.__BOOTED === true && document.querySelector(".tgw-root") ? true : false', 20000, 'overlay to render');
         await cdp.waitFor('!!document.querySelector(".tgw-composer textarea")', 20000, 'composer to mount');
@@ -722,8 +774,10 @@ class CDP {
             `unread chat opens at the newest unread incoming message with newer own messages below (${JSON.stringify(unreadOpening)})`);
 
         console.log('\n== Mermaid viewer ==');
+        await cdp.waitFor('!!document.querySelector(".tgw-mermaid")');
+        await cdp.eval('document.querySelector(".tgw-mermaid").scrollIntoView({block:"center"})');
         await cdp.waitFor('!!document.querySelector(".tgw-mermaid svg") && !document.querySelector(".tgw-mermaid-open").disabled', 15000, 'real Mermaid rendering');
-        ok(await cdp.eval('document.querySelector(".tgw-mermaid svg").textContent.includes("Review")'), 'production bundle renders Mermaid without external chunks');
+        ok(await cdp.eval('document.querySelector(".tgw-mermaid svg").textContent.includes("Review")'), 'production bundle renders Mermaid using local lazy chunks');
         await cdp.eval("document.querySelector('.tgw-mermaid-open').scrollIntoView({block:'center'})");
         await sleep(250);
         await cdp.clickSelector('.tgw-mermaid-open');

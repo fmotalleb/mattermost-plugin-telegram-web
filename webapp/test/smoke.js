@@ -836,6 +836,7 @@ root.render(React.createElement(TelegramUI));
     // Images read as pictures in the list; every other kind carries its extension on the
     // icon (annual-report.pdf → PDF, the voice message → WEBM), like Mattermost's file list.
     ok(!!document.querySelector('.tgw-files-panel .tgw-file-thumb img'), 'image files show a thumbnail in the panel');
+    await waitFor(() => Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-icon')).some((node) => node.textContent.trim() === 'PDF'));
     const panelIcons = Array.from(document.querySelectorAll('.tgw-files-panel .tgw-file-icon')).map((el) => (el.textContent || '').trim());
     ok(panelIcons.includes('PDF'), `non-image files show their extension on the icon (${panelIcons.join(', ')})`);
     ok(panelIcons.includes('WEBM'), 'voice messages keep their extension icon too');
@@ -1051,6 +1052,7 @@ root.render(React.createElement(TelegramUI));
         // Info panel members must come from the REST list, not the sparse host Redux copy.
         document.querySelector('.tgw-chat-header-main')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => document.querySelector('.tgw-members'));
+        await waitFor(() => Array.from(document.querySelectorAll('.tgw-members .tgw-member-name')).some((node) => node.textContent.includes('Nina Novak')));
         const memberNames = Array.from(document.querySelectorAll('.tgw-member-name')).map((node) => node.textContent);
         ok(memberNames.includes('Nina Novak'), 'member list shows people the host store never loaded');
         ok(memberNames.length === 3, `member list renders every member (${memberNames.length})`);

@@ -22,7 +22,7 @@ theme as [`docs/ui-preview-dark.html`](docs/ui-preview-dark.html).
 | Target Mattermost | **v12.0+** (built and verified against the React 19 web app that ships with v12.0); also runs on v11.x hosts (React 18), which the classic JSX output stays compatible with |
 | `min_server_version` | `12.0.0` |
 | Server component | Go binary (`server/`) — view counts, chat actions, and plugin-owned scheduled sending; separate Linux amd64/ARMv7/ARM64/RISC-V64 and macOS amd64/ARM64 archives |
-| Bundle | `webapp/dist/main.js` (a single ~190 KB minified file, CSS inlined) |
+| Bundle | `webapp/dist/main.js` startup entry + hashed chunks/fonts in `public/webapp/` |
 | React | never bundled — `react` / `react-dom` are webpack `externals` resolved from the host globals (`window.React`, `window.ReactDOM`), so the plugin always runs on the host's React instance (React 19 on Mattermost v12); the test harness runs on React 19 to match |
 
 ## Install
@@ -76,6 +76,13 @@ when another platform is built. Use `make clean` to remove all build output.
 For an existing webapp build, `make package PLATFORM=linux-arm64` builds only the selected server
 binary and packages it. Explicit targets such as `make server-linux-riscv64` and
 `make release-darwin-arm64` are also available.
+
+The startup entry registers the plugin without downloading the Telegram UI, CSS or fonts while
+it is disabled. Enabling the view loads its UI; dialogs, side panels, the emoji picker and image
+viewer load on first use and are cached for later openings. Mermaid loads only when a diagram
+approaches the viewport. All chunks and fonts are packaged locally under `public/webapp/`, with
+hashed filenames, subpath-aware URLs, and retry controls for failed downloads. PDF.js remains
+separately lazy-loaded from `public/pdfjs/`.
 
 ## Using it
 

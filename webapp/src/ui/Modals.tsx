@@ -20,7 +20,7 @@ export function ModalShell({title, children, footer, width = 460, onClose, manag
     const dialog = useRef<HTMLDivElement>(null);
     const latestClose = useRef(onClose);
     latestClose.current = onClose;
-    useEffect(() => {
+    React.useLayoutEffect(() => {
         if (!manageFocus) return;
         const previous = document.activeElement as HTMLElement;
         const controls = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input, textarea, [tabindex="0"]') || []);
@@ -794,5 +794,3 @@ export function Modals() {
         return null;
     }
 }
-
-export {ImageViewer} from './ImageViewer';

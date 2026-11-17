@@ -6,8 +6,8 @@
 /*
  * Vazirmatn — SIL OFL 1.1, https://github.com/rastikerdar/vazirmatn (see src/fonts/OFL.txt).
  * One variable-font face covering Persian (Farsi) and Latin, so Persian and English text share
- * the same default typeface. webpack inlines it as a data URI (asset/inline) to keep the bundle
- * a single main.js; font-display swaps to the system stack while it loads.
+ * the same default typeface. webpack emits a hashed local font asset, requested only when the UI uses it;
+ * font-display swaps to the system stack while it loads.
  */
 @font-face {
     font-family: 'Vazirmatn';
@@ -4434,3 +4434,7 @@ body.tgw-root-active {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
 }
+
+/* Brief feedback while an optional view is loaded from the plugin's local assets. */
+.tgw-root .tgw-lazy-status { position: fixed; z-index: 1200; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--tgw-border); border-radius: 12px; background: var(--tgw-bg); color: var(--tgw-text); box-shadow: var(--tgw-shadow-strong); }
+.tgw-root .tgw-lazy-status button { color: var(--tgw-accent); border: 0; background: transparent; cursor: pointer; }

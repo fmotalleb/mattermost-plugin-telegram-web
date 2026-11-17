@@ -6,7 +6,7 @@ let nextDiagram = 0;
 let engine: Promise<typeof import('mermaid')['default']>;
 function loadMermaid() {
     if (!engine) {
-        engine = import('mermaid').then(({default: mermaid}) => {
+        engine = import(/* webpackChunkName: "mermaid-engine" */ 'mermaid').then(({default: mermaid}) => {
             mermaid.initialize({
                 startOnLoad: false, securityLevel: 'strict', theme: 'default',
                 suppressErrorRendering: true, maxTextSize: 50000, maxEdges: 500,
@@ -22,17 +22,31 @@ function loadMermaid() {
 
 function DiagramSvg({source, onReady}: {source: string; onReady?: () => void}) {
     const [result, setResult] = useState({source: '', svg: '', error: false});
+    const root = useRef<HTMLSpanElement>(null);
+    const [attempt, setAttempt] = useState(0);
+    const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined');
     useEffect(() => {
+        if (visible || !root.current) return undefined;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) { setVisible(true); observer.disconnect(); }
+        }, {rootMargin: '160px'});
+        observer.observe(root.current);
+        return () => observer.disconnect();
+    }, [visible]);
+    useEffect(() => {
+        if (!visible) return undefined;
         let cancelled = false;
         loadMermaid().then((mermaid) => mermaid.render(`tgw-mermaid-${++nextDiagram}`, source))
             .then(({svg}) => { if (!cancelled) { setResult({source, svg, error: false}); onReady?.(); } })
             .catch(() => { if (!cancelled) setResult({source, svg: '', error: true}); });
         return () => { cancelled = true; };
-    }, [source]);
-    if (result.source !== source) return <span role="status">Rendering diagram…</span>;
-    if (result.error) return <span className="tgw-mermaid-error"><span role="status">Could not render Mermaid diagram.</span><code className="tgw-code-block">{source}</code></span>;
+    }, [source, visible, attempt]);
     // Mermaid sanitizes its SVG in strict mode. Never bind diagram-provided click handlers.
-    return <span className="tgw-mermaid-svg" dangerouslySetInnerHTML={{__html: result.svg}}/>;
+    return <span ref={root} className="tgw-mermaid-content">
+        {result.source !== source ? <span role="status">Rendering diagram…</span>
+            : result.error ? <span className="tgw-mermaid-error"><span role="status">Could not render Mermaid diagram.</span><button type="button" className="tgw-link-button" onClick={() => setAttempt((value) => value + 1)}>Retry</button><code className="tgw-code-block">{source}</code></span>
+                : <span className="tgw-mermaid-svg" dangerouslySetInnerHTML={{__html: result.svg}}/>}
+    </span>;
 }
 
 function DiagramModal({source, onClose}: {source: string; onClose: () => void}) {

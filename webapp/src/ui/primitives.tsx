@@ -190,6 +190,8 @@ export function Avatar({userId, profile, name, colorKey, size = 54, status, show
             ) : hasPicture && (
                 <img
                     src={url}
+                    loading="lazy"
+                    decoding="async"
                     alt=""
                     draggable={false}
                     onError={() => setFailedSource(url)}

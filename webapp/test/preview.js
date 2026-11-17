@@ -28,7 +28,7 @@ const {TelegramUI} = require('../src/ui/TelegramUI');
 const {store} = require('./harness');
 
 const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
-    // Match webpack's asset/inline for both the text and emoji fonts.
+    // Documentation previews stay standalone; production serves these fonts as hashed local assets.
     .replace(
         /url\('\.\/fonts\/([^']+\.woff2)'\)/g,
         (_, filename) => `url(data:font/woff2;base64,${fs.readFileSync(path.join(__dirname, '..', 'src', 'fonts', filename)).toString('base64')})`,

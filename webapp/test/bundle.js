@@ -42,6 +42,31 @@ window.ReactJSXRuntime = require('react/jsx-runtime');
 global.React = React;
 global.ReactDOM = ReactDOMLegacy;
 global.ReactJSXRuntime = window.ReactJSXRuntime;
+// Simulate Mattermost serving hashed scripts from a non-root installation path.
+global.self = window;
+window.basename = '/nested';
+state.entities.general.config.PluginSettings.Plugins['com.telegramweb.ui'].DefaultMode = false;
+const originalFetch = global.fetch;
+global.fetch = (url, options) => originalFetch(String(url).replace('/nested/', '/'), options);
+const chunkRequests = [];
+let failFirstChunk = true;
+const originalAppend = document.head.appendChild.bind(document.head);
+document.head.appendChild = (node) => {
+    if (node.tagName !== 'SCRIPT' || !node.src) return originalAppend(node);
+    const pathname = new URL(node.src).pathname;
+    const prefix = '/nested/plugins/com.telegramweb.ui/';
+    if (!pathname.startsWith(prefix)) throw new Error(`Unexpected chunk URL: ${node.src}`);
+    const file = path.resolve(__dirname, '..', '..', pathname.slice(prefix.length));
+    chunkRequests.push(pathname);
+    queueMicrotask(() => {
+        if (failFirstChunk) { failFirstChunk = false; node.onerror?.({type:'error',target:node}); return; }
+        try { require(file); node.onload?.({type:'load',target:node}); }
+        catch (error) { console.error(error); node.onerror?.({type:'error',target:node}); }
+    });
+    return node;
+};
+const waitFor = async (predicate) => { for(let n=0;n<200&&!predicate();n++) await tick(20); return predicate(); };
+
 
 const pluginJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'plugin.json'), 'utf8'));
 
@@ -96,6 +121,15 @@ const registry = {
     registered.plugin.initialize(registry, store);
     await tick(80);
 
+    ok(chunkRequests.length === 0 && !document.querySelector('.tgw-root') && !document.querySelector('style'), 'disabled plugin loads no UI chunks, CSS or fonts');
+    registryCalls.headerButtons[0].action();
+    await waitFor(() => document.querySelector('[role="alert"]'));
+    ok(document.body.textContent.includes('Could not load the Telegram view.'), 'a failed UI chunk offers recovery');
+    Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Retry')?.click();
+    await waitFor(() => document.querySelector('.tgw-composer textarea'));
+    ok(chunkRequests.every((url) => url.startsWith('/nested/plugins/com.telegramweb.ui/public/webapp/')), 'lazy chunks respect Mattermost subpaths and the plugin public route');
+    ok(!chunkRequests.some((url) => /mermaid|imageviewer|modals|emoji-picker/.test(url)), 'optional feature chunks are not requested when opening a normal chat');
+
     console.log('\n== host integration ==');
     ok(registryCalls.rootComponents.length === 1, 'registered one root component');
     ok(registryCalls.headerButtons.length === 1, 'registered a channel header button');
@@ -120,10 +154,10 @@ const registry = {
         'the wallpapers are rebuilt to hide their tiling (big doodle tile, uneven grid, mixed stripe periods)');
     ok(cssText.includes('.tgw-chat:not(.tgw-search-panel) > .tgw-chat-header') && cssText.includes('backdrop-filter: blur('),
         'the chat header floats over the message list with a live backdrop blur');
-    ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && cssText.includes('data:font/woff2;base64'),
-        'the Vazirmatn webfont is inlined as a data URI');
-    ok(/font-family:\s*['"]TGW Emoji['"][^}]+src:\s*url\([^)]*data:font\/woff2;base64/.test(cssText),
-        'the cross-platform emoji artwork ships inside the bundle without a CDN');
+    ok(cssText.includes('@font-face') && cssText.includes('Vazirmatn') && /public\/webapp\/fonts\/Vazirmatn-Variable\.[a-f0-9]+\.woff2/.test(cssText),
+        'the text font uses a local cacheable asset');
+    ok(/public\/webapp\/fonts\/Twemoji\.[a-f0-9]+\.woff2/.test(cssText) && !cssText.includes('data:font/woff2;base64'),
+        'emoji artwork uses a local cacheable font without a CDN');
     ok(cssText.includes('.tgw-root textarea') && cssText.includes('user-select: text'),
         'text fields force user-select back on so Ctrl+A cannot select the page around them');
     ok(!cssText.includes('.tgw-root.tgw-glassy .tgw-chat {') && !cssText.includes('.tgw-theme-dark .tgw-chat,') && !cssText.includes('.tgw-theme-midnight .tgw-chat,'),

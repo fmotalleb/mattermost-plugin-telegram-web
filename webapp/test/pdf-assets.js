@@ -13,7 +13,8 @@ for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {
     assert.equal(fs.readFileSync(path.join(base, file), 'utf8'),
         fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build', file), 'utf8'), 'renderer and worker use the same pinned version');
 }
-const bundle = fs.readFileSync(path.join(__dirname, '..', 'dist', 'main.js'), 'utf8');
+const lazy = path.join(__dirname, '..', '..', 'public', 'webapp');
+const bundle = fs.readFileSync(path.join(__dirname, '..', 'dist', 'main.js'), 'utf8') + fs.readdirSync(lazy).filter((file) => file.endsWith('.js')).map((file) => fs.readFileSync(path.join(lazy, file), 'utf8')).join('\n');
 assert(!bundle.includes('Invalid PDF structure.'), 'PDF engine must remain outside the startup bundle');
 assert(bundle.includes('pdf.min.mjs') && bundle.includes('pdf.worker.min.mjs'), 'bundle loads the packaged PDF modules');
 console.log('PDF ASSETS TEST PASSED');

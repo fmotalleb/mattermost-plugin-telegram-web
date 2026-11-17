@@ -10,7 +10,7 @@ export function pdfAssetURL(file = ''): string {
     return `${basename}/plugins/${PLUGIN_ID}/public/pdfjs/${version}/${file}`;
 }
 
-/** The import stays native and outside webpack's single main.js bundle. */
+/** The import stays native and outside webpack's chunks. */
 export function loadPDFJS(): Promise<PDFJS> {
     if (!pending) {
         const url = pdfAssetURL('pdf.min.mjs') + (failures ? `?retry=${failures}` : '');

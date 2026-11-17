@@ -4,6 +4,7 @@
 // header button + main menu entry to toggle it, and pipes the websocket events the UI needs into
 // its own post cache.
 
+import './public-path';
 import React from 'react';
 import {PLUGIN_ID, getSettings, initSettings, setEnabled} from './mm/settings';
 import {api} from './mm/api';
@@ -12,8 +13,7 @@ import {clearCache} from './mm/posts';
 import {handleSocketEvent} from './mm/socket';
 import {setStore} from './mm/store';
 import {startStockUIViewTracking} from './mm/stock-views';
-import {TelegramUI} from './ui/TelegramUI';
-import './styles.css';
+import {LazyRoot} from './ui/LazyRoot';
 
 const ICON = React.createElement(
     'svg',
@@ -55,7 +55,7 @@ class TelegramWebPlugin {
         this.componentIds = [];
 
         // The UI itself. It renders as a full screen portal while it is enabled.
-        this.componentIds.push(registry.registerRootComponent(TelegramUI));
+        this.componentIds.push(registry.registerRootComponent(LazyRoot));
 
         // Quick toggle from the channel header + main menu.
         registry.registerChannelHeaderButtonAction(ICON, () => this.toggle(), 'Telegram Web UI', 'Switch to the Telegram Web style UI');

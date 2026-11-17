@@ -62,10 +62,10 @@ check-types: $(WEBAPP_DIR)/node_modules
 test: check-types test-smoke test-bundle test-server test-package
 
 test-smoke: $(WEBAPP_DIR)/node_modules
-	cd $(WEBAPP_DIR) && node test/todos.js && node test/unread-position.js && node test/scheduled-list.js && node test/profile-photos.js && node test/file-preview.js && node test/image-viewer.js && node test/autolinks.js && node test/emoji-rendering.js && node test/chat-header-menu.js && node test/mermaid.js && node test/channel-notifications.js && node test/unread-settings.js && node test/send-options.js && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
+	cd $(WEBAPP_DIR) && node test/deferred.js && node test/todos.js && node test/unread-position.js && node test/scheduled-list.js && node test/profile-photos.js && node test/file-preview.js && node test/image-viewer.js && node test/autolinks.js && node test/emoji-rendering.js && node test/chat-header-menu.js && node test/mermaid.js && node test/channel-notifications.js && node test/unread-settings.js && node test/send-options.js && node test/system-profiles.js && node test/commands.js && node test/quick-chat.js && node test/smoke.js
 
 test-bundle: bundle
-	cd $(WEBAPP_DIR) && node test/pdf-assets.js && node test/bundle.js
+	cd $(WEBAPP_DIR) && node test/pdf-assets.js && node test/lazy-assets.js && node test/bundle.js
 
 test-server:
 	cd $(SERVER_DIR) && go test ./... && go vet ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /dev/null .
@@ -89,4 +89,4 @@ test-package:
 	node scripts/test-package.js
 
 clean:
-	rm -rf $(RELEASE_DIR) $(WEBAPP_DIR)/dist $(SERVER_DIST) public/pdfjs
+	rm -rf $(RELEASE_DIR) $(WEBAPP_DIR)/dist $(SERVER_DIST) public/pdfjs public/webapp

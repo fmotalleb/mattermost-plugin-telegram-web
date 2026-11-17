@@ -145,7 +145,7 @@ export function ImageViewer() {
     const close = useCallback(() => actions.setUI({imageViewer: null}), [actions]);
     const move = useCallback((step: number) => setIndex((current) => images.length ? (current + step + images.length) % images.length : 0), [images.length]);
     const handlers = useRef({close, move}); handlers.current = {close, move};
-    useEffect(() => {
+    React.useLayoutEffect(() => {
         if (!target) return undefined;
         const previous = document.activeElement as HTMLElement;
         const controls = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]') || []);

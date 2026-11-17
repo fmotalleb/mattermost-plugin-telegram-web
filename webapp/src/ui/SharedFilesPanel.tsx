@@ -37,7 +37,7 @@ function RowIcon({file}: {file: MMFileInfo}) {
     if (kind === 'image' && !broken) {
         return (
             <span className="tgw-file-thumb">
-                <img src={api.fileURL(file.id, true)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)}/>
+                <img src={api.fileURL(file.id, true)} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setBroken(true)}/>
             </span>
         );
     }

@@ -6,19 +6,28 @@
 // same React instance the host app uses (React 19 on Mattermost v12, React 18 on v11).
 
 const path = require('path');
+const fs = require('fs');
 const webpack = require('webpack');
 
 require('../scripts/prepare-pdfjs')();
+// Clean only generated lazy assets; the output root also contains repository sources.
+fs.rmSync(path.join(__dirname, '..', 'public', 'webapp'), {recursive: true, force: true});
 
 const PLUGIN_ID = require('../plugin.json').id;
+const PLUGIN_VERSION = require('../plugin.json').version;
 const NPM_TARGET = process.env.npm_lifecycle_event; // eslint-disable-line no-process-env
 const isDev = NPM_TARGET === 'debug' || NPM_TARGET === 'debug:watch';
 
 const config = {
-    // Mermaid imports diagram renderers dynamically. Ship them inside the installable
-    // main.js, since the plugin host does not serve webpack chunks from its root URL.
-    plugins: [new webpack.optimize.LimitChunkCountPlugin({maxChunks: 1})],
     entry: ['./src/index.tsx'],
+    plugins: [{apply(compiler) {
+        compiler.hooks.thisCompilation.tap('PluginAssets', (compilation) => {
+            compilation.hooks.processAssets.tap({name: 'PluginAssets', stage: webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT}, () => {
+                const files = compilation.getAssets().map((asset) => asset.name).filter((name) => name.startsWith('public/webapp/')).sort();
+                compilation.emitAsset('public/webapp/manifest.json', new webpack.sources.RawSource(JSON.stringify({files}, null, 2)));
+            });
+        });
+    }}],
     resolve: {
         modules: ['src', 'node_modules'],
         extensions: ['*', '.js', '.jsx', '.ts', '.tsx'],
@@ -38,10 +47,10 @@ const config = {
                 use: ['style-loader', 'css-loader'],
             },
             {
-                // Fonts referenced from styles.css are inlined as data URIs so the shipped
-                // artifact stays a single dist/main.js (no extra runtime file to serve).
+                // Fonts are fetched and cached independently when the Telegram UI uses them.
                 test: /\.woff2$/,
-                type: 'asset/inline',
+                type: 'asset/resource',
+                generator: {filename: 'public/webapp/fonts/[name].[contenthash:12][ext]'},
             },
         ],
     },
@@ -59,9 +68,13 @@ const config = {
     },
     output: {
         devtoolNamespace: PLUGIN_ID,
-        path: path.join(__dirname, 'dist'),
+        path: path.join(__dirname, '..'),
+        clean: false,
+        uniqueName: `${PLUGIN_ID}-${PLUGIN_VERSION}`,
+        chunkLoadingGlobal: `webpackChunkTelegramWebUI_${PLUGIN_VERSION.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        chunkFilename: 'public/webapp/[name].[contenthash:12].js',
         publicPath: '/',
-        filename: 'main.js',
+        filename: 'webapp/dist/main.js',
     },
     mode: isDev ? 'development' : 'production',
     devtool: isDev ? 'eval-source-map' : false,

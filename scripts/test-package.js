@@ -11,12 +11,13 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tgw-package-test-'));
 try {
     const source = `${JSON.stringify(manifest, null, 4)}\n`;
     fs.writeFileSync(path.join(root, 'plugin.json'), source);
-    for (const file of ['assets/icon.svg', 'public/pdfjs/test/worker.mjs', 'webapp/dist/main.js', ...Object.values(manifest.server.executables)]) {
+    for (const file of ['assets/icon.svg', 'public/pdfjs/test/worker.mjs', 'public/webapp/telegram-ui.test.js', 'public/webapp/fonts/emoji.test.woff2', 'webapp/dist/main.js', ...Object.values(manifest.server.executables)]) {
         const destination = path.join(root, file);
         fs.mkdirSync(path.dirname(destination), {recursive: true});
         fs.writeFileSync(destination, file);
         if (file.startsWith('server/')) fs.chmodSync(destination, 0o755);
     }
+    fs.writeFileSync(path.join(root, 'public/webapp/manifest.json'), JSON.stringify({files:['public/webapp/telegram-ui.test.js','public/webapp/fonts/emoji.test.woff2']}));
     const archives = [];
     for (const [platform, executable] of Object.entries(manifest.server.executables)) {
         execFileSync(process.execPath, [script, platform], {cwd: root, stdio: 'pipe'});
@@ -33,7 +34,7 @@ try {
         assert.deepEqual(fs.readdirSync(path.join(unpacked, 'server/dist')), [path.basename(executable)]);
         assert.equal(fs.readFileSync(path.join(unpacked, executable), 'utf8'), executable);
         assert.equal(fs.statSync(path.join(unpacked, executable)).mode & 0o777, 0o755);
-        for (const file of ['assets/icon.svg', 'public/pdfjs/test/worker.mjs', 'webapp/dist/main.js']) {
+        for (const file of ['assets/icon.svg', 'public/pdfjs/test/worker.mjs', 'public/webapp/telegram-ui.test.js', 'public/webapp/fonts/emoji.test.woff2', 'webapp/dist/main.js']) {
             assert.equal(fs.readFileSync(path.join(unpacked, file), 'utf8'), file);
         }
         const hash = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
@@ -45,6 +46,9 @@ try {
     assert.notEqual(spawnSync(process.execPath, [script, 'linux-unknown'], {cwd: root}).status, 0);
     const existing = path.join(root, 'release', archives[0]);
     const before = fs.readFileSync(existing);
+    fs.unlinkSync(path.join(root, 'public/webapp/telegram-ui.test.js'));
+    assert.notEqual(spawnSync(process.execPath, [script, 'linux-amd64'], {cwd: root}).status, 0);
+    assert.deepEqual(fs.readFileSync(existing), before);
     fs.unlinkSync(path.join(root, 'webapp/dist/main.js'));
     assert.notEqual(spawnSync(process.execPath, [script, 'linux-amd64'], {cwd: root}).status, 0);
     assert.deepEqual(fs.readFileSync(existing), before);

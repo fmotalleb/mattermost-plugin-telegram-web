@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Mattermost webapp plugin (`com.telegramweb.ui`) that overlays a Telegram-Web-style UI on the host app. Deliverables: a webpack bundle (`webapp/dist/main.js`, CSS inlined), lazy PDF.js assets (`public/pdfjs/<version>/`), and a small Go server binary (`server/dist/plugin-<os>-<arch>`). Installable tarballs are platform-specific; `make` / `make release` defaults to linux-amd64.
+Mattermost webapp plugin (`com.telegramweb.ui`) that overlays a Telegram-Web-style UI on the host app. Deliverables: a small startup bundle (`webapp/dist/main.js`) plus hashed lazy chunks/fonts (`public/webapp/`, CSS in the lazy UI chunk), lazy PDF.js assets (`public/pdfjs/<version>/`), and a small Go server binary (`server/dist/plugin-<os>-<arch>`). Installable tarballs are platform-specific; `make` / `make release` defaults to linux-amd64.
 
 ## Commands (all from repo root)
 
@@ -17,18 +17,21 @@ Minimum toolchains: Node 24+, Go 1.26 (see `server/go.mod`). There is no linter 
 ## Architecture facts that are easy to get wrong
 
 - **React is never bundled.** `react`, `react-dom`, `redux`, `react-redux`, etc. are webpack `externals` resolved from host globals (`window.React`, …). Do not add them as runtime dependencies or change `webapp/webpack.config.js` externals without understanding this.
+- **Lazy assets ship in `public/webapp/`.** `src/public-path.ts` runs first and points webpack at the plugin public route, respecting `window.basename`. `LazyRoot` loads the UI only when enabled; optional views use the retryable `deferred` wrapper. Do not reintroduce a single-chunk build or inline fonts. `scripts/package.js` validates the generated asset manifest before packaging.
 - **PDF.js is loaded only on PDF open.** Webpack runs `scripts/prepare-pdfjs.js` to copy the pinned legacy renderer, worker, CMaps, fonts, WASM and license into the plugin public directory. `src/mm/pdf.ts` uses a native `webpackIgnore` import; do not bundle the engine into `main.js` or use a CDN. `make release` must include `public/`.
 - **JSX runtime is intentionally `classic`** (`babel.config.js`) so output calls `React.createElement`, compatible across Mattermost's React 16–19. Do not switch to the automatic runtime.
 - **No `mattermost-redux` dependency.** The data layer is `webapp/src/mm/` (store bridge, selectors, REST `api.ts`, socket, post cache). It reads the Redux store the host passes to `initialize(registry, store)` and calls the REST API with session cookie + CSRF. New data access belongs there.
-- Entry point: `webapp/src/index.tsx` registers via `window.registerPlugin(PLUGIN_ID, …)`. UI lives in `webapp/src/ui/`; all styling is one file, `webapp/src/styles.css`, scoped under `.tgw-root` and inlined into the bundle by style-loader.
+- Entry point: `webapp/src/index.tsx` registers via `window.registerPlugin(PLUGIN_ID, …)`. UI lives in `webapp/src/ui/`; all styling is one file, `webapp/src/styles.css`, scoped under `.tgw-root` and inlined into the lazy UI chunk by style-loader.
 - Per-user settings are a Mattermost user preference under key `com.telegramweb.ui--settings` (`src/mm/settings.ts`), not plugin KV. Server-side defaults come from `plugin.json → settings_schema` via client config.
 - Go server (`server/`) provides Telegram view counts (`tg_webui_user_view_tracking`), channel actions, and plugin-owned scheduled messages (`/api/v1/scheduled-posts`). Schedules persist in plugin KV, not Mattermost's licensed scheduled-posts store; a cluster-coordinated worker checks every 30 seconds and stops on deactivation. Platform-specific Linux amd64/ARMv7/ARM64/RISC-V64 and Darwin amd64/ARM64 archives ship; cross-compilation does not establish runtime support on every Mattermost host.
 - `tsconfig.json` has `strict: false` and `noImplicitAny: false` — match the existing loose style; do not "fix" it as part of unrelated changes.
 
 ## Testing
 
+- `test/lazy-assets.js` enforces the 128 KiB startup-entry budget and validates generated chunks/fonts; `test/deferred.js` covers caching, retry, cancellation, and late load completion.
 - `scripts/test-package.js` verifies per-platform manifests, executable modes, shared assets, independent archives, and checksums; `make test` includes it.
 - Not Jest. Plain Node scripts under `webapp/test/` run in jsdom against a simulated store and stubbed `fetch` (`webapp/test/harness.js` — extend it when new host globals or API endpoints are needed).
-- `test/smoke.js` mounts `src/` directly (fast feedback on render/selectors/handlers). `test/bundle.js` loads the built `dist/main.js` behind a fake plugin host and checks artifact-only properties (self-registration, externals/CSS inlining, WS events, `tgw:disable`, `uninitialize`). Run both; the bundle suite fails without a current `make bundle`.
+- `test/smoke.js` mounts `src/` directly (fast feedback on render/selectors/handlers). `test/bundle.js` loads the built `dist/main.js` behind a fake plugin host and checks artifact-only properties (self-registration, externals, disabled startup, lazy chunk retry/subpaths, local font assets, WS events, `tgw:disable`, `uninitialize`). Run both; the bundle suite fails without a current `make bundle`.
+- `TGW_LAZY_ONLY=1 npm run test:browser` checks real on-demand downloads and recovery in Chrome.
 - `test/browser.js` (`npm run test:browser`) runs the built bundle in headless Chrome (CDP, needs `google-chrome` or `CHROME_PATH`) with a hostile host that grabs focus on route changes. Use it for anything jsdom cannot see: focus behavior and real layout (composer height, `scrollHeight`). Not part of `make test` because CI may lack a browser.
 - `npm run preview` regenerates `docs/ui-preview*.html` from the real components — regenerate if you change UI structure or the stylesheet in a user-visible way.

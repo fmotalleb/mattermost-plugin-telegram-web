@@ -11,23 +11,27 @@ import {getSettings, subscribeSettings} from '../mm/settings';
 import {copyToClipboard, displayName, formatDateSeparator, formatTime, toPlainPreview} from '../mm/utils';
 import {markPostUnread} from '../mm/unread';
 import type {MMChannel, MMPost, MMReaction} from '../mm/types';
-import {QuickChat} from './QuickChat';
 import {ChatView} from './ChatView';
-import {ConfirmModal, ImageViewer, Modals} from './Modals';
+import {deferred} from './deferred';
 import {EmojiPicker} from './EmojiPicker';
-import {InfoPanel} from './InfoPanel';
-import {TodoPanel} from './TodoPanel';
 import {invalidateTodos} from '../mm/todos';
-import {SharedFilesPanel} from './SharedFilesPanel';
 import {Menu} from './menu';
 import type {MenuEntry, MenuItem} from './menu';
 import {ReactionEmoji, filesOfPost} from './MessageList';
-import {SearchPanel} from './SearchPanel';
 import {Sidebar} from './Sidebar';
-import {ThreadPanel} from './ThreadPanel';
 import {TgContext} from './context';
 import type {TgActions, TgUIState} from './context';
 import {Avatar} from './primitives';
+
+const QuickChat = deferred(() => import(/* webpackChunkName: "quickchat" */ './QuickChat').then((module) => module.QuickChat), 'quick chat');
+const InfoPanel = deferred(() => import(/* webpackChunkName: "infopanel" */ './InfoPanel').then((module) => module.InfoPanel), 'chat information');
+const TodoPanel = deferred(() => import(/* webpackChunkName: "todopanel" */ './TodoPanel').then((module) => module.TodoPanel), 'TODO list');
+const SharedFilesPanel = deferred(() => import(/* webpackChunkName: "sharedfilespanel" */ './SharedFilesPanel').then((module) => module.SharedFilesPanel), 'shared files');
+const SearchPanel = deferred(() => import(/* webpackChunkName: "searchpanel" */ './SearchPanel').then((module) => module.SearchPanel), 'search results');
+const ThreadPanel = deferred(() => import(/* webpackChunkName: "threadpanel" */ './ThreadPanel').then((module) => module.ThreadPanel), 'thread');
+const Modals = deferred(() => import(/* webpackChunkName: "modals" */ './Modals').then((module) => module.Modals), 'dialog');
+const ConfirmModal = deferred(() => import(/* webpackChunkName: "modals" */ './Modals').then((module) => module.ConfirmModal), 'confirmation');
+const ImageViewer = deferred(() => import(/* webpackChunkName: "imageviewer" */ './ImageViewer').then((module) => module.ImageViewer), 'image viewer');
 
 interface Toast {
     id: number;
@@ -415,7 +419,7 @@ export function TelegramUI() {
                 <div className={`tgw-root tgw-theme-${settings.theme} tgw-accent-${settings.accent} tgw-wallpaper-${settings.wallpaper} ${settings.compactMode ? 'tgw-compact' : ''} ${settings.glassyMode ? 'tgw-glassy' : ''} ${settings.animations ? '' : 'tgw-no-animations'}`}>
                     <div className={`tgw-shell ${isMobile ? 'tgw-shell-mobile' : ''} ${isMobile && ui.mobilePane === 'chat' ? 'tgw-shell-chat-open' : ''}`}>
                         <Sidebar/>
-                        {ui.searchOpen && ui.search.trim() ? <SearchPanel/> : <ChatView/>}
+                        {ui.searchOpen && ui.search.trim() ? <SearchPanel deferredCancel={() => actions.setUI({searchOpen: false})}/> : <ChatView/>}
                         {ui.threadRootId && activeChannel && (
                             <ThreadPanel
                                 rootId={ui.threadRootId}
@@ -423,14 +427,14 @@ export function TelegramUI() {
                                 onClose={() => actions.setUI({threadRootId: null})}
                             />
                         )}
-                        {ui.infoOpen && !ui.todosOpen && !ui.threadRootId && <InfoPanel/>}
-                        {ui.filesOpen && !ui.todosOpen && !ui.threadRootId && <SharedFilesPanel/>}
-                        {ui.todosOpen && !ui.threadRootId && <TodoPanel key={activeChannel?.id}/>}
+                        {ui.infoOpen && !ui.todosOpen && !ui.threadRootId && <InfoPanel deferredCancel={() => actions.setUI({infoOpen: false})}/>}
+                        {ui.filesOpen && !ui.todosOpen && !ui.threadRootId && <SharedFilesPanel deferredCancel={() => actions.setUI({filesOpen: false})}/>}
+                        {ui.todosOpen && !ui.threadRootId && <TodoPanel key={activeChannel?.id} deferredCancel={() => actions.setUI({todosOpen: false, todoLinkedPost: null})}/>}
                     </div>
-                    {ui.quickChatId && <QuickChat key={ui.quickChatId} channelId={ui.quickChatId}/>}
-                    <Modals/>
-                    <ConfirmModal/>
-                    <ImageViewer/>
+                    {ui.quickChatId && <QuickChat key={ui.quickChatId} channelId={ui.quickChatId} deferredCancel={() => actions.setUI({quickChatId: undefined})}/>}
+                    {ui.modal && <Modals deferredCancel={actions.closeModal}/>}
+                    {ui.confirm && <ConfirmModal deferredCancel={() => actions.setUI({confirm: null})}/>}
+                    {ui.imageViewer && <ImageViewer deferredCancel={() => actions.setUI({imageViewer: null})}/>}
                     {contextMenu && (
                         <Menu
                             x={contextMenu.x}

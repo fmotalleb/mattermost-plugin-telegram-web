@@ -695,7 +695,7 @@ function PostAttachments({attachments}: {attachments?: any[]}) {
             {attachment.title && <div className="tgw-post-attachment-title">{attachment.title_link ? <a href={attachment.title_link} target="_blank" rel="noopener noreferrer">{attachment.title}</a> : attachment.title}</div>}
             {attachment.text && <MessageBody message={String(attachment.text)} className="tgw-post-attachment-text"/>}
             {!!fields.length && <div className="tgw-post-attachment-fields">{fields.map((field: any, fieldIndex: number) => <div className={field?.short ? 'tgw-post-attachment-field tgw-post-attachment-field-short' : 'tgw-post-attachment-field'} key={field?.title || fieldIndex}><strong>{field?.title}</strong><MessageBody message={String(field?.value || '')} className="tgw-post-attachment-field-value"/></div>)}</div>}
-            {attachment.image_url && <img className="tgw-post-attachment-image" src={attachment.image_url} alt={attachment.image_alt || attachment.title || ''} loading="lazy"/>}
+            {attachment.image_url && <img className="tgw-post-attachment-image" src={attachment.image_url} alt={attachment.image_alt || attachment.title || ''} loading="lazy" decoding="async"/>}
             {attachment.footer && <div className="tgw-post-attachment-footer">{attachment.footer}</div>}
         </section>;
     })}</div>;
@@ -777,7 +777,7 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
     if (kind === 'image') {
         return (
             <button type="button" className="tgw-attachment-image" onClick={onOpenImage}>
-                <img src={thumbnail} alt={file.name} loading="lazy" draggable={false}/>
+                <img src={thumbnail} alt={file.name} loading="lazy" decoding="async" draggable={false}/>
             </button>
         );
     }
@@ -946,7 +946,7 @@ export function VoiceMessage({file, voice}: {file: MMFileInfo; voice?: {fileId?:
 export function ReactionEmoji({name, customEmoji}: {name: string; customEmoji: Record<string, {id: string}>}) {
     const custom = customEmoji?.[name];
     if (custom) {
-        return <img className="tgw-reaction-emoji" src={api.customEmojiImageURL(custom.id)} alt={`:${name}:`}/>;
+        return <img loading="lazy" decoding="async" className="tgw-reaction-emoji" src={api.customEmojiImageURL(custom.id)} alt={`:${name}:`}/>;
     }
     const char = emojiChar(name);
     return <span className={char ? 'tgw-reaction-emoji' : 'tgw-reaction-label'}>{char || `:${name}:`}</span>;

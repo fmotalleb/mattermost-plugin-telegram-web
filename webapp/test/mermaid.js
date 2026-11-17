@@ -68,5 +68,19 @@ const click = (node) => node.dispatchEvent(new dom.window.MouseEvent('click', {b
     click(boxes[1]); await tick(20);
     ok(toggles.length === 1 && toggles[0][0] === 1, 'task indices stay correct across diagram blocks');
     ok(config.securityLevel === 'strict' && config.startOnLoad === false && config.secure.includes('dompurifyConfig'), 'untrusted messages cannot weaken rendering security');
+    const beforeLazy = renders.length;
+    let reveal;
+    global.IntersectionObserver = class {
+        constructor(callback) { reveal = callback; }
+        observe() {}
+        disconnect() {}
+    };
+    delete window.PostUtils;
+    root.render(React.createElement(MessageBody, {key:'lazy',message:'```mermaid\nflowchart LR\nLazy-->Visible\n```'}));await tick(40);
+    ok(renders.length === beforeLazy, 'offscreen diagrams do not invoke the Mermaid renderer');
+    reveal([{isIntersecting:true}]);
+    await wait(()=>renders.some(({source})=>source.includes('Lazy-->Visible')));
+    ok(renders.some(({source})=>source.includes('Lazy-->Visible')), 'revealing a diagram starts its deferred render');
+    delete global.IntersectionObserver;
     root.unmount(); report('MERMAID TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });
