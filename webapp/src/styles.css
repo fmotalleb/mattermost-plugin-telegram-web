@@ -1547,6 +1547,10 @@
     color: #ffffff;
 }
 
+.tgw-root [data-mention][role="button"] { cursor: pointer; }
+.tgw-root [data-mention][role="button"]:hover { text-decoration: underline; }
+.tgw-root [data-mention][role="button"]:focus-visible { outline: 2px solid var(--tgw-accent); outline-offset: 2px; }
+
 /* One complete grapheme per square em, including families, flags and skin tones.
    Scope these rules above host span styles; headings inherit their own font size.
    The font's baseline metrics do the alignment, without a second manual downshift. */
@@ -4413,3 +4417,12 @@ body.tgw-root-active {
 .tgw-root .tgw-todo-done .tgw-todo-text { text-decoration: line-through; color: var(--tgw-text-tertiary); }
 .tgw-root .tgw-todo-jump { padding: 4px 0; font-size: 12px; }
 .tgw-root .tgw-todo-error { padding: 10px 14px; color: var(--tgw-danger, #d43c48); }
+
+/* Keep suggestions readable over messages, including every glass theme. */
+.tgw-root .tgw-mention-picker,
+.tgw-root.tgw-glassy .tgw-mention-picker,
+.tgw-root.tgw-glassy:is(.tgw-theme-dark, .tgw-theme-midnight) .tgw-mention-picker {
+    background: var(--tgw-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}

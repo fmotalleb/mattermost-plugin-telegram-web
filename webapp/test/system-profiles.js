@@ -2,6 +2,7 @@ const {dom, React, ReactDOM, container, store, state, ids, tick, ok, report} = r
 const {setStore} = require('../src/mm/store');
 const {TgContext} = require('../src/ui/context');
 const {SystemMessage} = require('../src/ui/SystemMessage');
+const {MessageBody} = require('../src/ui/render');
 const {Modals} = require('../src/ui/Modals');
 const {api} = require('../src/mm/api');
 setStore(store);
@@ -18,7 +19,8 @@ function Surface({post}) {
     const patchUI = (patch) => setUI((current) => ({...current, ...patch}));
     const actions = {setUI: patchUI, openModal: (modal, payload) => { opened = payload; patchUI({modal, modalPayload: payload}); }, closeModal: () => patchUI({modal: null}), openUserChat: (userId) => { directChats.push(userId); }};
     return React.createElement(TgContext.Provider, {value: {ui, actions}},
-        React.createElement('div', {className: 'tgw-system-post'}, React.createElement(SystemMessage, {post})), React.createElement(Modals));
+        React.createElement('div', {className: 'tgw-system-post'}, post.body
+            ? React.createElement(MessageBody, {message: post.message}) : React.createElement(SystemMessage, {post})), React.createElement(Modals));
 }
 const render = async (post) => { root.render(React.createElement(Surface, {post, key: post.id})); await tick(60); };
 (async () => {
@@ -78,6 +80,40 @@ const render = async (post) => { root.render(React.createElement(Surface, {post,
     click(directChatButton());
     await wait(() => !document.querySelector('[role="dialog"]'));
     ok(!activeUI.quickChatId && directChats[5] === ids.OTHER, 'opening a DM dismisses the quick preview so the destination chat is visible');
+    for (const host of [false, true]) {
+        let hostClicks = 0;
+        if (host) window.PostUtils = {
+            formatText: (value) => value,
+            messageHtmlToComponent: () => React.createElement('span', null,
+                React.createElement('span', {className: 'mention', 'data-mention': 'alice', onClick: () => hostClicks++}, '@alice'),
+                React.createElement('span', {className: 'mention', 'data-mention': 'channel'}, '@channel'),
+                React.createElement('code', null, React.createElement('span', {className: 'mention', 'data-mention': 'me'}, '@me'))),
+        };
+        else delete window.PostUtils;
+        await render({id: `mention-${host}`, body: true, message: 'Hello @alice. @channel `@me` bob@example.com'});
+        const mention = document.querySelector('[data-mention="alice"]');
+        ok(mention?.getAttribute('role') === 'button' && mention.tabIndex === 0, `${host ? 'host' : 'fallback'} user mention is keyboard accessible`);
+        click(mention);
+        await wait(() => document.querySelector('[aria-label="User profile"]')?.textContent.includes('Alice Anderson'));
+        ok(opened.username === 'alice' && document.querySelector('[aria-label="User profile"]')?.textContent.includes('@alice'), 'mention opens the same profile modal as invited users');
+        click(directChatButton());
+        await wait(() => !document.querySelector('[role="dialog"]'));
+        ok(directChats[directChats.length - 1] === ids.OTHER, 'mentioned user profile opens the correct direct chat');
+        for (const key of ['Enter', ' ']) {
+            mention.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key, bubbles: true, cancelable: true}));
+            await wait(() => document.querySelector('[aria-label="User profile"]'));
+            ok(!!document.querySelector('[aria-label="User profile"]'), `mention opens with ${key === ' ' ? 'Space' : key}`);
+            click(directChatButton());
+            await wait(() => !document.querySelector('[role="dialog"]'));
+        }
+        click(document.querySelector('[data-mention="channel"]'));
+        click(document.querySelector('code'));
+        await tick(30);
+        ok(!document.querySelector('[role="dialog"]') && !document.querySelector('code [role="button"]'), 'broadcast mentions and code do not open profiles');
+        ok(!document.querySelector('[data-mention="example.com"]'), 'email addresses do not become profile links');
+        ok(hostClicks === 0, 'mention click stays in the plugin profile overlay');
+    }
+    delete window.PostUtils;
     root.unmount();
     report('SYSTEM PROFILE TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

@@ -164,8 +164,39 @@ export function MessageBody({message, postId, mentionKeys, className, onTaskTogg
 
 function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: MessageBodyProps) {
     const tg = React.useContext(TgContext);
+    const bodyRef = React.useRef<HTMLSpanElement>(null);
+    const mentionSelector = '.tgw-mention[data-mention], .mention[data-mention]';
+    const usernameOf = (node: Element) => (node.getAttribute('data-mention') || '').replace(/^@/, '');
+    const isUserMention = (node: Element) => {
+        const username = usernameOf(node);
+        return /^[a-zA-Z0-9._-]+$/.test(username) && !['all', 'channel', 'here'].includes(username.toLowerCase()) && !node.closest('code, pre');
+    };
+    React.useLayoutEffect(() => {
+        bodyRef.current?.querySelectorAll(mentionSelector).forEach((node) => {
+            if (!isUserMention(node)) return;
+            node.setAttribute('role', 'button');
+            node.setAttribute('tabindex', '0');
+            node.setAttribute('aria-label', `Open profile for ${usernameOf(node)}`);
+        });
+    });
+    const openMention = (event: React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
+        if (!tg || !(event.target instanceof Element)) return;
+        const mention = event.target.closest(mentionSelector);
+        if (!mention || !event.currentTarget.contains(mention) || !isUserMention(mention)) return;
+        if (event.type === 'click' && window.getSelection()?.isCollapsed === false) return;
+        event.preventDefault();
+        event.stopPropagation();
+        tg.actions.openModal('userProfile', {username: usernameOf(mention)});
+    };
+    const mentionHandlers = {
+        ref: bodyRef,
+        onClickCapture: openMention,
+        onKeyDownCapture: (event: React.KeyboardEvent<HTMLSpanElement>) => {
+            if (event.key === 'Enter' || event.key === ' ') openMention(event);
+        },
+    };
     const onClick = (event: React.MouseEvent<HTMLSpanElement>) => handleBodyClick(event, tg?.actions.toast);
-    const fallback = <span className={className} onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
+    const fallback = <span {...mentionHandlers} className={className} onClick={onClick}>{renderFallback(message, mentionKeys)}</span>;
 
     if (!message) {
         return fallback;
@@ -215,7 +246,7 @@ function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: 
 
     return (
         <BodyBoundary fallback={fallback}>
-            <span className={`tgw-message-body ${className || ''}`} onClick={onClick}>{rendered}</span>
+            <span {...mentionHandlers} className={`tgw-message-body ${className || ''}`} onClick={onClick}>{rendered}</span>
         </BodyBoundary>
     );
 }
@@ -247,7 +278,7 @@ export function renderFallback(message: string, mentionKeys?: Array<{key: string
 function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key: string; caseSensitive?: boolean}>): React.ReactNode[] {
     const nodes: React.ReactNode[] = [];
     // Order matters: inline code first so its content is not formatted any further.
-    const pattern = new RegExp('(`[^`]+`)|' + String.raw`(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9._-]+)|(${BARE_DOMAIN_SOURCE})`, 'gi');
+    const pattern = new RegExp('(`[^`]+`)|' + String.raw`(\*\*[^*]+\*\*)|(__[^_]+__)|(~~[^~]+~~)|(\*[^*]+\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s<>()]+)|(@[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*)|(${BARE_DOMAIN_SOURCE})`, 'gi');
     let lastIndex = 0;
     let match: RegExpExecArray | null;
     let index = 0;
@@ -282,9 +313,14 @@ function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key:
                 <a key={key} href={url} target="_blank" rel="noopener noreferrer">{url}</a>,
             );
         } else if (mention) {
+            if (match.index > 0 && /[\w@]/.test(text[match.index - 1])) {
+                nodes.push(<React.Fragment key={key}>{mention}</React.Fragment>);
+                lastIndex = match.index + full.length;
+                continue;
+            }
             const name = mention.slice(1).toLowerCase();
             const isSelf = mentionNames.includes(name);
-            nodes.push(<span key={key} className={`tgw-mention ${isSelf ? 'tgw-mention-self' : ''}`}>{mention}</span>);
+            nodes.push(<span key={key} data-mention={mention.slice(1)} className={`tgw-mention ${isSelf ? 'tgw-mention-self' : ''}`}>{mention}</span>);
         } else if (bare) {
             // Typed without a scheme (google.com, openai.com): link it — unless it is the tail
             // of an address (bob@openai.com) or part of a larger word.
