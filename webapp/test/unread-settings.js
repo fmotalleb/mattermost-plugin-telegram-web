@@ -75,6 +75,44 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     click(folder('All'));
     await wait(() => document.querySelectorAll('.tgw-section-heading').length === 2);
     ok(headings().some((heading) => heading.textContent.includes('All messages') && heading.nextElementSibling?.textContent.includes('Town Square')), 'unmentioned channels remain in All outside its unread section');
+    console.log('== favorite pinning setting ==');
+    ok(DEFAULT_SETTINGS.pinFavoritesInAll === false && getSettings().pinFavoritesInAll === false, 'favorite pinning is disabled for default and existing settings');
+    state.entities.channels.myMembers = Object.fromEntries(Object.entries(originalMembers).map(([id, member]) => [id, {
+        ...member, msg_count: state.entities.channels.channels[id].total_msg_count, mention_count: 0,
+    }]));
+    const originalPreferences = state.entities.preferences.myPreferences;
+    state.entities.preferences.myPreferences = {...originalPreferences,
+        [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'true'},
+    };
+    notifyStoreChange();
+    const titles = () => rows().map((row) => row.querySelector('.tgw-chat-row-title')?.textContent.trim());
+    await wait(() => !headings().some((heading) => heading.textContent.includes('Unread messages')));
+    ok(titles()[0]?.includes('Alice') && titles()[1] === 'Town Square', 'disabled pinning keeps newer conversations before older favorites');
+    click(document.querySelector('.tgw-user-button'));
+    await wait(() => document.querySelector('.tgw-menu'));
+    click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((button) => button.textContent.trim() === 'Settings'));
+    const pinCheckbox = () => Array.from(document.querySelectorAll('.tgw-field-check')).find((label) => label.textContent.includes('Pin favorites to the top of All messages'))?.querySelector('input');
+    await wait(() => pinCheckbox());
+    ok(pinCheckbox() && !pinCheckbox().checked, 'Chats settings exposes favorite pinning unchecked');
+    click(pinCheckbox());
+    await wait(() => titles()[0] === 'Town Square');
+    ok(getSettings().pinFavoritesInAll && titles()[0] === 'Town Square' && titles()[1]?.includes('Alice'), 'enabling pinning moves an older favorite to the top of All messages immediately');
+    await wait(() => payloads.some((request) => request.path === '/users/me/preferences' && request.body?.some((preference) => preference.name === 'settings' && JSON.parse(preference.value).pinFavoritesInAll === true)));
+    ok(payloads.some((request) => request.path === '/users/me/preferences' && request.body?.some((preference) => preference.name === 'settings' && JSON.parse(preference.value).pinFavoritesInAll === true)), 'favorite pinning persists as a Mattermost user preference');
+    ok(JSON.parse(dom.window.localStorage.getItem('tgw.settings.com.telegramweb.ui')).pinFavoritesInAll === true, 'favorite pinning is mirrored locally');
+    state.entities.preferences.myPreferences = originalPreferences;
+    notifyStoreChange();
+    await wait(() => titles()[0]?.includes('Alice'));
+    ok(titles()[0]?.includes('Alice'), 'removing a favorite immediately restores chronological order while pinning is enabled');
+    state.entities.preferences.myPreferences = {...originalPreferences,
+        [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'true'},
+    };
+    notifyStoreChange();
+    await wait(() => titles()[0] === 'Town Square');
+    click(pinCheckbox());
+    await wait(() => titles()[0]?.includes('Alice'));
+    ok(!getSettings().pinFavoritesInAll && titles()[0]?.includes('Alice'), 'disabling pinning restores chronological order immediately');
+    state.entities.preferences.myPreferences = originalPreferences;
     state.entities.channels.myMembers = originalMembers;
     root.unmount();
     report('UNREAD SETTINGS TEST');

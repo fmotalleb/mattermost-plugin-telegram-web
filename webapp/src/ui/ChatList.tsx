@@ -259,7 +259,7 @@ export interface ChatListProps {
 }
 
 export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, sectionActionLabel, onRemoveAllDrafts, reorderable = null}: ChatListProps) {
-    const {actions} = useTg();
+    const {actions, settings} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
     const profiles = useSelector((state) => state.entities?.users?.profiles || {});
@@ -267,9 +267,14 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
     const requestedPeers = useRef(new Set<string>());
     const isUnread = isUnreadChat;
+    const remainingChats = chats.filter((chat) => !isUnread(chat));
+    if (settings.pinFavoritesInAll) {
+        // Stable sorting preserves chronological order within both groups.
+        remainingChats.sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite));
+    }
     const allSections = [
         {key: 'unread', label: 'Unread messages', chats: chats.filter(isUnread)},
-        {key: 'chats', label: 'All messages', chats: chats.filter((chat) => !isUnread(chat))},
+        {key: 'chats', label: 'All messages', chats: remainingChats},
     ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.

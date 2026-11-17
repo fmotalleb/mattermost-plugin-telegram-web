@@ -45,6 +45,8 @@ export interface PluginSettings {
     quietUnreadCounts: boolean;
     /** Include muted chats and channels without mentions in unread lists. Off by default. */
     includeMutedInUnread: boolean;
+    /** Keep favorites first within the All messages section. Off by default. */
+    pinFavoritesInAll: boolean;
     compactMode: boolean;
     animations: boolean;
     folderTabs: boolean;
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     showPreviews: true,
     quietUnreadCounts: false,
     includeMutedInUnread: false,
+    pinFavoritesInAll: false,
     compactMode: false,
     animations: true,
     folderTabs: true,
