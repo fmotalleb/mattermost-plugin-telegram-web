@@ -22,7 +22,7 @@ export function TodoPanel() {
     const input = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => () => { currentChannel.current = undefined; }, []);
-    useEffect(() => { if (linked) { setText(''); input.current?.focus(); } }, [linked?.id]);
+    useEffect(() => { if (linked) { setText((linked.message || '').trim().slice(0, 4000)); input.current?.focus(); } }, [linked?.id]);
     useEffect(() => subscribeTodos((changed) => {
         if (!changed || changed === channelId) setReload((n) => n + 1);
     }), [channelId]);

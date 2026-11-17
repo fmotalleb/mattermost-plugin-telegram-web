@@ -1,4 +1,4 @@
-const {dom, React, ReactDOM, container, store, tick, ok, report, ids} = require('./harness');
+const {dom, React, ReactDOM, container, store, tick, ok, report, ids, posts} = require('./harness');
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings} = require('../src/mm/settings');
 const {invalidateTodos, clearTodos} = require('../src/mm/todos');
@@ -84,13 +84,28 @@ const input=(node,value)=>{Object.getOwnPropertyDescriptor(dom.window[node.tagNa
     click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((n)=>n.textContent.trim()==='Add to TODO'));
     await wait(()=>document.querySelector('.tgw-todo-linked'));
     ok(!!document.querySelector('.tgw-todo-linked')&&!form().querySelector('button[type="submit"]').disabled,'message context menu attaches a message with optional text');
+    ok(document.querySelector('[aria-label="New todo"]').value === posts.p1.message, 'linking a text message prefills its text as the editable todo label');
     failNotification=true;click(form().querySelector('button[type="submit"]'));
-    await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((n)=>n.textContent==='Linked todo'));
+    await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((n)=>n.textContent===posts.p1.message));
     const linked=tasks.find((t)=>t.post_id);
-    ok(linked&&linked.text===''&&!!button('Go to message'),'blank linked tasks show Linked todo and a message button');
+    ok(linked&&linked.text===posts.p1.message&&!!button('Go to message'),'saving without editing uses the linked message text as the label');
     ok(Array.from(document.querySelectorAll('.tgw-toast')).some((n)=>n.textContent.includes('notification could not be posted')),'notification failure explicitly reports the already-saved change');
     click(button('Go to message'));await wait(()=>document.querySelector('.tgw-post-highlight'));
     ok(!!document.querySelector('.tgw-post-highlight'),'linked task jumps to and highlights its message');
+    const attachMessage = async (id) => {
+        document.querySelector(`.tgw-msg-row[data-post-id="${id}"]`).dispatchEvent(new dom.window.MouseEvent('contextmenu',{bubbles:true,clientX:300,clientY:200}));await tick(70);
+        click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((n)=>n.textContent.trim()==='Add to TODO'));
+        await wait(()=>document.querySelector('.tgw-todo-linked'));
+    };
+    await attachMessage('p1');
+    input(document.querySelector('[aria-label="New todo"]'),'Custom linked task');await tick(40);
+    click(form().querySelector('button[type="submit"]'));
+    ok(await wait(()=>tasks.some((task)=>task.post_id==='p1'&&task.text==='Custom linked task')), 'the default label can be edited before saving');
+    await wait(()=>!document.querySelector('.tgw-todo-linked'));
+    await attachMessage('p4');
+    ok(document.querySelector('[aria-label="New todo"]').value === '', 'a message without text keeps the optional label empty');
+    click(form().querySelector('button[type="submit"]'));
+    ok(await wait(()=>Array.from(document.querySelectorAll('.tgw-todo-text')).some((node)=>node.textContent==='Linked todo')), 'a textless message still saves with the Linked todo fallback');
     // A conflict refreshes shared state while keeping the error visible.
     conflict=true;click(document.querySelector('[aria-label="Complete Shared deployment"]'));
     await wait(()=>document.querySelector('.tgw-todo-error'));
