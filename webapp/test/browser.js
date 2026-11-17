@@ -87,6 +87,12 @@ const page = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>plugin bundle in a real browser</title>
 <style>html, body { margin: 0; height: 100%; }</style>
+${process.env.TGW_IMAGE_VIEWER_ONLY ? `<style>
+/* Earlier plugin styles may remain in Mattermost's document after a hot reload. */
+.tgw-image-viewer { align-items: center; justify-content: center; gap: 12px; padding: 40px; }
+.tgw-image-viewer-body { align-items: center; gap: 12px; max-height: 100%; overflow-y: auto; }
+.tgw-image-viewer-close { position: fixed; top: 18px; right: 18px; }
+</style>` : ''}
 ${reactCJS}
 </head>
 <body>
@@ -126,7 +132,7 @@ const channels = ${sub(channels)};
 const posts = ${sub(posts)};
 let scheduledMessages = [];
 // Include a real diagram in the built-bundle browser run (local plugin assets only).
-if (!${JSON.stringify(Boolean(process.env.TGW_LAZY_ONLY))}) posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
+if (!${JSON.stringify(Boolean(process.env.TGW_LAZY_ONLY || process.env.TGW_IMAGE_VIEWER_ONLY))}) posts.p2.message += '\\n\\n\`\`\`mermaid\\nflowchart LR\\nA[Start] --> B[Review] --> C[Ship]\\n\`\`\`';
 posts.p2.metadata.files = [
     {id:'browser-pdf',name:'local-preview.pdf',extension:'pdf',mime_type:'application/pdf',size:2000},
     {id:'browser-text',name:'local-notes.txt',extension:'txt',mime_type:'text/plain',size:100},
@@ -410,7 +416,7 @@ class CDP {
             if (process.env.TGW_LAZY_ONLY && pathname.includes('/emoji-picker.')) setTimeout(send,200); else send();
             return;
         }
-        if ((process.env.TGW_IMAGE_VIEWER_ONLY || process.env.TGW_LAZY_ONLY) && /^\/api\/v4\/files\/file-[12](?:\/thumbnail)?$/.test(pathname)) {
+        if ((process.env.TGW_IMAGE_VIEWER_ONLY || process.env.TGW_LAZY_ONLY) && /^\/api\/v4\/files\/file-[12](?:\/(?:thumbnail|preview))?$/.test(pathname)) {
             if (process.env.TGW_IMAGE_FIXTURE && pathname.includes('file-1')) {
                 response.writeHead(200, {'Content-Type':'image/png'}); response.end(fs.readFileSync(process.env.TGW_IMAGE_FIXTURE)); return;
             }
@@ -564,16 +570,16 @@ class CDP {
 
         if (process.env.TGW_IMAGE_VIEWER_ONLY) {
             await cdp.waitFor('!!document.querySelector(".tgw-attachment-image")',10000,'image attachment');
-            await cdp.clickSelector('.tgw-attachment-image');
+            await cdp.eval(`(async () => {await document.fonts.ready;const node=document.querySelector('.tgw-attachment-image');node.scrollIntoView({block:'center'});await Promise.all(Array.from(node.querySelectorAll('img')).map(image=>image.decode().catch(()=>{})));node.click();})()`);
             await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.naturalWidth > 0',10000,'original image load');
             await sleep(100);
             const fit = await cdp.eval(`(() => {
                 const dialog=document.querySelector('.tgw-image-viewer').getBoundingClientRect();
                 const canvas=document.querySelector('.tgw-image-viewer-viewport').getBoundingClientRect();
                 const image=document.querySelector('.tgw-image-viewer img').getBoundingClientRect();
-                return {full:dialog.width===innerWidth&&dialog.height===innerHeight, fits:image.left>=canvas.left-1&&image.top>=canvas.top-1&&image.right<=canvas.right+1&&image.bottom<=canvas.bottom+1,large:image.width>innerWidth*.65||image.height>innerHeight*.65,width:image.width,height:image.height,zoom:document.querySelector('.tgw-image-viewer output').textContent};
+                return {windowWidth:innerWidth,windowHeight:innerHeight,canvasWidth:canvas.width,canvasHeight:canvas.height,full:dialog.width===innerWidth&&dialog.height===innerHeight, fits:image.left>=canvas.left-1&&image.top>=canvas.top-1&&image.right<=canvas.right+1&&image.bottom<=canvas.bottom+1,large:image.width>innerWidth*.65||image.height>innerHeight*.65,width:image.width,height:image.height,zoom:document.querySelector('.tgw-image-viewer output').textContent};
             })()`);
-            ok(fit.full&&fit.fits&&fit.large,'viewer fills the screen and initially fits a large image to the canvas');
+            ok(fit.full&&fit.canvasWidth>fit.windowWidth*.65&&fit.canvasHeight>fit.windowHeight*.6&&fit.fits&&fit.large,`viewer has a visible fitted image despite legacy host styles (${JSON.stringify(fit)})`);
             await cdp.clickSelector('.tgw-image-viewer-tools button[aria-label="Zoom in"]');await sleep(50);
             const zoomed=await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width');
             ok(zoomed>fit.width,'zoom controls enlarge the actual image');
