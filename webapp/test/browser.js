@@ -8,6 +8,7 @@
  * — are exactly the ones that only a real browser can prove.
  *
  *   npm run test:browser        (needs google-chrome; override the binary with CHROME_PATH)
+ *   TGW_IMAGE_VIEWER_ONLY=1 npm run test:browser   (focused image layout/zoom/pan checks)
  */
 
 const fs = require('fs');
@@ -391,6 +392,13 @@ class CDP {
     const server = http.createServer((request, response) => {
         const pathname = new URL(request.url, 'http://localhost').pathname;
         const pdfPrefix = '/plugins/com.telegramweb.ui/public/pdfjs/';
+        if (process.env.TGW_IMAGE_VIEWER_ONLY && /^\/api\/v4\/files\/file-[12](?:\/thumbnail)?$/.test(pathname)) {
+            if (process.env.TGW_IMAGE_FIXTURE && pathname.includes('file-1')) {
+                response.writeHead(200, {'Content-Type':'image/png'}); response.end(fs.readFileSync(process.env.TGW_IMAGE_FIXTURE)); return;
+            }
+            response.writeHead(200, {'Content-Type':'image/svg+xml'});
+            response.end('<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1200"><defs><pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M100 0H0V100" fill="none" stroke="#92b5d9"/></pattern></defs><rect width="2000" height="1200" fill="#e8f2ff"/><rect width="2000" height="1200" fill="url(#grid)"/><text x="100" y="200" font-size="80" fill="#24466d">Full resolution image · Zoom and pan</text></svg>'); return;
+        }
         if (pathname.startsWith(pdfPrefix)) {
             pdfRequests.push(pathname);
             if (failPDFModule && pathname.endsWith('/pdf.min.mjs')) {
@@ -501,6 +509,55 @@ class CDP {
 
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
+
+        if (process.env.TGW_IMAGE_VIEWER_ONLY) {
+            await cdp.waitFor('!!document.querySelector(".tgw-attachment-image")',10000,'image attachment');
+            await cdp.clickSelector('.tgw-attachment-image');
+            await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.naturalWidth > 0',10000,'original image load');
+            await sleep(100);
+            const fit = await cdp.eval(`(() => {
+                const dialog=document.querySelector('.tgw-image-viewer').getBoundingClientRect();
+                const canvas=document.querySelector('.tgw-image-viewer-viewport').getBoundingClientRect();
+                const image=document.querySelector('.tgw-image-viewer img').getBoundingClientRect();
+                return {full:dialog.width===innerWidth&&dialog.height===innerHeight, fits:image.left>=canvas.left-1&&image.top>=canvas.top-1&&image.right<=canvas.right+1&&image.bottom<=canvas.bottom+1,large:image.width>innerWidth*.65||image.height>innerHeight*.65,width:image.width,height:image.height,zoom:document.querySelector('.tgw-image-viewer output').textContent};
+            })()`);
+            ok(fit.full&&fit.fits&&fit.large,'viewer fills the screen and initially fits a large image to the canvas');
+            await cdp.clickSelector('.tgw-image-viewer-tools button[aria-label="Zoom in"]');await sleep(50);
+            const zoomed=await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width');
+            ok(zoomed>fit.width,'zoom controls enlarge the actual image');
+            await cdp.eval(`document.querySelector('.tgw-image-viewer-viewport').dispatchEvent(new WheelEvent('wheel',{deltaY:-100,clientX:700,clientY:400,bubbles:true,cancelable:true}))`);await sleep(50);
+            ok(await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width')>zoomed,'wheel zoom enlarges the rendered image');
+            const center=await cdp.eval(`(() => {const r=document.querySelector('.tgw-image-viewer-viewport').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+            const before=await cdp.eval('document.querySelector(".tgw-image-viewer-stage").style.transform');
+            await cdp.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:center.x,y:center.y});
+            await cdp.send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:center.x+80,y:center.y+40});
+            await cdp.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:center.x+80,y:center.y+40});await sleep(60);
+            ok(await cdp.eval('document.querySelector(".tgw-image-viewer-stage").style.transform')!==before,'real pointer dragging pans the zoomed image');
+            await cdp.eval(`Array.from(document.querySelectorAll('.tgw-image-viewer-tools button')).find(b=>b.textContent==='Fit').click()`);await sleep(50);
+            fs.writeFileSync('/tmp/tgw-image-viewer-desktop.png',Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+            await cdp.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});await sleep(100);
+            const mobile=await cdp.eval(`(() => {
+                const d=document.querySelector('.tgw-image-viewer').getBoundingClientRect(),c=document.querySelector('.tgw-image-viewer-viewport').getBoundingClientRect(),i=document.querySelector('.tgw-image-viewer img').getBoundingClientRect();
+                const controls=Array.from(document.querySelectorAll('.tgw-image-viewer-header button,.tgw-image-viewer-tools button')).map(b=>b.getBoundingClientRect());
+                return d.width===innerWidth&&d.height===innerHeight&&i.left>=c.left-1&&i.right<=c.right+1&&i.top>=c.top-1&&i.bottom<=c.bottom+1&&controls.every(r=>r.left>=0&&r.right<=innerWidth);
+            })()`);
+            ok(mobile,'image and zoom controls fit the phone viewport');
+            fs.writeFileSync('/tmp/tgw-image-viewer-mobile.png',Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+            await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
+            const touchWidth=await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width');
+            await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:1,x:140,y:400},{id:2,x:250,y:400}]});
+            await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:1,x:100,y:400},{id:2,x:290,y:400}]});
+            await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await sleep(60);
+            ok(await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width')>touchWidth,'real touch pinch enlarges the image');
+            await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:false});
+            await cdp.clickSelector('.tgw-image-viewer-next');await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.src.includes("file-2")&&document.querySelector(".tgw-image-viewer img")?.naturalWidth>0',5000,'next image');
+            ok(await cdp.eval('document.querySelector(".tgw-image-viewer-stage").style.transform.includes("0px")'),'navigation resets image pan');
+            await cdp.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await sleep(50);
+            ok(await cdp.eval('!document.querySelector(".tgw-image-viewer")'),'Escape dismisses the built viewer');
+            ok((await cdp.eval('window.__pageErrors')).length===0,'viewer produces no browser errors');
+            report('IMAGE VIEWER BROWSER TEST');
+            return;
+        }
 
         console.log('\n== bundled emoji artwork ==');
         await cdp.send('DOM.enable');

@@ -95,6 +95,9 @@ binary and packages it. Explicit targets such as `make server-linux-riscv64` and
   as image/album/file/audio/video cards, typing indicators, edit/delete aware rendering, emoji
   shortcodes and `**markdown**`, `@mentions` highlighting, in-chat search, unread counters, and a
   scroll-to-latest pill.
+* **Image viewer** — images open on a full-screen canvas with zoom buttons, wheel/pinch zoom,
+  drag-to-pan, **Fit**, **100%**, and Download. Use arrow keys to change images, `+`/`−` to zoom,
+  `0` to fit, and Escape to close. Captions remain below the canvas.
 * **Mermaid diagrams** — fenced `mermaid` blocks render inline. Choose **Open diagram** for a
   larger modal with zoom buttons, mouse-wheel zoom, drag-to-pan, and **Reset view**. Escape closes
   the viewer. Invalid diagrams keep their source visible; rendering works without a CDN.
