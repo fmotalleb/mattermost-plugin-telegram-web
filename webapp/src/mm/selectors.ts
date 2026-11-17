@@ -348,7 +348,7 @@ export function getChatsForIds(state: MMState, channelIds: string[]): ChatSummar
 export interface ChatTab {
     id: string;
     label: string;
-    kind: 'all' | 'unread' | 'category' | 'contacts' | 'drafts';
+    kind: 'all' | 'unread' | 'category' | 'contacts' | 'drafts' | 'todos';
     type?: MMChannelCategory['type'];
     sortOrder: number;
 }
@@ -384,6 +384,7 @@ export function getTabs(state: MMState): ChatTab[] {
         const tabs: ChatTab[] = [
             {id: '__all', label: 'All', kind: 'all', sortOrder: 0},
             {id: '__unread', label: 'Unread', kind: 'unread', sortOrder: 1},
+            {id: '__todos', label: 'TODO', kind: 'todos', sortOrder: 2},
         ];
         getCategoriesForTeam(state, teamId).forEach((category, index) => {
             const ids = category.channel_ids || [];
@@ -403,7 +404,7 @@ export function getTabs(state: MMState): ChatTab[] {
         });
         tabs.push({id: '__contacts', label: 'Contacts', kind: 'contacts', sortOrder: 10_000});
 
-        // The saved drag order shuffles ONLY the category tabs: All/Unread stay pinned at the
+        // The saved drag order shuffles ONLY the category tabs: All/Unread/TODO stay pinned at the
         // front, Contacts stays last, ids of deleted categories are ignored and new categories
         // land after the stored ones.
         const stored: string[] = Array.isArray(getSettings().tabOrder) ? getSettings().tabOrder : [];
@@ -446,6 +447,8 @@ export function getChatsForCategory(state: MMState, category: MMChannelCategory)
 
 /** Chats of a folder/tab: All, Unread, a Mattermost channel category, or the contacts tab. */
 export function getTabChats(state: MMState, tabId: string): ChatSummary[] {
+    // TODO membership is supplied by the live plugin-owned counts in Sidebar.
+    if (tabId === '__todos') return [];
     if (tabId === '__unread') {
         return getUnreadChats(state);
     }

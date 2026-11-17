@@ -4,6 +4,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
 import {searchEmoji} from '../mm/emoji';
 import {
+    getAllChats,
     getChatSummary,
     getContacts,
     getCurrentTeamId,
@@ -26,6 +27,7 @@ import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
 import {clearComposerDraft, selectChannelDrafts} from '../mm/drafts';
+import {useTodoCounts} from '../mm/todos';
 import {updateSettings} from '../mm/settings';
 import {ChatList} from './ChatList';
 import {useTg} from './context';
@@ -194,6 +196,10 @@ function getStatusOf(userId: string): string {
 export function Sidebar() {
     const {ui, actions, tabs, timeFormat, settings, me} = useTg();
     const chats = useSelector((state) => getTabChats(state, ui.activeTabId));
+    const allChats = useSelector(getAllChats);
+    const todoCounts = useTodoCounts(allChats.map((chat) => chat.id));
+    const todoChats = allChats.filter((chat) => todoCounts[chat.id] > 0);
+    const openTodos = todoChats.reduce((sum, chat) => sum + todoCounts[chat.id], 0);
     const tabUnread = useSelector((state) => getTabUnreadCounts(state, tabs));
     // Drag-to-reorder state of the folder tabs (category tabs only).
     const [tabDrag, setTabDrag] = useState<string | null>(null);
@@ -250,7 +256,7 @@ export function Sidebar() {
         const result = tabs.slice();
         if (draftEntries.length) {
             const favoriteIndex = result.findIndex((entry) => entry.kind === 'category' && entry.type === 'favorites');
-            result.splice(favoriteIndex < 0 ? 2 : favoriteIndex + 1, 0, {
+            result.splice(favoriteIndex < 0 ? 3 : favoriteIndex + 1, 0, {
                 id: '__drafts', label: 'Drafts', kind: 'drafts', sortOrder: 2,
             } as ChatTab);
         }
@@ -261,7 +267,7 @@ export function Sidebar() {
         const ids = Array.from(new Set(draftEntries.map((draft) => draft.channel_id).filter(Boolean)));
         return ids.map((id) => getChatSummary(getState(), id)).filter(Boolean) as ChatSummary[];
     }, [draftEntries, chats]);
-    const visibleChats = tab?.kind === 'drafts' ? draftChats : chats;
+    const visibleChats = tab?.kind === 'todos' ? todoChats : tab?.kind === 'drafts' ? draftChats : chats;
     const isSearching = ui.search.trim().length > 0;
 
     useEffect(() => {
@@ -540,7 +546,7 @@ export function Sidebar() {
                                 onClick={() => actions.setTab(entry.id)}
                                 // Category tabs reorder by dragging. The order is stored like any
                                 // other setting (user preference + localStorage mirror), while
-                                // getTabs() keeps All/Unread pinned first and Contacts last.
+                                // getTabs() keeps All/Unread/TODO pinned first and Contacts last.
                                 onDragStart={(event) => {
                                     if (!isCategory) {
                                         return;
@@ -584,7 +590,9 @@ export function Sidebar() {
                                 }}
                             >
                                 {entry.label}
-                                {settings.quietUnreadCounts ? (
+                                {entry.kind === 'todos' ? (
+                                    openTodos > 0 && <span className="tgw-folder-badge" aria-label={`${openTodos} open tasks`}>{openTodos > 99 ? '99+' : openTodos}</span>
+                                ) : settings.quietUnreadCounts ? (
                                     <>
                                         {priorityUnread > 0 && <span className="tgw-folder-badge">{priorityUnread > 99 ? '99+' : priorityUnread}</span>}
                                         {otherUnread && <span className="tgw-folder-dot" aria-label="Other unread messages"/>}
@@ -636,8 +644,8 @@ export function Sidebar() {
                         showTeamNames={tab?.kind === 'all'}
                         groupAllChats={tab?.kind === 'all'}
                         reorderable={tab?.kind === 'category' ? {categoryId: tab.id} : null}
-                        emptyTitle={tab?.kind === 'unread' ? 'No unread chats' : 'No chats here yet'}
-                        emptyBody={tab?.kind === 'unread' ? 'You are all caught up.' : 'Start a conversation to see it listed here.'}
+                        emptyTitle={tab?.kind === 'todos' ? 'No open TODOs' : tab?.kind === 'unread' ? 'No unread chats' : 'No chats here yet'}
+                        emptyBody={tab?.kind === 'todos' ? 'Chats with unfinished tasks will appear here.' : tab?.kind === 'unread' ? 'You are all caught up.' : 'Start a conversation to see it listed here.'}
                     />
                 )}
             </div>

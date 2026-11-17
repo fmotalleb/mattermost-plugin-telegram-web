@@ -128,7 +128,7 @@ root.render(React.createElement(TelegramUI));
     await waitFor(() => (folderBtn('All')?.className || '').includes('tgw-folder-active'));
 
     // The category tabs drag to reorder, and the order persists exactly like other settings:
-    // the settings user preference plus a localStorage mirror. All/Unread stay pinned at the
+    // the settings user preference plus a localStorage mirror. All/Unread/TODO stay pinned at the
     // front, Contacts at the end.
     console.log('== folder tab reordering ==');
     const folderLabels = () => Array.from(document.querySelectorAll('.tgw-folder'))
@@ -147,11 +147,11 @@ root.render(React.createElement(TelegramUI));
         await tick(30);
         ok(groupsTabBtn.classList.contains('tgw-folder-dragover'), 'the drop target folder highlights');
         groupsTabBtn.dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
-        const expectedTabOrder = 'All,Unread,Drafts,Work stuff,Groups,Direct,Contacts';
+        const expectedTabOrder = 'All,Unread,TODO,Drafts,Work stuff,Groups,Direct,Contacts';
         await waitFor(() => folderLabels().join(',') === expectedTabOrder);
         const reordered = folderLabels().join(',');
         ok(reordered === expectedTabOrder,
-            `the dropped category lands before its target, with All/Unread/Contacts pinned (${reordered})`);
+            `the dropped category lands before its target, with All/Unread/TODO/Contacts pinned (${reordered})`);
 
         const persistedTabOrder = () => {
             const candidates = payloads.filter((entry) => entry.path === '/users/me/preferences'

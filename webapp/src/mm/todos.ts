@@ -74,6 +74,32 @@ export function useTodoCount(channelId?: string, entryKey?: number): number | un
     return channelId ? counts.get(channelId) : undefined;
 }
 
+// Watch all accessible chats even while the TODO folder hides rows with no open tasks.
+export function useTodoCounts(channelIds: string[]): Record<string, number> {
+    const [, refresh] = useState(0);
+    const key = JSON.stringify(channelIds.slice().sort());
+    useEffect(() => {
+        const ids: string[] = JSON.parse(key);
+        const included = new Set(ids);
+        const listener = (id: string) => {
+            if (included.has(id)) refresh((value) => value + 1);
+        };
+        countListeners.add(listener);
+        ids.forEach((id) => {
+            watched.set(id, (watched.get(id) || 0) + 1);
+            requestCount(id);
+        });
+        return () => {
+            countListeners.delete(listener);
+            ids.forEach((id) => {
+                const n = (watched.get(id) || 1) - 1;
+                if (n) watched.set(id, n); else watched.delete(id);
+            });
+        };
+    }, [key]);
+    return Object.fromEntries(channelIds.map((id) => [id, counts.get(id) || 0]));
+}
+
 export function clearTodos() {
     epoch++;
     if (timer) clearTimeout(timer);
