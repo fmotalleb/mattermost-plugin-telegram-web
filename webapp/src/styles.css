@@ -17,11 +17,12 @@
     font-display: swap;
 }
 
-/* Twemoji COLRv0 vector outlines stay sharp at every font size and device scale.
+/* Use the device’s Apple emoji artwork when available, matching Telegram’s set.
+   Otherwise Twemoji COLRv0 vector outlines stay sharp at every size and device scale.
    Notices and reproducible preparation instructions ship in assets/emoji. */
 @font-face {
     font-family: 'TGW Emoji';
-    src: url('./fonts/Twemoji.woff2') format('woff2');
+    src: local('Apple Color Emoji'), url('./fonts/Twemoji.woff2') format('woff2');
     font-weight: 100 900;
     font-style: normal;
     font-display: block;
