@@ -13,7 +13,6 @@ import {
     getTabChats,
     getTabUnreadCounts,
     getTeams,
-    isReorderableTab,
     searchChats,
     searchContactCandidates,
 } from '../mm/selectors';
@@ -202,7 +201,7 @@ export function Sidebar() {
     const todoChats = allChats.filter((chat) => todoCounts[chat.id] > 0);
     const openTodos = todoChats.reduce((sum, chat) => sum + todoCounts[chat.id], 0);
     const tabUnread = useSelector((state) => getTabUnreadCounts(state, tabs));
-    // Drag-to-reorder state of the movable folder tabs.
+    // Drag-to-reorder state of the folder tabs (category tabs only).
     const [tabDrag, setTabDrag] = useState<string | null>(null);
     const [tabOver, setTabOver] = useState<string | null>(null);
     const contacts = useSelector(getContacts);
@@ -537,20 +536,19 @@ export function Sidebar() {
                         const tabChats = settings.quietUnreadCounts ? getTabChats(getState(), entry.id) : [];
                         const priorityUnread = tabChats.reduce((sum, chat) => sum + (chat.type === 'D' ? chat.unread : chat.mentions), 0);
                         const otherUnread = tabChats.some((chat) => chat.type !== 'D' && (chat.unread > 0 || chat.manuallyUnread));
-                        const canReorder = isReorderableTab(entry);
+                        const isCategory = entry.kind === 'category';
                         return (
                             <button
                                 type="button"
                                 key={entry.id}
-                                draggable={canReorder}
+                                draggable={isCategory}
                                 className={`tgw-folder${entry.id === ui.activeTabId ? ' tgw-folder-active' : ''}${tabDrag === entry.id ? ' tgw-folder-dragging' : ''}${tabOver === entry.id ? ' tgw-folder-dragover' : ''}`}
                                 onClick={() => actions.setTab(entry.id)}
                                 // Category tabs reorder by dragging. The order is stored like any
                                 // other setting (user preference + localStorage mirror), while
-                                // getTabs() keeps All, Favorites, Unread and TODO ahead of movable
-                                // categories, with Contacts last.
+                                // getTabs() keeps All/Unread/TODO pinned first and Contacts last.
                                 onDragStart={(event) => {
-                                    if (!canReorder) {
+                                    if (!isCategory) {
                                         return;
                                     }
                                     setTabDrag(entry.id);
@@ -565,7 +563,7 @@ export function Sidebar() {
                                     }
                                 }}
                                 onDragOver={(event) => {
-                                    if (!canReorder || !tabDrag || tabDrag === entry.id) {
+                                    if (!isCategory || !tabDrag || tabDrag === entry.id) {
                                         return;
                                     }
                                     event.preventDefault();
@@ -577,10 +575,10 @@ export function Sidebar() {
                                     const dragged = tabDrag;
                                     setTabDrag(null);
                                     setTabOver(null);
-                                    if (!canReorder || !dragged || dragged === entry.id) {
+                                    if (!isCategory || !dragged || dragged === entry.id) {
                                         return;
                                     }
-                                    const categoryIds = folderTabs.filter(isReorderableTab).map((tab) => tab.id);
+                                    const categoryIds = folderTabs.filter((tab) => tab.kind === 'category').map((tab) => tab.id);
                                     const without = categoryIds.filter((id) => id !== dragged);
                                     const at = without.indexOf(entry.id);
                                     without.splice(at === -1 ? without.length : at, 0, dragged);
