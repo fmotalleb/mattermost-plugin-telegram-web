@@ -366,6 +366,10 @@ export function getCategory(state: MMState, categoryId: string): MMChannelCatego
     return state.entities?.channelCategories?.byId?.[categoryId];
 }
 
+export function isReorderableTab(tab: ChatTab): boolean {
+    return tab.kind === 'category' && tab.type !== 'favorites';
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
     favorites: 'Favorites',
     channels: 'Groups',
@@ -381,11 +385,8 @@ export function getTabs(state: MMState): ChatTab[] {
     // getSettings() is part of the memo key: saving a tab order changes the settings object, so
     // the next render recomputes the tabs while plain store notifications keep their old array.
     return tabsMemo.get([categories, order, teamId, getSettings()], () => {
-        const tabs: ChatTab[] = [
-            {id: '__all', label: 'All', kind: 'all', sortOrder: 0},
-            {id: '__unread', label: 'Unread', kind: 'unread', sortOrder: 1},
-            {id: '__todos', label: 'TODO', kind: 'todos', sortOrder: 2},
-        ];
+        const favorites: ChatTab[] = [];
+        const categoryTabs: ChatTab[] = [];
         getCategoriesForTeam(state, teamId).forEach((category, index) => {
             const ids = category.channel_ids || [];
             const hasChannels = ids.some((id) => !!getChannel(state, id));
@@ -394,35 +395,31 @@ export function getTabs(state: MMState): ChatTab[] {
             }
             // Use compact labels for built-in categories. Custom categories keep their names.
             const isBuiltInChannels = category.type === 'channels' || category.type === 'managed';
-            tabs.push({
+            const tab: ChatTab = {
                 id: category.id,
                 label: isBuiltInChannels ? 'Groups' : category.type === 'direct_messages' ? 'Direct' : (category.display_name || CATEGORY_LABELS[category.type] || 'Folder'),
                 kind: 'category',
                 type: category.type,
-                sortOrder: 10 + index,
-            });
+                sortOrder: category.type === 'favorites' ? 1 : 10 + index,
+            };
+            if (isReorderableTab(tab)) categoryTabs.push(tab);
+            else favorites.push(tab);
         });
-        tabs.push({id: '__contacts', label: 'Contacts', kind: 'contacts', sortOrder: 10_000});
 
-        // The saved drag order shuffles ONLY the category tabs: All/Unread/TODO stay pinned at the
-        // front, Contacts stays last, ids of deleted categories are ignored and new categories
-        // land after the stored ones.
+        // Apply the saved drag order to the movable categories. Legacy Favorites ids and
+        // deleted categories are ignored, and new categories follow the saved ones.
         const stored: string[] = Array.isArray(getSettings().tabOrder) ? getSettings().tabOrder : [];
-        if (stored.length) {
-            const categoryTabs = tabs.filter((tab) => tab.kind === 'category');
-            const placed = stored.map((id) => categoryTabs.find((tab) => tab.id === id)).filter(Boolean) as ChatTab[];
-            const storedIds = new Set(stored);
-            const rest = categoryTabs.filter((tab) => !storedIds.has(tab.id));
-            const first = tabs.findIndex((tab) => tab.kind === 'category');
-            if (first >= 0) {
-                let after = first;
-                while (after < tabs.length && tabs[after].kind === 'category') {
-                    after += 1;
-                }
-                tabs.splice(first, after - first, ...placed, ...rest);
-            }
-        }
-        return tabs;
+        const placed = stored.map((id) => categoryTabs.find((tab) => tab.id === id)).filter(Boolean) as ChatTab[];
+        const storedIds = new Set(stored);
+        return [
+            {id: '__all', label: 'All', kind: 'all', sortOrder: 0},
+            ...favorites,
+            {id: '__unread', label: 'Unread', kind: 'unread', sortOrder: 2},
+            {id: '__todos', label: 'TODO', kind: 'todos', sortOrder: 3},
+            ...placed,
+            ...categoryTabs.filter((tab) => !storedIds.has(tab.id)),
+            {id: '__contacts', label: 'Contacts', kind: 'contacts', sortOrder: 10_000},
+        ];
     });
 }
 

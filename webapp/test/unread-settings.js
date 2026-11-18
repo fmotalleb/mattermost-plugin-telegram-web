@@ -116,6 +116,27 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     ok(!getSettings().pinFavoritesInAll && titles()[0]?.includes('Alice'), 'disabling pinning restores chronological order immediately');
     state.entities.preferences.myPreferences = originalPreferences;
     state.entities.channels.myMembers = originalMembers;
+
+    console.log('== folder tab order ==');
+    click(document.querySelector('[role="dialog"] [title="Close"]'));
+    const categories = state.entities.channelCategories;
+    state.entities.channelCategories = {
+        ...categories,
+        byId: {...categories.byId, 'cat-fav': {...categories.byId['cat-fav'], channel_ids: [ids.DM]}},
+    };
+    updateSettings({tabOrder: ['cat-work', 'cat-ch', 'cat-fav', 'cat-dm']});
+    notifyStoreChange();
+    const folderLabels = () => Array.from(document.querySelectorAll('.tgw-folder'))
+        .map((button) => button.firstChild.textContent);
+    await wait(() => folderLabels()[1] === 'Favorites');
+    ok(folderLabels().join(',') === 'All,Favorites,Unread,TODO,Work stuff,Groups,Direct,Contacts',
+        'Favorites appears between All and Unread, ahead of saved category order');
+    ok(folder('Favorites')?.draggable === false && folder('Work stuff')?.draggable === true,
+        'Favorites stays fixed while other category tabs remain draggable');
+    click(folder('Favorites'));
+    await wait(() => rows().length === 1);
+    ok(titles().length === 1 && titles()[0]?.includes('Alice'), 'the Favorites tab still opens its saved chats');
+
     root.unmount();
     report('UNREAD SETTINGS TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });
