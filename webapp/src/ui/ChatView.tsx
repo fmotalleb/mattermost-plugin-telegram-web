@@ -86,6 +86,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchHits, setSearchHits] = useState<MMPost[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState('');
     const [selectedSearchId, setSelectedSearchId] = useState<string | null>(null);
     const [menu, setMenu] = useState<{x: number; y: number; items: MenuEntry[]} | null>(null);
     const headerMoreRef = React.useRef<HTMLButtonElement>(null);
@@ -112,6 +113,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
     // the channel's public `before` cursor directly.
     useEffect(() => {
         const term = inChatSearch.trim();
+        setSearchError('');
         if (!term || !channelId) {
             setSearchHits([]);
             setSearchLoading(false);
@@ -119,6 +121,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
             return undefined;
         }
         let cancelled = false;
+        const controller = new AbortController();
         setSearchLoading(true);
         setSearchHits([]);
         setSelectedSearchId(null);
@@ -172,22 +175,32 @@ export function ChatView({quick = false}: {quick?: boolean}) {
             };
             const searchChannel = async () => {
                 try {
-                    const data = await api.searchChannelHistory(channelId, term);
-                    if (cancelled) {
-                        return;
-                    }
-                    if (!Array.isArray(data.order) || !data.posts) {
-                        throw new Error('invalid channel search response');
-                    }
-                    publish((data.order || []).map((id) => data.posts[id]).filter((post): post is MMPost => Boolean(post)));
-                } catch {
+                    const hits: MMPost[] = [];
+                    const seen = new Set<string>();
+                    const cursors = new Set<string>();
+                    let before = '';
+                    do {
+                        const data = await api.searchChannelHistory(channelId, term, before, controller.signal);
+                        if (cancelled) return;
+                        if (!Array.isArray(data.order) || !data.posts) throw new Error('invalid channel search response');
+                        data.order.forEach((id) => {
+                            if (data.posts[id] && !seen.has(id)) { seen.add(id); hits.push(data.posts[id]); }
+                        });
+                        publish(hits);
+                        const next = data.next_before || '';
+                        if (!next || cursors.has(next)) break;
+                        cursors.add(next);
+                        before = next;
+                    } while (!cancelled);
+                } catch (error) {
+                    if (cancelled) return;
                     // A plugin server is optional. Its 404 (or an older plugin version) should
                     // still leave deep chat search working through Mattermost's public API.
                     try {
+                        if (error?.status !== 404 && error?.status !== 501) throw error;
                         await loadEntireHistory();
-                    } catch {
-                        setSearchHits([]);
-                        setSelectedSearchId(null);
+                    } catch (failure) {
+                        if (!cancelled) setSearchError(failure?.message || 'Could not complete this search. Please retry.');
                     }
                 } finally {
                     if (!cancelled) {
@@ -199,6 +212,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
         }, 250);
         return () => {
             cancelled = true;
+            controller.abort();
             clearTimeout(timer);
         };
     }, [inChatSearch, channelId]);
@@ -494,7 +508,7 @@ export function ChatView({quick = false}: {quick?: boolean}) {
                         }}
                         spellCheck={false}
                     />
-                    <span className="tgw-inchat-search-count">{inChatSearch ? (searchLoading ? 'Searching…' : `${searchHits.length} found`) : ''}</span>
+                    <span className="tgw-inchat-search-count">{inChatSearch ? (searchLoading ? 'Searching…' : searchError ? 'Search unavailable' : `${searchHits.length} found`) : ''}</span>
                     {searchHits.length > 0 && (
                         <span className="tgw-inchat-search-nav">
                             <button type="button" className="tgw-icon-button" title="Previous result" disabled={selectedSearchIndex <= 0} onClick={() => selectSearchResult(selectedSearchIndex - 1)}>‹</button>
@@ -510,7 +524,8 @@ export function ChatView({quick = false}: {quick?: boolean}) {
 
             {searchOpen && inChatSearch.trim() && (
                 <div className="tgw-inchat-search-results" role="listbox" aria-label="Search results">
-                    {!searchLoading && !searchHits.length && <div className="tgw-inchat-search-empty">No messages found</div>}
+                    {searchError && <div className="tgw-inchat-search-empty" role="alert">{searchError}</div>}
+                    {!searchError && !searchLoading && !searchHits.length && <div className="tgw-inchat-search-empty">No messages found</div>}
                     {searchHits.map((post, index) => (
                         <button
                             key={post.id}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -20,23 +21,27 @@ const (
 	// Endpoint path (relative to /plugins/com.telegramweb.ui): POST records views, GET reports
 	// counts plus the caller's own seen state. GET can also return viewer IDs on demand.
 	viewsPath = "/api/v1/views"
-	// Searches every retained post in one channel. Unlike Mattermost's indexed /posts/search,
-	// this is not subject to a server's search-result cap.
+	// Searches a bounded history page; clients follow the before cursor to search older posts.
 	channelSearchPath                = "/api/v1/channel-search"
 	forwardPath                      = "/api/v1/forward"
 	unmuteChannelPath                = "/api/v1/channel-unmute"
 	overrideChannelNotificationsPath = "/api/v1/channel-notifications"
 
 	maxPostIDsPerRequest  = 100
-	channelSearchPageSize = 100
+	channelSearchPageSize = 50
 )
 
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	client      *pluginapi.Client
-	scheduleJob *cluster.Job
-	todos       todoRepository
+	client            *pluginapi.Client
+	scheduleJob       *cluster.Job
+	todos             todoRepository
+	workMu            sync.Mutex
+	activeWork        int
+	scheduleListMu    sync.Mutex
+	scheduleListCache []*scheduledPost
+	scheduleListAt    time.Time
 }
 
 func (p *Plugin) OnActivate() error {
@@ -140,7 +145,7 @@ func (p *Plugin) handleForward(w http.ResponseWriter, r *http.Request) {
 		PostID    string `json:"post_id"`
 		ChannelID string `json:"channel_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !model.IsValidId(body.PostID) || !model.IsValidId(body.ChannelID) {
+	if err := decodeRequest(w, r, &body); err != nil || !model.IsValidId(body.PostID) || !model.IsValidId(body.ChannelID) {
 		writeError(w, http.StatusBadRequest, "valid post_id and channel_id are required")
 		return
 	}
@@ -193,58 +198,101 @@ func (p *Plugin) handleChannelSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Context().Err() != nil {
+		return
+	}
+	if !p.acquireWork(w) {
+		return
+	}
+	defer p.releaseWork()
 	var body struct {
 		ChannelID string `json:"channel_id"`
 		Term      string `json:"term"`
+		Before    string `json:"before"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeRequest(w, r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	body.ChannelID = strings.TrimSpace(body.ChannelID)
 	body.Term = strings.TrimSpace(body.Term)
-	if body.ChannelID == "" || body.Term == "" {
-		writeError(w, http.StatusBadRequest, "channel_id and term are required")
+	if !model.IsValidId(body.ChannelID) || body.Term == "" || len(body.Term) > 1024 || (body.Before != "" && !model.IsValidId(body.Before)) {
+		writeError(w, http.StatusBadRequest, "valid channel_id, term and cursor are required")
 		return
 	}
-	if _, appErr := p.API.GetChannelMember(body.ChannelID, userID); appErr != nil {
+	if member, err := p.API.GetChannelMember(body.ChannelID, userID); err != nil || member == nil {
 		writeError(w, http.StatusForbidden, "channel access required")
 		return
 	}
-
-	needle := strings.ToLower(body.Term)
-	posts := make(map[string]*model.Post)
-	order := make([]string, 0)
-	seen := make(map[string]bool)
-	for page := 0; ; page++ {
-		postList, appErr := p.API.GetPostsForChannel(body.ChannelID, page, channelSearchPageSize)
-		if appErr != nil {
-			writeError(w, http.StatusInternalServerError, "could not load channel history")
+	if r.Context().Err() != nil {
+		return
+	}
+	var list *model.PostList
+	var appErr *model.AppError
+	if body.Before != "" {
+		cursor, err := p.API.GetPost(body.Before)
+		if err != nil || cursor == nil || cursor.ChannelId != body.ChannelID {
+			writeError(w, http.StatusBadRequest, "invalid search cursor")
 			return
 		}
-		if postList == nil || len(postList.Order) == 0 {
-			break
+		if r.Context().Err() != nil {
+			return
 		}
-		newPosts := false
-		for _, id := range postList.Order {
-			post := postList.Posts[id]
-			if post == nil || seen[id] {
+		list, appErr = p.API.GetPostsBefore(body.ChannelID, body.Before, 0, channelSearchPageSize)
+	} else {
+		list, appErr = p.API.GetPostsForChannel(body.ChannelID, 0, channelSearchPageSize)
+	}
+	if r.Context().Err() != nil {
+		return
+	}
+	if appErr != nil {
+		writeError(w, 500, "could not load channel history")
+		return
+	}
+	posts := map[string]*model.Post{}
+	order := []string{}
+	next := ""
+	if list != nil {
+		needle := strings.ToLower(body.Term)
+		size := 0
+		processed := 0
+		for _, id := range list.Order {
+			if r.Context().Err() != nil {
+				return
+			}
+			if processed >= channelSearchPageSize {
+				break
+			}
+			post := list.Posts[id]
+			if post == nil || post.ChannelId != body.ChannelID || id == body.Before {
 				continue
 			}
-			seen[id] = true
-			newPosts = true
 			if post.DeleteAt == 0 && strings.Contains(strings.ToLower(post.Message), needle) {
-				posts[id] = post
-				order = append(order, id)
+				data, err := json.Marshal(post)
+				if err != nil {
+					writeError(w, 500, "could not encode search results")
+					return
+				}
+				if size+len(data) > 1024*1024 {
+					if processed == 0 {
+						writeError(w, http.StatusRequestEntityTooLarge, "search result exceeds response limit")
+						return
+					}
+					break
+				}
+				size += len(data)
+				if posts[id] == nil {
+					posts[id] = post
+					order = append(order, id)
+				}
 			}
+			processed++
+			next = id
 		}
-		// Protect against a legacy server returning the same page for every page argument.
-		if !newPosts {
-			break
+		if len(list.Order) < channelSearchPageSize && processed == len(list.Order) {
+			next = ""
 		}
 	}
-
-	writeJSON(w, map[string]any{"order": order, "posts": posts})
+	writeJSON(w, map[string]any{"order": order, "posts": posts, "next_before": next})
 }
 
 // --------------------------------------------------------------------------- handlers
@@ -259,7 +307,7 @@ func (p *Plugin) handleRecordViews(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PostIDs []string `json:"post_ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeRequest(w, r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}

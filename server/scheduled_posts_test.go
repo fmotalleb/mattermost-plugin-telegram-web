@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -19,6 +20,7 @@ const scheduleFileID = "cccccccccccccccccccccccccc"
 const scheduleRootID = "dddddddddddddddddddddddddd"
 
 type schedulingAPI struct {
+	mu          sync.Mutex
 	beforeClaim func()
 	plugin.API
 	data             map[string][]byte
@@ -32,6 +34,7 @@ type schedulingAPI struct {
 	createError      bool
 	ambiguousSuccess bool
 	failSave         bool
+	failRead         bool
 	failDelete       bool
 	historyError     bool
 	historyReads     int
@@ -41,8 +44,27 @@ func scheduleTestPlugin() (*Plugin, *schedulingAPI) {
 	api := &schedulingAPI{data: make(map[string][]byte), allowed: true}
 	return &Plugin{MattermostPlugin: plugin.MattermostPlugin{API: api}}, api
 }
-func (a *schedulingAPI) LogWarn(string, ...any) {}
+func (a *schedulingAPI) LogWarn(string, ...any)  {}
+func (a *schedulingAPI) LogError(string, ...any) {}
+func (a *schedulingAPI) KVSetWithOptions(key string, value []byte, opts model.PluginKVSetOptions) (bool, *model.AppError) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.failSave {
+		return false, &model.AppError{StatusCode: 500}
+	}
+	if opts.Atomic && !bytes.Equal(a.data[key], opts.OldValue) {
+		return false, nil
+	}
+	if value == nil {
+		delete(a.data, key)
+	} else {
+		a.data[key] = append([]byte(nil), value...)
+	}
+	return true, nil
+}
 func (a *schedulingAPI) KVSet(key string, data []byte) *model.AppError {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.failSave {
 		return &model.AppError{StatusCode: 500}
 	}
@@ -55,6 +77,8 @@ func (a *schedulingAPI) KVCompareAndSet(key string, old, next []byte) (bool, *mo
 		a.beforeClaim = nil
 		hook()
 	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.failSave {
 		return false, &model.AppError{StatusCode: 500}
 	}
@@ -65,6 +89,8 @@ func (a *schedulingAPI) KVCompareAndSet(key string, old, next []byte) (bool, *mo
 	return true, nil
 }
 func (a *schedulingAPI) KVCompareAndDelete(key string, old []byte) (bool, *model.AppError) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.failDelete {
 		return false, &model.AppError{StatusCode: 500}
 	}
@@ -74,8 +100,14 @@ func (a *schedulingAPI) KVCompareAndDelete(key string, old []byte) (bool, *model
 	delete(a.data, key)
 	return true, nil
 }
-func (a *schedulingAPI) KVGet(key string) ([]byte, *model.AppError) { return a.data[key], nil }
+func (a *schedulingAPI) KVGet(key string) ([]byte, *model.AppError) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]byte(nil), a.data[key]...), nil
+}
 func (a *schedulingAPI) KVDelete(key string) *model.AppError {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.failDelete {
 		return &model.AppError{StatusCode: 500}
 	}
@@ -83,6 +115,11 @@ func (a *schedulingAPI) KVDelete(key string) *model.AppError {
 	return nil
 }
 func (a *schedulingAPI) KVList(page, count int) ([]string, *model.AppError) {
+	if a.failRead {
+		return nil, &model.AppError{StatusCode: 500}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	keys := make([]string, 0, len(a.data))
 	for key := range a.data {
 		keys = append(keys, key)

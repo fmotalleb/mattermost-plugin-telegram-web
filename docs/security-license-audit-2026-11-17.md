@@ -4,6 +4,39 @@ Reviewed 17 November 2026 against commit `2905375` and the current working tree.
 
 The main release risks are incomplete third-party licensing materials and unbounded work in authenticated server endpoints. No cross-channel authorization bypass or confirmed script execution was established. The findings below distinguish demonstrable behavior from deployment-dependent impact.
 
+## Security remediation on 18 November 2026
+
+The security findings below describe the audited behavior before remediation. Search now
+returns at most 50 inspected posts per request, limits encoded matching posts to 1 MiB,
+validates channel-bound continuation cursors and stops between RPCs on cancellation.
+The client follows pages progressively and aborts on search changes. Search, view and
+forward bodies are limited to 16 KiB and must contain exactly one JSON value. Four
+simultaneous search/schedule operations are admitted per plugin instance.
+
+Queue additions and removals share a cluster mutex; creation enforces 100 records per user, 500 total and
+16 MiB of stored schedule data. Failed records count until removed. Global KV scans are
+bounded to fewer than 1000 keys and 32 MiB; list callers share a three-second cache rather
+than each forcing an independent scan. Existing queues beyond those scan budgets fail
+closed and require excess records to be removed; the change does not silently delete
+pending messages. The existing queue/list format and cancellation/delivery claims remain
+compatible. The storage scan remains global, but its size and repetition are bounded.
+Delivery reconciliation also stops after ten 100-post pages and honors cancellation.
+Exhausting that budget returns an error rather than treating incomplete history as proof
+of non-delivery; ambiguous records can require manual review.
+
+External attachment images require explicit loading, and these image loads omit
+the referrer. Same-origin image URLs continue to render automatically. Fallback Markdown
+and attachment links validate URL schemes independently of React. The lockfile now uses
+`fast-uri@3.1.9`, and installation/audit reported zero npm advisories. Licensing findings
+remain open. Go HTTP/2 scanner triage below is unchanged.
+
+Validation: `make test` passed all type, smoke, production bundle and asset stages; its Go
+stage encountered a read-only sandbox cache. `make test-server test-package` then passed
+outside the sandbox, including vet, server build and all six platform packaging checks.
+`go test -race ./...` passed with the new cluster quota, mutation-lock and cancellation
+regressions. UI previews were regenerated, and the new client tests cover continuation
+pages, aborts, rate-limit handling, URL filtering and image consent.
+
 ## Licensing findings
 
 ### ELK redistribution needs its own license and source information

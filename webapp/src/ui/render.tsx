@@ -1,3 +1,4 @@
+import {safeLinkURL} from '../mm/urls';
 // Message body rendering.
 //
 // Mattermost exposes its own formatter and its React renderer to plugins as window.PostUtils.
@@ -338,7 +339,7 @@ function renderInline(text: string, keyPrefix: number, mentionKeys?: Array<{key:
         } else if (link) {
             const parts = /\[([^\]]+)\]\(([^)]+)\)/.exec(link)!;
             nodes.push(
-                <a key={key} href={parts[2]} target="_blank" rel="noopener noreferrer">{parts[1]}</a>,
+                <a key={key} href={safeLinkURL(parts[2])} target="_blank" rel="noopener noreferrer">{parts[1]}</a>,
             );
         } else if (url) {
             nodes.push(

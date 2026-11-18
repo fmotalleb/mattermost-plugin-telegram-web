@@ -48,6 +48,7 @@ interface RequestOptions {
     /** when true the body is sent as-is (FormData) */
     raw?: boolean;
     query?: Record<string, any>;
+    signal?: AbortSignal;
 }
 
 function buildQuery(query?: Record<string, any>): string {
@@ -145,6 +146,7 @@ export class MattermostAPI {
             headers,
             body,
             credentials: 'same-origin',
+            signal: options.signal,
         });
 
         const text = await response.text();
@@ -479,13 +481,12 @@ export class MattermostAPI {
         });
     }
 
-    // The plugin server walks a channel's retained post history. This deliberately bypasses the
-    // Mattermost global-search index, which administrators can cap well below a chat's result
-    // count. Callers fall back to the public channel-history API if this server component is off.
-    searchChannelHistory(channelId: string, term: string): Promise<{order: string[]; posts: Record<string, MMPost>}> {
+    // Each request searches a bounded history page. The UI follows next_before to
+    // retain deep search without unbounded server work or offset-pagination drift.
+    searchChannelHistory(channelId: string, term: string, before = '', signal?: AbortSignal): Promise<{order: string[]; posts: Record<string, MMPost>; next_before?: string}> {
         return this.pluginRequest('/api/v1/channel-search', {
             method: 'POST',
-            body: {channel_id: channelId, term},
+            body: {channel_id: channelId, term, before}, signal,
         });
     }
 

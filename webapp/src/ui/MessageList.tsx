@@ -1,3 +1,4 @@
+import {safeImageURL, safeLinkURL} from '../mm/urls';
 // The chat screen message list: grouping, date separators, attachments, reactions and scrolling.
 
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
@@ -676,7 +677,7 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
 }
 
 /** Mattermost message attachments use the Slack-compatible attachment shape in post.props. */
-function PostAttachments({attachments}: {attachments?: any[]}) {
+export function PostAttachments({attachments}: {attachments?: any[]}) {
     if (!Array.isArray(attachments) || !attachments.length) {
         return null;
     }
@@ -687,14 +688,27 @@ function PostAttachments({attachments}: {attachments?: any[]}) {
         const fields = Array.isArray(attachment.fields) ? attachment.fields : [];
         return <section className="tgw-post-attachment" key={attachment.id || index} style={attachment.color ? {borderLeftColor: attachment.color} : undefined}>
             {attachment.pretext && <MessageBody message={String(attachment.pretext)} className="tgw-post-attachment-pretext"/>}
-            {attachment.author_name && <div className="tgw-post-attachment-author">{attachment.author_link ? <a href={attachment.author_link} target="_blank" rel="noopener noreferrer">{attachment.author_name}</a> : attachment.author_name}</div>}
-            {attachment.title && <div className="tgw-post-attachment-title">{attachment.title_link ? <a href={attachment.title_link} target="_blank" rel="noopener noreferrer">{attachment.title}</a> : attachment.title}</div>}
+            {attachment.author_name && <div className="tgw-post-attachment-author">{attachment.author_link ? <a href={safeLinkURL(attachment.author_link)} target="_blank" rel="noopener noreferrer">{attachment.author_name}</a> : attachment.author_name}</div>}
+            {attachment.title && <div className="tgw-post-attachment-title">{attachment.title_link ? <a href={safeLinkURL(attachment.title_link)} target="_blank" rel="noopener noreferrer">{attachment.title}</a> : attachment.title}</div>}
             {attachment.text && <MessageBody message={String(attachment.text)} className="tgw-post-attachment-text"/>}
             {!!fields.length && <div className="tgw-post-attachment-fields">{fields.map((field: any, fieldIndex: number) => <div className={field?.short ? 'tgw-post-attachment-field tgw-post-attachment-field-short' : 'tgw-post-attachment-field'} key={field?.title || fieldIndex}><strong>{field?.title}</strong><MessageBody message={String(field?.value || '')} className="tgw-post-attachment-field-value"/></div>)}</div>}
-            {attachment.image_url && <img className="tgw-post-attachment-image" src={attachment.image_url} alt={attachment.image_alt || attachment.title || ''} loading="lazy" decoding="async"/>}
+            {attachment.image_url && <AttachmentImage url={attachment.image_url} alt={String(attachment.image_alt || attachment.title || '')}/>}
             {attachment.footer && <div className="tgw-post-attachment-footer">{attachment.footer}</div>}
         </section>;
     })}</div>;
+}
+
+// External attachment URLs cannot silently contact a tracking origin. Same-origin
+// URLs (including server-proxied images) render normally; direct external loads
+// require a deliberate choice for this exact URL and never send a referrer.
+function AttachmentImage({url, alt}: {url: unknown; alt: string}) {
+    const src = safeImageURL(url);
+    const [approved, setApproved] = useState('');
+    if (!src) return null;
+    if (new URL(src).origin !== window.location.origin && approved !== src) {
+        return <button type="button" className="tgw-link-button" onClick={() => setApproved(src)}>Load external image</button>;
+    }
+    return <img className="tgw-post-attachment-image" src={src} alt={alt} loading="lazy" decoding="async" referrerPolicy="no-referrer"/>;
 }
 
 function replyAuthorName(post: MMPost, myId: string): string {

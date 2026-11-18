@@ -1,19 +1,30 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 )
 
 const schedulePath = "/api/v1/scheduled-posts"
 const scheduleKeyPrefix = "tgw_schedule_"
 const schedulePostProp = "tgw_scheduled_id"
+const maxScheduledPerUser = 100
+const maxScheduledTotal = 500
+const maxScheduledBytes = 16 * 1024 * 1024
+const maxScheduleScanKeys = 1000
+const maxReconciliationPages = 10
+
+var errScheduleQuota = errors.New("Scheduled message queue limit reached. Remove pending messages before scheduling more.")
 
 // Pending posts belong to this plugin, not Mattermost's licensed scheduled-posts service.
 // StartedAt is saved before posting so a worker recovering after a crash can reconcile the
@@ -34,6 +45,7 @@ type scheduledPost struct {
 	ErrorCode   string                `json:"error_code,omitempty"`
 }
 
+// Low-level persistence; new client jobs must use enqueueScheduledPost for quotas.
 func (p *Plugin) saveScheduledPost(post *scheduledPost) error {
 	data, err := json.Marshal(post)
 	if err != nil {
@@ -45,37 +57,59 @@ func (p *Plugin) saveScheduledPost(post *scheduledPost) error {
 	return nil
 }
 
-// Collect keys before delivering/deleting anything: changing the KV set while paging it would
-// otherwise skip entries. Unknown keys (including the cluster job's locks) are ignored.
+// Collect a bounded key snapshot before delivering/deleting records. Unknown keys
+// (including the cluster job's locks) are ignored.
 func (p *Plugin) scheduledPosts() ([]*scheduledPost, error) {
-	var posts []*scheduledPost
-	for page := 0; ; page++ {
-		keys, appErr := p.API.KVList(page, 100)
+	return p.scanScheduledPosts(context.Background())
+}
+
+func (p *Plugin) scanScheduledPosts(ctx context.Context) ([]*scheduledPost, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// Use one bounded key snapshot. Offset paging can skip live records if an
+	// unrelated cluster-job lock key disappears between pages, even while queue
+	// mutations are serialized. An ambiguous full page must fail closed.
+	keys, appErr := p.API.KVList(0, maxScheduleScanKeys)
+	if appErr != nil {
+		return nil, appErr
+	}
+	if len(keys) >= maxScheduleScanKeys {
+		return nil, fmt.Errorf("scheduled queue exceeds scan budget; remove excess records")
+	}
+	posts := []*scheduledPost{}
+	seen := map[string]bool{}
+	bytesRead := 0
+	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if seen[key] {
+			return nil, fmt.Errorf("scheduled queue repeated a key")
+		}
+		seen[key] = true
+		if !strings.HasPrefix(key, scheduleKeyPrefix) {
+			continue
+		}
+		data, appErr := p.API.KVGet(key)
 		if appErr != nil {
 			return nil, appErr
 		}
-		for _, key := range keys {
-			if !strings.HasPrefix(key, scheduleKeyPrefix) {
-				continue
-			}
-			data, appErr := p.API.KVGet(key)
-			if appErr != nil {
-				return nil, appErr
-			}
-			if data == nil {
-				continue
-			}
-			var post scheduledPost
-			if err := json.Unmarshal(data, &post); err != nil {
-				p.API.LogWarn("invalid scheduled message record", "key", key)
-				continue
-			}
-			posts = append(posts, &post)
+		if data == nil {
+			continue
 		}
-		if len(keys) < 100 {
-			return posts, nil
+		bytesRead += len(data)
+		if len(data) > 65536 || bytesRead > 2*maxScheduledBytes {
+			return nil, fmt.Errorf("scheduled queue exceeds byte budget")
 		}
+		var post scheduledPost
+		if err := json.Unmarshal(data, &post); err != nil {
+			p.API.LogWarn("invalid scheduled message record", "key", key)
+			continue
+		}
+		posts = append(posts, &post)
 	}
+	return posts, nil
 }
 
 func (p *Plugin) handleScheduledPosts(w http.ResponseWriter, r *http.Request) {
@@ -84,8 +118,15 @@ func (p *Plugin) handleScheduledPosts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
+	if r.Context().Err() != nil {
+		return
+	}
+	if !p.acquireWork(w) {
+		return
+	}
+	defer p.releaseWork()
 	if r.Method == http.MethodGet {
-		posts, err := p.scheduledPosts()
+		posts, err := p.cachedScheduledPosts(r.Context())
 		if err != nil {
 			writeError(w, 500, "could not load scheduled messages")
 			return
@@ -154,7 +195,11 @@ func (p *Plugin) handleScheduledPosts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "scheduled message is too large")
 		return
 	}
-	if err := p.saveScheduledPost(post); err != nil {
+	if err := p.enqueueScheduledPost(r.Context(), post); err != nil {
+		if errors.Is(err, errScheduleQuota) {
+			writeError(w, http.StatusTooManyRequests, err.Error())
+			return
+		}
 		writeError(w, 500, "could not save scheduled message")
 		return
 	}
@@ -182,6 +227,13 @@ func (p *Plugin) handleDeleteScheduledPost(w http.ResponseWriter, r *http.Reques
 		writeError(w, 400, "invalid scheduled message ID")
 		return
 	}
+	if r.Context().Err() != nil {
+		return
+	}
+	if !p.acquireWork(w) {
+		return
+	}
+	defer p.releaseWork()
 	data, appErr := p.API.KVGet(scheduleKeyPrefix + id)
 	if appErr != nil {
 		writeError(w, 500, "could not load scheduled message")
@@ -197,13 +249,22 @@ func (p *Plugin) handleDeleteScheduledPost(w http.ResponseWriter, r *http.Reques
 			writeError(w, 409, "This message is already being delivered. Refresh the list.")
 			return
 		}
-		delivered, err := p.scheduledPostDelivered(&post)
+		delivered, err := p.scheduledPostDeliveredContext(r.Context(), &post)
 		if err != nil || delivered {
 			writeError(w, 409, "Could not safely cancel this delivery. Refresh the list.")
 			return
 		}
 	}
+	// Keep KVList offsets stable while another node checks admission quotas.
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	mutex, err := p.lockScheduleQueue(ctx)
+	if err != nil {
+		writeError(w, 500, "could not remove scheduled message")
+		return
+	}
 	removed, appErr := p.API.KVCompareAndDelete(scheduleKeyPrefix+id, data)
+	mutex.Unlock()
 	if appErr != nil {
 		writeError(w, 500, "could not remove scheduled message")
 		return
@@ -212,6 +273,7 @@ func (p *Plugin) handleDeleteScheduledPost(w http.ResponseWriter, r *http.Reques
 		writeError(w, 409, "This scheduled message changed. Refresh the list and try again.")
 		return
 	}
+	p.invalidateScheduledList()
 	writeJSON(w, &post)
 }
 
@@ -268,6 +330,7 @@ func (p *Plugin) runScheduledPosts() {
 }
 
 func (p *Plugin) failScheduledPost(post *scheduledPost, reason string, data []byte) {
+	defer p.invalidateScheduledList()
 	post.ErrorCode = reason
 	updated, err := json.Marshal(post)
 	if err != nil {
@@ -335,15 +398,34 @@ func (p *Plugin) deliverScheduledPost(post *scheduledPost, now int64) {
 }
 
 func (p *Plugin) deleteDeliveredSchedule(post *scheduledPost) {
-	if appErr := p.API.KVDelete(scheduleKeyPrefix + post.ID); appErr != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	mutex, err := p.lockScheduleQueue(ctx)
+	if err != nil {
+		p.API.LogWarn("could not lock scheduled message removal", "id", post.ID)
+		return
+	}
+	appErr := p.API.KVDelete(scheduleKeyPrefix + post.ID)
+	mutex.Unlock()
+	p.invalidateScheduledList()
+	if appErr != nil {
 		p.API.LogWarn("could not remove delivered schedule", "id", post.ID)
 	}
 }
 
 func (p *Plugin) scheduledPostDelivered(post *scheduledPost) (bool, error) {
+	return p.scheduledPostDeliveredContext(context.Background(), post)
+}
+func (p *Plugin) scheduledPostDeliveredContext(ctx context.Context, post *scheduledPost) (bool, error) {
 	seen := make(map[string]bool)
-	for page := 0; ; page++ {
+	for page := 0; page < maxReconciliationPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		list, appErr := p.API.GetPostsForChannel(post.ChannelID, page, 100)
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
 		if appErr != nil {
 			return false, appErr
 		}
@@ -371,10 +453,93 @@ func (p *Plugin) scheduledPostDelivered(post *scheduledPost) (bool, error) {
 		if !newPosts {
 			return false, fmt.Errorf("channel history repeated a page")
 		}
-		// Allow one minute of clock skew between the plugin and the server. Page until every
-		// possible delivery has been examined, including busy channels after a long outage.
+		// Allow one minute of clock skew. Stop once the possible delivery window
+		// is exhausted; longer histories fail closed at the work budget below.
 		if oldest < post.StartedAt-60000 || len(list.Order) < 100 {
 			return false, nil
 		}
 	}
+	// Failure to exhaust the history is NOT proof that delivery did not happen.
+	// Never retry or confirm cancellation based on a truncated reconciliation.
+	return false, fmt.Errorf("delivery reconciliation exceeds work budget; manual review required")
+}
+
+// Serialize additions and removals so admission evaluates a stable queue.
+// Delivery bookkeeping has reserved byte headroom and cannot add records.
+func (p *Plugin) enqueueScheduledPost(ctx context.Context, post *scheduledPost) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	mutex, err := p.lockScheduleQueue(ctx)
+	if err != nil {
+		return err
+	}
+	defer mutex.Unlock()
+	posts, err := p.scanScheduledPosts(ctx)
+	if err != nil {
+		return err
+	}
+	own, size := 0, 0
+	for _, queued := range posts {
+		if queued.UserID == post.UserID {
+			own++
+		}
+		data, err := json.Marshal(queued)
+		if err != nil {
+			return err
+		}
+		// Reserve room for worker delivery/failure bookkeeping.
+		size += len(data) + 512
+	}
+	data, err := json.Marshal(post)
+	if err != nil {
+		return err
+	}
+	if own >= maxScheduledPerUser || len(posts) >= maxScheduledTotal || size+len(data)+512 > maxScheduledBytes {
+		return errScheduleQuota
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := p.saveScheduledPost(post); err != nil {
+		return err
+	}
+	p.invalidateScheduledList()
+	return nil
+}
+
+// Coalesce list reads for a short interval so polling clients cannot each force a
+// scan of the entire plugin KV namespace. Both the scan and cached bytes are bounded.
+func (p *Plugin) cachedScheduledPosts(ctx context.Context) ([]*scheduledPost, error) {
+	p.scheduleListMu.Lock()
+	defer p.scheduleListMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if time.Since(p.scheduleListAt) < 3*time.Second {
+		return p.scheduleListCache, nil
+	}
+	posts, err := p.scanScheduledPosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p.scheduleListCache = posts
+	p.scheduleListAt = time.Now()
+	return posts, nil
+}
+func (p *Plugin) invalidateScheduledList() {
+	p.scheduleListMu.Lock()
+	p.scheduleListCache = nil
+	p.scheduleListAt = time.Time{}
+	p.scheduleListMu.Unlock()
+}
+
+func (p *Plugin) lockScheduleQueue(ctx context.Context) (*cluster.Mutex, error) {
+	mutex, err := cluster.NewMutex(p.API, "scheduled-admission")
+	if err != nil {
+		return nil, err
+	}
+	if err := mutex.LockWithContext(ctx); err != nil {
+		return nil, err
+	}
+	return mutex, nil
 }

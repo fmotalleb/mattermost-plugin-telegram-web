@@ -274,6 +274,9 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    // Deep search tests can exercise the public history fallback when the plugin server is absent.
+    if (p === '/plugins/com.telegramweb.ui/api/v1/channel-search') return json({message: 'server component unavailable'}, 404);
+
     if (p.startsWith('/plugins/com.telegramweb.ui/api/v1/todos')) {
         const items = globalThis.__todoTasks || (globalThis.__todoTasks = []);
         const channel = parsed.searchParams.get('channel_id');

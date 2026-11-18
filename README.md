@@ -137,7 +137,12 @@ separately lazy-loaded from `public/pdfjs/`.
   optimistic "sending…" bubble that is reconciled with the server response.
 * **Scheduled sending** — choose **Schedule** beside the composer formatting controls. Pending
   messages are stored in this plugin's durable KV storage and delivered by one coordinated server
-  worker, checked every 30 seconds. No Mattermost scheduled-posts license is required. The queue is
+  worker, checked every 30 seconds. No Mattermost scheduled-posts license is required. Scheduling
+  allows 100 pending records per user, 500 total, and 16 MiB of queued data across the cluster.
+  Failed schedules count toward these limits until removed. List polling shares a short cache;
+  another node's changes can take up to three seconds to appear. Delivery recovery scans
+  at most 1000 recent posts; an older ambiguous delivery requires manual review rather than
+  risking a duplicate send. The queue is
   separate from the stock UI's Scheduled tab; only the Telegram view creates these schedules.
   The Schedule button shows a count when you have queued messages in that chat. Right-click it
   (or press Shift+F10 while focused) to inspect your scheduled messages, send times, attachments,
@@ -255,6 +260,19 @@ every call):
   uses one bounded canvas at a time; closing releases the document and worker. The build copies
   the pinned PDF.js runtime, fonts, CMaps, WASM decoders and license into `public/pdfjs/<version>/`,
   which `make release` includes in the plugin archive. PDF previews are limited to 25 MB.
+
+## Request and attachment security
+
+Chat search uses bounded requests with continuation cursors, preserving access to older
+results without scanning the entire channel in one server request. Closing or changing
+a search cancels its active request. Request limits and temporary server failures are
+shown as search errors rather than silently starting an unrestricted fallback scan.
+
+External attachment images display a **Load external image** button. Clicking it contacts
+that image server directly without a referrer; it still reveals your IP address to that
+server. Same-origin images, including server-proxied URLs, display normally. Fallback
+Markdown and attachment links allow HTTP, HTTPS and email links; executable URL schemes
+are rejected.
 
 ## Licensing
 
