@@ -36,7 +36,7 @@ const confirm = () => Array.from(document.querySelectorAll('.tgw-schedule-action
     await wait(() => document.querySelector('.tgw-composer textarea'));
     const area = document.querySelector('.tgw-composer textarea');
     const options = document.querySelector('.tgw-send-options');
-    ok(options?.previousElementSibling?.title === 'Link', 'delivery options follow formatting controls in the toolbar');
+    ok(options?.previousElementSibling?.title === 'Preview message' && options.previousElementSibling.previousElementSibling?.title === 'Link', 'preview and delivery options follow formatting controls in the toolbar');
     click(document.querySelector('.tgw-urgent-toggle'));
     await tick(60);
     await type(area, 'urgent now');

@@ -11,7 +11,8 @@ import {EmojiPicker} from './EmojiPicker';
 import {SendOptions} from './SendOptions';
 import {useCommandAutocomplete} from './Commands';
 import {useMentionAutocomplete} from './MentionAutocomplete';
-import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
+import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconEye, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
+import {MessageBody} from './render';
 import {useSelector} from '../mm/store';
 import {clearComposerDraft, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
 import {useVoiceRecorder} from './voice';
@@ -65,11 +66,12 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const storedDraftMessage = useSelector((state) => selectComposerDraft(state, channel.id)?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
     const [urgent, setUrgent] = useState(false);
     const [restoreSchedule, setRestoreSchedule] = useState<{id: string; scheduledAt: number; channelId: string} | null>(null);
     const [sending, setSending] = useState(false);
     const sendInFlight = useRef(false);
-    useEffect(() => { setUrgent(false); setRestoreSchedule(null); }, [channel.id]);
+    useEffect(() => { setUrgent(false); setRestoreSchedule(null); setShowPreview(false); }, [channel.id]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const composing = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -177,6 +179,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     }, [channel.id, voice]);
 
     const reset = () => {
+        setShowPreview(false);
         setComposerMessage('');
         setFiles([]);
         filesRef.current = [];
@@ -460,12 +463,18 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 <button type="button" title="Code" onClick={() => insertMarkdown('`', '`', 'code')}><IconCode size={18}/></button>
                 <button type="button" title="Code block" onClick={() => insertMarkdown('```\n', '\n```', 'code')}><IconQuote size={18}/></button>
                 <button type="button" title="Link" onClick={() => insertMarkdown('[', '](https://)', 'link')}><IconLink size={18}/></button>
+                <button type="button" title={showPreview ? 'Close message preview' : 'Preview message'} aria-label={showPreview ? 'Close message preview' : 'Preview message'} aria-pressed={showPreview} onClick={() => setShowPreview((value) => !value)}><IconEye size={18}/></button>
                 <SendOptions key={channel.id} restoreSchedule={restoreSchedule?.channelId === channel.id ? restoreSchedule : null} urgent={urgent} onUrgent={setUrgent}
                     priorityDisabled={!!threadRootId || /^\/[^\s/]+/.test(message.trim())}
                     disabled={!!editing || recording} busy={sending}
                     canSend={!!(message.trim() || files.length) && !files.some((entry) => !entry.info)}
                     onSchedule={async (timestamp) => { const sent = await send(timestamp); if (sent) setRestoreSchedule(null); return sent; }}/>
             </div>
+
+            {showPreview && !recording && <div className="tgw-composer-preview" role="region" aria-label="Message preview">
+                <div className="tgw-composer-preview-heading">Message preview</div>
+                {message.trim() ? <div className="tgw-msg-out"><div className="tgw-bubble"><MessageBody message={message} className="tgw-message-text"/></div></div> : <div className="tgw-composer-preview-empty">Write a message to preview its formatting.</div>}
+            </div>}
 
             {recording ? (
                 <div className="tgw-composer-input tgw-voice-recording" aria-label="Recording a voice message">

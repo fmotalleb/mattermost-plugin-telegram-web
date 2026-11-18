@@ -568,6 +568,19 @@ class CDP {
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
 
+        if (process.env.TGW_PREVIEW_ONLY) {
+            await cdp.eval(`(() => {const area = document.querySelector('.tgw-composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(area, '- سرویس داخلی\\n- Gitlab'); area.dispatchEvent(new Event('input', {bubbles:true})); document.querySelector('[aria-label="Preview message"]').click();})()`);
+            await cdp.waitFor('!!document.querySelector(".tgw-composer-preview ul li")', 5000, 'rendered preview list');
+            const rtl = await cdp.eval(`(() => {const list=document.querySelector('.tgw-composer-preview ul'), item=list.querySelector('li'); return {list:getComputedStyle(list).direction, marker:getComputedStyle(item, '::marker').direction, start:getComputedStyle(list).paddingRight, end:getComputedStyle(list).paddingLeft};})()`);
+            ok(rtl.list === 'rtl' && rtl.marker === 'rtl' && parseFloat(rtl.start) > 0 && parseFloat(rtl.end) === 0, `Persian list markers use the right side (${JSON.stringify(rtl)})`);
+            await cdp.eval(`(() => {const area=document.querySelector('.tgw-composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(area,'- English item\\n- second'); area.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+            await cdp.waitFor(`document.querySelector('.tgw-composer-preview li')?.textContent.includes('English item')`, 5000, 'updated preview');
+            const ltr = await cdp.eval(`(() => {const list=document.querySelector('.tgw-composer-preview ul'), item=list.querySelector('li'); return {list:getComputedStyle(list).direction,marker:getComputedStyle(item,'::marker').direction,start:getComputedStyle(list).paddingLeft,end:getComputedStyle(list).paddingRight};})()`);
+            ok(ltr.list === 'ltr' && ltr.marker === 'ltr' && parseFloat(ltr.start) > 0 && parseFloat(ltr.end) === 0, `English list markers use the left side (${JSON.stringify(ltr)})`);
+            report('MESSAGE PREVIEW BROWSER TEST');
+            return;
+        }
+
         if (process.env.TGW_IMAGE_VIEWER_ONLY) {
             await cdp.waitFor('!!document.querySelector(".tgw-attachment-image")',10000,'image attachment');
             await cdp.eval(`(async () => {await document.fonts.ready;const node=document.querySelector('.tgw-attachment-image');node.scrollIntoView({block:'center'});await Promise.all(Array.from(node.querySelectorAll('img')).map(image=>image.decode().catch(()=>{})));node.click();})()`);

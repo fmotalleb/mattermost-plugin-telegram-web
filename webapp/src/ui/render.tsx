@@ -204,6 +204,9 @@ function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: 
         return /^[a-zA-Z0-9._-]+$/.test(username) && !['all', 'channel', 'here'].includes(username.toLowerCase()) && !node.closest('code, pre');
     };
     React.useLayoutEffect(() => {
+        // Direction belongs on the list itself: a directional list item alone moves its text,
+        // but leaves the marker on the side chosen by the surrounding page.
+        bodyRef.current?.querySelectorAll('ul, ol').forEach((list) => list.setAttribute('dir', 'auto'));
         bodyRef.current?.querySelectorAll(mentionSelector).forEach((node) => {
             if (usernameOf(node).toLowerCase() === 'all' && !node.closest('code, pre')) node.classList.add('tgw-mention-all');
             if (!isUserMention(node)) return;
@@ -302,7 +305,28 @@ export function renderFallback(message: string, mentionKeys?: Array<{key: string
             );
             return;
         }
-        nodes.push(...renderInline(block, blockIndex, mentionKeys));
+        const lines = block.split('\n');
+        let plain: string[] = [];
+        const flush = () => {
+            if (plain.length) nodes.push(...renderInline(plain.join('\n'), blockIndex * 10000 + nodes.length, mentionKeys));
+            plain = [];
+        };
+        for (let i = 0; i < lines.length;) {
+            const match = /^ {0,3}([-*+]\s+|\d+[.)]\s+)(.*)$/.exec(lines[i]);
+            if (!match) { plain.push(lines[i++]); continue; }
+            flush();
+            const ordered = /^\d/.test(match[1]);
+            const items: React.ReactNode[] = [];
+            while (i < lines.length) {
+                const item = /^ {0,3}([-*+]\s+|\d+[.)]\s+)(.*)$/.exec(lines[i]);
+                if (!item || /^\d/.test(item[1]) !== ordered) break;
+                items.push(<li key={i}>{renderInline(item[2], blockIndex * 10000 + i, mentionKeys)}</li>);
+                i++;
+            }
+            const key = `list-${blockIndex}-${i}`;
+            nodes.push(ordered ? <ol key={key} dir="auto">{items}</ol> : <ul key={key} dir="auto">{items}</ul>);
+        }
+        flush();
     });
 
     return nodes;

@@ -1384,6 +1384,12 @@
     text-decoration: none;
 }
 
+.tgw-message-text :is(ul, ol) {
+    padding-inline-start: 1.5em;
+    padding-inline-end: 0;
+    margin-inline: 0;
+}
+
 /* Native checkbox semantics and keyboard behavior, with a theme-aware painted control. */
 .tgw-root input[type="checkbox"] {
     -webkit-appearance: none;
@@ -2245,6 +2251,28 @@
 .tgw-composer-toolbar button:hover {
     color: var(--tgw-link);
     background: var(--tgw-hover);
+}
+
+.tgw-composer-toolbar button[aria-pressed="true"] {
+    color: var(--tgw-link);
+    background: var(--tgw-accent-soft);
+}
+
+.tgw-composer-preview {
+    max-height: min(240px, 30vh);
+    overflow-y: auto;
+    padding: 6px 4px 10px;
+}
+
+.tgw-composer-preview-heading, .tgw-composer-preview-empty {
+    color: var(--tgw-text-tertiary);
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+
+.tgw-composer-preview .tgw-bubble {
+    display: inline-block;
+    max-width: 100%;
 }
 
 /* Telegram-style message box: a rounded pill with the attach icon inside on the left and

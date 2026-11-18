@@ -383,6 +383,38 @@ root.render(React.createElement(TelegramUI));
         await tick(30);
         const messageBody = document.querySelector('.tgw-message-text');
         ok(!!messageBody && !messageBody.hasAttribute('dir'), 'message bodies leave direction to per-paragraph bidi layout');
+
+        valueSetter.call(area, '**سلام**\n\n- سرویس داخلی\n- Gitlab');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        document.querySelector('[aria-label="Preview message"]').click();
+        await tick(40);
+        const preview = document.querySelector('[aria-label="Message preview"]');
+        ok(preview?.querySelector('strong')?.textContent === 'سلام' && preview.querySelector('ul[dir="auto"] li'), 'preview renders formatted text and an automatically directed list');
+        valueSetter.call(area, '**ویرایش**');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(40);
+        ok(preview?.querySelector('strong')?.textContent === 'ویرایش', 'preview updates as the draft changes');
+        document.querySelector('[aria-label="Close message preview"]').click();
+        await tick(30);
+        ok(!document.querySelector('[aria-label="Message preview"]') && area.value === '**ویرایش**', 'closing preview preserves the draft');
+        valueSetter.call(area, '');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        await tick(30);
+
+        const {MessageBody} = require('../src/ui/render');
+        const host = window.PostUtils;
+        window.PostUtils = {formatText: (text) => text, messageHtmlToComponent: () => React.createElement('div', null,
+            React.createElement('ul', null, React.createElement('li', null, 'سرویس داخلی')),
+            React.createElement('ol', null, React.createElement('li', null, 'English list')))};
+        const probe = document.createElement('div');
+        document.body.appendChild(probe);
+        const probeRoot = ReactDOMClient.createRoot(probe);
+        probeRoot.render(React.createElement(MessageBody, {message: 'test', className: 'tgw-message-text'}));
+        await tick(40);
+        ok(probe.querySelector('ul')?.getAttribute('dir') === 'auto' && probe.querySelector('ol')?.getAttribute('dir') === 'auto', 'host-rendered ordered and unordered lists choose their own direction');
+        probeRoot.unmount();
+        probe.remove();
+        window.PostUtils = host;
     }
 
     console.log('\n== display names ==');
