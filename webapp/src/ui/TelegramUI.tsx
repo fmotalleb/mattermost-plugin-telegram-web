@@ -416,7 +416,7 @@ export function TelegramUI() {
     return (
         <TgContext.Provider value={value}>
             {createPortal(
-                <div className={`tgw-root tgw-theme-${settings.theme} tgw-accent-${settings.accent} tgw-wallpaper-${settings.wallpaper} ${settings.compactMode ? 'tgw-compact' : ''} ${settings.glassyMode ? 'tgw-glassy' : ''} ${settings.animations ? '' : 'tgw-no-animations'}`}>
+                <div className={`tgw-root tgw-theme-${settings.theme} tgw-accent-${settings.accent} tgw-wallpaper-${settings.wallpaper} ${settings.appleEmoji ? 'tgw-use-apple-emoji' : ''} ${settings.compactMode ? 'tgw-compact' : ''} ${settings.glassyMode ? 'tgw-glassy' : ''} ${settings.animations ? '' : 'tgw-no-animations'}`}>
                     <div className={`tgw-shell ${isMobile ? 'tgw-shell-mobile' : ''} ${isMobile && ui.mobilePane === 'chat' ? 'tgw-shell-chat-open' : ''}`}>
                         <Sidebar/>
                         {ui.searchOpen && ui.search.trim() ? <SearchPanel deferredCancel={() => actions.setUI({searchOpen: false})}/> : <ChatView/>}

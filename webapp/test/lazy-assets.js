@@ -13,6 +13,9 @@ for (const name of ['telegram-ui', 'imageviewer', 'emoji-picker', 'modals', 'mer
 for (const name of ['Vazirmatn-Variable', 'Twemoji']) {
     assert(manifest.files.some((file) => file.startsWith(`public/webapp/fonts/${name}.`) && file.endsWith('.woff2')), `${name} must ship as a separate font asset`);
 }
+for (const tile of ['0-0', '0-1', '1-0', '1-1']) {
+    assert(manifest.files.some((file) => file.startsWith(`public/webapp/emoji/apple-${tile}.`) && file.endsWith('.webp')), `Apple emoji tile ${tile} must be packaged separately`);
+}
 for (const file of manifest.files) {
     assert(file.startsWith('public/webapp/') && !file.includes('..'), 'asset paths must remain inside plugin public assets');
     assert(fs.statSync(path.join(root, file)).size > 0, `${file} is required at runtime`);

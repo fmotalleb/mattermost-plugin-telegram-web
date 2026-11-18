@@ -1,3 +1,4 @@
+import {Emoji} from './Emoji';
 // Emoji picker (unicode set + the instance's custom emoji).
 
 import React, {useMemo, useRef, useState} from 'react';
@@ -71,7 +72,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                     <div className="tgw-emoji-grid">
                         {results.map((emoji) => (
                             <button type="button" key={emoji.name} title={`:${emoji.name}:`} onClick={() => pick(emoji.name)}>
-                                <span className="tgw-emoji">{emoji.char}</span>
+                                <Emoji char={emoji.char}/>
                             </button>
                         ))}
                     </div>
@@ -81,7 +82,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                 <>
                     <div className="tgw-emoji-tabs">
                         <button type="button" className={activeCategory === 'recent' ? 'active' : ''} onClick={() => scrollToCategory('recent')} title="Frequently used">
-                            <span className="tgw-emoji">🕘</span>
+                            <Emoji char="🕘"/>
                         </button>
                         {EMOJI_CATEGORIES.map((category) => (
                             <button
@@ -91,7 +92,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                                 onClick={() => scrollToCategory(category.id)}
                                 title={category.label}
                             >
-                                <span className="tgw-emoji">{category.icon}</span>
+                                <Emoji char={category.icon}/>
                             </button>
                         ))}
                         <button
@@ -100,7 +101,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                             onClick={() => scrollToCategory('custom')}
                             title="Custom emoji"
                         >
-                            <span className="tgw-emoji">⭐</span>
+                            <Emoji char="⭐"/>
                         </button>
                     </div>
                     <div className="tgw-emoji-body" ref={bodyRef}>
@@ -120,7 +121,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                                         const entry = findEmojiChar(name);
                                         return (
                                             <button type="button" key={name} title={`:${name}:`} onClick={() => pick(name)}>
-                                                {entry ? <span className="tgw-emoji">{entry}</span> : `:${name}:`}
+                                                {entry ? <Emoji char={entry}/> : `:${name}:`}
                                             </button>
                                         );
                                     })}
@@ -145,7 +146,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                                 <div className="tgw-emoji-grid">
                                     {category.emojis.map((emoji) => (
                                         <button type="button" key={`${category.id}-${emoji.name}-${emoji.char}`} title={`:${emoji.name}:`} onClick={() => pick(emoji.name)}>
-                                            <span className="tgw-emoji">{emoji.char}</span>
+                                            <Emoji char={emoji.char}/>
                                         </button>
                                     ))}
                                 </div>

@@ -194,6 +194,10 @@ export function SettingsModal() {
                         </div>
                     </div>
                     <label className="tgw-field tgw-field-check">
+                        <input type="checkbox" checked={settings.appleEmoji} onChange={(event) => updateSettings({appleEmoji: event.target.checked})}/>
+                        <span>Use Apple emoji artwork (commercial use requires permission)</span>
+                    </label>
+                    <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.compactMode} onChange={(event) => updateSettings({compactMode: event.target.checked})}/>
                         <span>Compact message list</span>
                     </label>

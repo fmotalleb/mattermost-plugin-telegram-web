@@ -17,12 +17,11 @@
     font-display: swap;
 }
 
-/* Use the device’s Apple emoji artwork when available, matching Telegram’s set.
-   Otherwise Twemoji COLRv0 vector outlines stay sharp at every size and device scale.
+/* Twemoji COLRv0 vector outlines stay sharp at every size and device scale.
    Notices and reproducible preparation instructions ship in assets/emoji. */
 @font-face {
     font-family: 'TGW Emoji';
-    src: local('Apple Color Emoji'), url('./fonts/Twemoji.woff2') format('woff2');
+    src: url('./fonts/Twemoji.woff2') format('woff2');
     font-weight: 100 900;
     font-style: normal;
     font-display: block;
@@ -1626,6 +1625,18 @@
     text-indent: 0;
     object-fit: contain;
 }
+
+/* The sprite is fetched only while the user opts in. Missing artwork uses the vector font. */
+.tgw-root.tgw-use-apple-emoji .tgw-apple-emoji {
+    color: transparent;
+    background-repeat: no-repeat;
+    background-position: var(--tgw-emoji-x) var(--tgw-emoji-y);
+}
+
+.tgw-root.tgw-use-apple-emoji .tgw-apple-0-0 { background-image: url('./emoji/apple-0-0.webp'); background-size: 33em 33em; }
+.tgw-root.tgw-use-apple-emoji .tgw-apple-1-0 { background-image: url('./emoji/apple-1-0.webp'); background-size: 31.96875em 33em; }
+.tgw-root.tgw-use-apple-emoji .tgw-apple-0-1 { background-image: url('./emoji/apple-0-1.webp'); background-size: 33em 31.96875em; }
+.tgw-root.tgw-use-apple-emoji .tgw-apple-1-1 { background-image: url('./emoji/apple-1-1.webp'); background-size: 31.96875em 31.96875em; }
 
 /* Images use their bottom edge as the inline baseline; match the vector font's
    0.2em descent. Custom picker artwork follows its button's font size as well. */

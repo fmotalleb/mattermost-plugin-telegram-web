@@ -1,5 +1,5 @@
 /*
- * Renders the plugin UI once with the test fixture and writes a static, fully self-contained HTML
+ * Renders the plugin UI once with the test fixture and writes a static HTML
  * snapshot of the result to docs/ui-preview.html (light) and docs/ui-preview-dark.html.
  *
  * This is a documentation artifact: it is generated from the real components and the real
@@ -31,7 +31,8 @@ const {TelegramUI} = require('../src/ui/TelegramUI');
 const {store} = require('./harness');
 
 const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
-    // Documentation previews stay standalone; production serves these fonts as hashed local assets.
+    // Fonts are embedded; optional emoji sheets are referenced from the repository.
+    .replace(/url\('\.\/emoji\/(apple-[01]-[01]\.webp)'\)/g, "url('../webapp/src/emoji/$1')")
     .replace(
         /url\('\.\/fonts\/([^']+\.woff2)'\)/g,
         (_, filename) => `url(data:font/woff2;base64,${fs.readFileSync(path.join(__dirname, '..', 'src', 'fonts', filename)).toString('base64')})`,

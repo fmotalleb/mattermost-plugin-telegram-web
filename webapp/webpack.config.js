@@ -47,6 +47,11 @@ const config = {
                 use: ['style-loader', 'css-loader'],
             },
             {
+                test: /apple-[01]-[01]\.webp$/,
+                type: 'asset/resource',
+                generator: {filename: 'public/webapp/emoji/[name].[contenthash:12][ext]'},
+            },
+            {
                 // Fonts are fetched and cached independently when the Telegram UI uses them.
                 test: /\.woff2$/,
                 type: 'asset/resource',

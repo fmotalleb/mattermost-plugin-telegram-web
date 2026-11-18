@@ -2,6 +2,8 @@ const {React, ReactDOM, container, tick, ok, report} = require('./harness');
 const {splitEmoji} = require('../src/mm/emoji');
 const {wrapEmojiNodes} = require('../src/ui/render');
 const {ReactionEmoji} = require('../src/ui/MessageList');
+const {Emoji} = require('../src/ui/Emoji');
+const {DEFAULT_SETTINGS} = require('../src/mm/settings');
 
 const root = ReactDOM.createRoot(container);
 (async () => {
@@ -37,6 +39,16 @@ const root = ReactDOM.createRoot(container);
         'unknown reaction names remain readable text instead of overflowing a one-em cell');
     ok(container.querySelector('img.tgw-reaction-emoji')?.src.includes('/emoji/custom/'),
         'custom reactions retain their images in the same sized cell');
+    ok(DEFAULT_SETTINGS.appleEmoji === false, 'Apple artwork requires explicit opt-in');
+    root.render(React.createElement('div', null,
+        React.createElement(Emoji, {char: '👍🏽'}),
+        React.createElement(Emoji, {char: '👨‍👩‍👧‍👦'}),
+        React.createElement(Emoji, {char: '1️⃣'}),
+        React.createElement(Emoji, {char: '🫩‍🫩'})));
+    await tick(30);
+    const cells = container.querySelectorAll('span');
+    ok(Array.from(cells).slice(0, 3).every((node) => node.classList.contains('tgw-apple-emoji') && node.style.getPropertyValue('--tgw-emoji-x')), 'skin tones, family sequences and keycaps have sprite positions');
+    ok(!cells[3].classList.contains('tgw-apple-emoji') && cells[3].textContent === '🫩‍🫩', 'missing Apple artwork keeps the Unicode font fallback');
     root.unmount();
     report('EMOJI RENDERING TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

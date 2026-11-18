@@ -11,6 +11,7 @@ import {emojiChar, replaceShortcodes, replaceUnsupportedMattermostShortcodes, sp
 import {copyToClipboard, escapeHtml} from '../mm/utils';
 import {TgContext} from './context';
 import {MermaidDiagram} from './MermaidDiagram';
+import {Emoji} from './Emoji';
 
 // Keep host and fallback rendering on the same suffix list, with a boundary preventing a
 // shorter suffix (such as .ch or .co) from linking only the start of a longer domain.
@@ -420,7 +421,7 @@ function renderTextWithLinks(text: string, keyPrefix: string): React.ReactNode[]
 function renderEmojiRuns(text: string, key: string): React.ReactNode[] {
     return splitEmoji(text).map((piece, index) => (
         piece.emoji
-            ? <span key={`${key}-e${index}`} className="tgw-emoji">{piece.text}</span>
+            ? <Emoji key={`${key}-e${index}`} char={piece.text}/>
             : <React.Fragment key={`${key}-t${index}`}>{piece.text}</React.Fragment>
     ));
 }
@@ -430,7 +431,7 @@ function renderEmojiRuns(text: string, key: string): React.ReactNode[] {
  * fallback renderer uses — formatText hands back bare unicode whose fallback-font metrics
  * stretch the row or split a sequence over two lines. Code/pre stay untouched so literal
  * characters keep their monospace flow. Standard host emoji images/components are normalized
- * to Unicode so the bundled font supplies their artwork too; custom images stay intact.
+ * to Unicode so the selected artwork supplies their appearance too; custom images stay intact.
  */
 export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
     if (node === null || node === undefined || typeof node === 'boolean') {
@@ -443,7 +444,7 @@ export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
         }
         return pieces.map((piece, index) => (
             piece.emoji
-                ? <span key={`e${index}`} className="tgw-emoji">{piece.text}</span>
+                ? <Emoji key={`e${index}`} char={piece.text}/>
                 : <React.Fragment key={`t${index}`}>{piece.text}</React.Fragment>
         ));
     }
@@ -470,7 +471,7 @@ export function wrapEmojiNodes(node: React.ReactNode): React.ReactNode {
             const name = typeof label === 'string' ? label.replace(/^:|:$/g, '') : '';
             const unicode = emojiChar(name) || (typeof label === 'string' && splitEmoji(label).every((piece) => piece.emoji) ? label : '');
             if (unicode) {
-                return <span key={element.key ?? undefined} className="tgw-emoji" title={props.title}>{unicode}</span>;
+                return <Emoji key={element.key ?? undefined} char={unicode} title={props.title}/>;
             }
         }
         if (customImage || props.children === undefined) {

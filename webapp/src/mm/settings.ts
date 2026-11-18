@@ -47,6 +47,8 @@ export interface PluginSettings {
     includeMutedInUnread: boolean;
     /** Group favorites first in the All tab. Off by default. */
     pinFavoritesInAll: boolean;
+    /** Opt in to Apple artwork, which has separate usage restrictions. */
+    appleEmoji: boolean;
     compactMode: boolean;
     animations: boolean;
     folderTabs: boolean;
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     quietUnreadCounts: false,
     includeMutedInUnread: false,
     pinFavoritesInAll: false,
+    appleEmoji: false,
     compactMode: false,
     animations: true,
     folderTabs: true,

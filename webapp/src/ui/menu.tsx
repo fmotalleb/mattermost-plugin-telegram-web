@@ -1,3 +1,4 @@
+import {Emoji} from './Emoji';
 // Telegram-style dropdown / context menu rendered in a portal.
 
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
@@ -163,7 +164,7 @@ export function Menu({x, y, items, onClose, width = 220, align = 'left'}: MenuPr
                                             item.onPick(emoji.name);
                                         }}
                                     >
-                                        <span className="tgw-emoji">{emoji.char}</span>
+                                        <Emoji char={emoji.char}/>
                                     </button>
                                 );
                             })}

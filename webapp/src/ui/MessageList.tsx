@@ -1,3 +1,4 @@
+import {Emoji} from './Emoji';
 import {safeImageURL, safeLinkURL} from '../mm/urls';
 // The chat screen message list: grouping, date separators, attachments, reactions and scrolling.
 
@@ -959,7 +960,7 @@ export function ReactionEmoji({name, customEmoji}: {name: string; customEmoji: R
         return <img loading="lazy" decoding="async" className="tgw-reaction-emoji" src={api.customEmojiImageURL(custom.id)} alt={`:${name}:`}/>;
     }
     const char = emojiChar(name);
-    return <span className={char ? 'tgw-reaction-emoji' : 'tgw-reaction-label'}>{char || `:${name}:`}</span>;
+    return char ? <Emoji char={char} className="tgw-reaction-emoji"/> : <span className="tgw-reaction-label">{`:${name}:`}</span>;
 }
 
 interface ReactionGroup {

@@ -410,7 +410,7 @@ class CDP {
             const file=path.resolve(base,pathname.slice(webappPrefix.length));
             if(!file.startsWith(base+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){response.writeHead(404);response.end('not found');return;}
             const send = () => {
-                response.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.woff2')?'font/woff2':'application/octet-stream'});
+                response.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.woff2')?'font/woff2':file.endsWith('.webp')?'image/webp':'application/octet-stream'});
                 response.end(fs.readFileSync(file));
             };
             if (process.env.TGW_LAZY_ONLY && pathname.includes('/emoji-picker.')) setTimeout(send,200); else send();
@@ -567,6 +567,33 @@ class CDP {
 
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
+
+        if (process.env.TGW_APPLE_EMOJI_ONLY) {
+            ok(!webappRequests.some(url => url.includes('/emoji/apple-')), 'Apple artwork is not downloaded before opt-in');
+            await cdp.clickSelector('button[title="Menu"]');
+            await cdp.waitFor('!!Array.from(document.querySelectorAll(".tgw-menu-item")).find(e => e.textContent.trim().startsWith("Settings"))');
+            await cdp.eval('Array.from(document.querySelectorAll(".tgw-menu-item")).find(e => e.textContent.trim().startsWith("Settings")).click()');
+            await cdp.waitFor('!!Array.from(document.querySelectorAll(".tgw-modal label")).find(e => e.textContent.includes("Use Apple emoji artwork"))', 10000, 'Apple emoji option');
+            ok(await cdp.eval('!Array.from(document.querySelectorAll(".tgw-modal label")).find(e => e.textContent.includes("Use Apple emoji artwork")).querySelector("input").checked'), 'Apple artwork defaults to off');
+            await cdp.eval('Array.from(document.querySelectorAll(".tgw-modal label")).find(e => e.textContent.includes("Use Apple emoji artwork")).querySelector("input").click()');
+            await cdp.waitFor('document.querySelector(".tgw-root")?.classList.contains("tgw-use-apple-emoji")', 5000, 'Apple emoji enabled');
+            await cdp.eval(`(() => {const e = document.querySelector('.tgw-apple-emoji'); if(e) e.scrollIntoView();})()`);
+            await cdp.waitFor('!!document.querySelector(".tgw-root.tgw-use-apple-emoji .tgw-apple-emoji")', 5000, 'mapped emoji');
+            await cdp.waitFor('performance.getEntriesByType("resource").some(e => e.name.includes("/emoji/apple-"))', 10000, 'emoji sprite download');
+            const sprite = await cdp.eval(`(() => {const e=document.querySelector('.tgw-root.tgw-use-apple-emoji .tgw-apple-emoji');const s=getComputedStyle(e);return {image:s.backgroundImage,color:s.color,text:e.textContent};})()`);
+            ok(sprite.image.includes('/emoji/apple-') && sprite.color === 'rgba(0, 0, 0, 0)' && !!sprite.text, 'enabled emoji paint the sprite while retaining Unicode text');
+            await cdp.eval('Array.from(document.querySelectorAll(".tgw-modal label")).find(e => e.textContent.includes("Use Apple emoji artwork")).querySelector("input").click()');
+            ok(await cdp.eval('!document.querySelector(".tgw-root").classList.contains("tgw-use-apple-emoji")'), 'disabling the option restores font rendering');
+            await cdp.eval('Array.from(document.querySelectorAll(".tgw-modal label")).find(e => e.textContent.includes("Use Apple emoji artwork")).querySelector("input").click()');
+            await cdp.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+            await cdp.waitFor('!document.querySelector(".tgw-modal")', 5000, 'settings closed');
+            await cdp.clickSelector('.tgw-composer button[title=Emoji]');
+            await cdp.waitFor('!!document.querySelector(".tgw-emoji-grid .tgw-apple-emoji")', 10000, 'mapped picker emoji');
+            ok(await cdp.eval('getComputedStyle(document.querySelector(".tgw-emoji-grid .tgw-apple-emoji")).backgroundImage.includes("/emoji/apple-")'), 'emoji picker uses the same Apple artwork');
+            if (process.env.TGW_EMOJI_SCREENSHOT) fs.writeFileSync(process.env.TGW_EMOJI_SCREENSHOT, Buffer.from((await cdp.send('Page.captureScreenshot',{format:'png'})).data, 'base64'));
+            report('APPLE EMOJI BROWSER TEST');
+            return;
+        }
 
         if (process.env.TGW_PREVIEW_ONLY) {
             await cdp.eval(`(() => {const area = document.querySelector('.tgw-composer textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(area, '- سرویس داخلی\\n- Gitlab'); area.dispatchEvent(new Event('input', {bubbles:true})); document.querySelector('[aria-label="Preview message"]').click();})()`);
