@@ -271,9 +271,10 @@ export interface ChatListProps {
     onRemoveAllDrafts?: () => void;
     /** When set, rows can be dragged to reorder this Mattermost category (Mattermost-style). */
     reorderable?: {categoryId: string} | null;
+    pinnedFavorites?: {categoryId: string; chats: ChatSummary[]} | null;
 }
 
-export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, sectionActionLabel, onRemoveAllDrafts, reorderable = null}: ChatListProps) {
+export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, showTeamNames, emptyTitle, emptyBody, prefetchLimit = Number.POSITIVE_INFINITY, groupAllChats = false, sectionTitle, onMarkSectionRead, sectionActionLabel, onRemoveAllDrafts, reorderable = null, pinnedFavorites = null}: ChatListProps) {
     const {actions, settings} = useTg();
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
@@ -283,9 +284,11 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const requestedPeers = useRef(new Set<string>());
     const hasChatsToMarkRead = (sectionChats: ChatSummary[]) => sectionChats.some((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
     const pinFavorites = groupAllChats && settings.pinFavoritesInAll;
+    const favoriteOrder = new Map((pinnedFavorites?.chats || []).map((chat, index) => [chat.id, index]));
+    const pinnedChats = chats.filter((chat) => chat.isFavorite).sort((a, b) => (favoriteOrder.get(a.id) ?? Infinity) - (favoriteOrder.get(b.id) ?? Infinity));
     const unpinnedChats = pinFavorites ? chats.filter((chat) => !chat.isFavorite) : chats;
     const allSections = [
-        {key: 'favorites', label: 'Favorites', chats: pinFavorites ? chats.filter((chat) => chat.isFavorite) : []},
+        {key: 'favorites', label: 'Favorites', chats: pinFavorites ? pinnedChats : []},
         {key: 'unread', label: 'Unread messages', chats: unpinnedChats.filter(isUnreadChat)},
         {key: 'chats', label: 'All messages', chats: unpinnedChats.filter((chat) => !isUnreadChat(chat))},
     ].filter((section) => section.chats.length > 0);
@@ -330,14 +333,16 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
         const sourceId = dragId;
         setDragId(null);
         setOverId(null);
-        if (!sourceId || sourceId === targetId || !reorderable) {
+        const targetCategory = reorderable || (pinFavorites && pinnedFavorites && favoriteOrder.has(sourceId || '') && favoriteOrder.has(targetId) ? pinnedFavorites : null);
+        if (!sourceId || sourceId === targetId || !targetCategory) {
             return;
         }
         const before = typeof clientY === 'number' && !!rect && clientY < rect.top + rect.height / 2;
-        const next = chats.map((chat) => chat.id).filter((id) => id !== sourceId);
+        const orderedChats = reorderable ? chats : pinnedChats.filter((chat) => favoriteOrder.has(chat.id));
+        const next = orderedChats.map((chat) => chat.id).filter((id) => id !== sourceId);
         const targetIndex = next.indexOf(targetId);
         next.splice(before ? targetIndex : targetIndex + 1, 0, sourceId);
-        reorderCategoryChannels(reorderable.categoryId, next)
+        reorderCategoryChannels(targetCategory.categoryId, next)
             .then(() => actions.refreshChats())
             .catch(() => actions.toast('Could not reorder chats', 'error'));
     };
@@ -360,11 +365,11 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
             onSelect={onSelect}
             onContextMenu={onContextMenu}
             showTeamName={showTeamNames}
-            draggable={!!reorderable}
+            draggable={!!reorderable || !!(pinFavorites && pinnedFavorites && favoriteOrder.has(chat.id) && chat.isFavorite)}
             dragState={dragId === chat.id ? 'source' : (dragId && overId === chat.id ? 'over' : null)}
             onDragStart={() => setDragId(chat.id)}
             onDragOver={(event) => {
-                if (dragId && dragId !== chat.id) {
+                if (dragId && dragId !== chat.id && (reorderable || (pinFavorites && chat.isFavorite && favoriteOrder.has(dragId) && favoriteOrder.has(chat.id)))) {
                     event.preventDefault();
                     setOverId(chat.id);
                 }

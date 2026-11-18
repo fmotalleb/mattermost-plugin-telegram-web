@@ -6,6 +6,8 @@ import {searchEmoji} from '../mm/emoji';
 import {
     getAllChats,
     getChatSummary,
+    getCategory,
+    getChatsForCategory,
     getContacts,
     getCurrentTeamId,
     getDirectChannelForUser,
@@ -197,6 +199,11 @@ export function Sidebar() {
     const {ui, actions, tabs, timeFormat, settings, me} = useTg();
     const chats = useSelector((state) => getTabChats(state, ui.activeTabId));
     const allChats = useSelector(getAllChats);
+    const favoriteTab = tabs.find((entry) => entry.kind === 'category' && entry.type === 'favorites');
+    const favoriteChats = useSelector((state) => {
+        const category = favoriteTab && getCategory(state, favoriteTab.id);
+        return category ? getChatsForCategory(state, category) : null;
+    });
     const todoCounts = useTodoCounts(allChats.map((chat) => chat.id));
     const todoChats = allChats.filter((chat) => todoCounts[chat.id] > 0);
     const openTodos = todoChats.reduce((sum, chat) => sum + todoCounts[chat.id], 0);
@@ -644,6 +651,7 @@ export function Sidebar() {
                         showTeamNames={tab?.kind === 'all'}
                         groupAllChats={tab?.kind === 'all'}
                         reorderable={tab?.kind === 'category' ? {categoryId: tab.id} : null}
+                        pinnedFavorites={favoriteTab && favoriteChats ? {categoryId: favoriteTab.id, chats: favoriteChats} : null}
                         emptyTitle={tab?.kind === 'todos' ? 'No open TODOs' : tab?.kind === 'unread' ? 'No unread chats' : 'No chats here yet'}
                         emptyBody={tab?.kind === 'todos' ? 'Chats with unfinished tasks will appear here.' : tab?.kind === 'unread' ? 'You are all caught up.' : 'Start a conversation to see it listed here.'}
                     />

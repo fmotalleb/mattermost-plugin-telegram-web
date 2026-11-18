@@ -135,6 +135,35 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     ok(!headings()[0]?.querySelector('button') && !!headings()[1]?.querySelector('button') && !headings()[2]?.querySelector('button'),
         'only sections with unread chats offer Mark all as read');
 
+    const originalCategories = state.entities.channelCategories.byId;
+    state.entities.channelCategories.byId = {...originalCategories, 'cat-fav': {
+        ...originalCategories['cat-fav'], channel_ids: [ids.TOWN, ids.DM], sorting: 'manual',
+    }};
+    state.entities.preferences.myPreferences = {...state.entities.preferences.myPreferences,
+        [`favorite_channel--${ids.DM}`]: {category: 'favorite_channel', name: ids.DM, user_id: ids.ME, value: 'true'},
+    };
+    notifyStoreChange();
+    await wait(() => rows()[0]?.draggable && rows()[1]?.draggable);
+    ok(titles()[0] === 'Town Square' && titles()[1]?.includes('Alice') && !rows()[2].draggable,
+        'pinned favorites follow the Favorites category and only favorite rows can be dragged');
+    rows()[0].dispatchEvent(new dom.window.Event('dragstart', {bubbles: true, cancelable: true}));
+    await tick(40);
+    rows()[1].dispatchEvent(new dom.window.Event('drop', {bubbles: true, cancelable: true}));
+    await wait(() => titles()[0]?.includes('Alice'));
+    const reordered = payloads.filter((request) => /\/channels\/categories$/.test(request.path)).pop()?.body?.[0];
+    ok(reordered?.id === 'cat-fav' && reordered.channel_ids.join(',') === `${ids.DM},${ids.TOWN}` && titles()[1] === 'Town Square',
+        'dragging pinned favorites persists and displays the shared category order');
+    click(folder('Favorites'));
+    await wait(() => titles()[0]?.includes('Alice'));
+    ok(titles()[1] === 'Town Square', 'Favorites tab uses the same reordered list');
+    click(folder('All'));
+    state.entities.channelCategories.byId = originalCategories;
+    state.entities.preferences.myPreferences = {...originalPreferences,
+        [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'true'},
+    };
+    notifyStoreChange();
+    await wait(() => titles()[0] === 'Town Square');
+
     state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.TOWN]: {...unmutedTown, mention_count: 1}};
     notifyStoreChange();
     await wait(() => rows()[0]?.querySelector('.tgw-badge'));

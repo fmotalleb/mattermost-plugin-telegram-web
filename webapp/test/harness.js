@@ -636,6 +636,11 @@ const listeners = new Set();
 const store = {
     getState: () => state,
     dispatch: (action) => {
+        if (action?.type === 'RECEIVED_CATEGORIES' && Array.isArray(action.data)) {
+            state.entities.channelCategories.byId = {...state.entities.channelCategories.byId,
+                ...Object.fromEntries(action.data.map((category) => [category.id, category]))};
+            listeners.forEach((listener) => listener());
+        }
         if (action?.type === 'SET_GLOBAL_ITEM' && action.data?.name) {
             state.storage = {
                 ...state.storage,
