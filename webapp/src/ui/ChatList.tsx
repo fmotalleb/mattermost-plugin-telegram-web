@@ -263,7 +263,7 @@ export interface ChatListProps {
     emptyTitle?: string;
     emptyBody?: string;
     prefetchLimit?: number;
-    /** Split the All tab into unread and remaining chats. */
+    /** Group the All tab into pinned favorites, unread chats and remaining chats. */
     groupAllChats?: boolean;
     sectionTitle?: string;
     onMarkSectionRead?: (chats: ChatSummary[]) => void;
@@ -281,16 +281,13 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const [fetchedPeers, setFetchedPeers] = useState<Record<string, MMUser>>({});
     const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
     const requestedPeers = useRef(new Set<string>());
-    const isUnread = isUnreadChat;
     const hasChatsToMarkRead = (sectionChats: ChatSummary[]) => sectionChats.some((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
-    const remainingChats = chats.filter((chat) => !isUnread(chat));
-    if (settings.pinFavoritesInAll) {
-        // Stable sorting preserves chronological order within both groups.
-        remainingChats.sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite));
-    }
+    const pinFavorites = groupAllChats && settings.pinFavoritesInAll;
+    const unpinnedChats = pinFavorites ? chats.filter((chat) => !chat.isFavorite) : chats;
     const allSections = [
-        {key: 'unread', label: 'Unread messages', chats: chats.filter(isUnread)},
-        {key: 'chats', label: 'All messages', chats: remainingChats},
+        {key: 'favorites', label: 'Favorites', chats: pinFavorites ? chats.filter((chat) => chat.isFavorite) : []},
+        {key: 'unread', label: 'Unread messages', chats: unpinnedChats.filter(isUnreadChat)},
+        {key: 'chats', label: 'All messages', chats: unpinnedChats.filter((chat) => !isUnreadChat(chat))},
     ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.

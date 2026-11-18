@@ -114,6 +114,45 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     click(pinCheckbox());
     await wait(() => titles()[0]?.includes('Alice'));
     ok(!getSettings().pinFavoritesInAll && titles()[0]?.includes('Alice'), 'disabling pinning restores chronological order immediately');
+
+    click(document.querySelector('[role="dialog"] [title="Close"]'));
+    const channels = state.entities.channels.channels;
+    const readChannel = 'channel-read';
+    state.entities.channels.channels = {...channels, [readChannel]: {
+        ...channels[ids.TOWN], id: readChannel, name: 'read-channel', display_name: 'Read channel', last_post_at: 0, total_msg_count: 0,
+    }};
+    state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.DM]: originalMembers[ids.DM], [readChannel]: {
+        ...originalMembers[ids.TOWN], channel_id: readChannel, msg_count: 0, mention_count: 0, notify_props: {},
+    }};
+    notifyStoreChange();
+    updateSettings({pinFavoritesInAll: true});
+
+    const sectionNames = () => headings().map((heading) => heading.querySelector('.tgw-section-title').textContent).join(',');
+    await wait(() => sectionNames() === 'Favorites,Unread messages,All messages');
+    ok(sectionNames() === 'Favorites,Unread messages,All messages' && titles()[0] === 'Town Square' &&
+        titles()[1]?.includes('Alice') && titles()[2] === 'Read channel',
+        'the All list orders read favorites, unread chats and remaining chats');
+    ok(!headings()[0]?.querySelector('button') && !!headings()[1]?.querySelector('button') && !headings()[2]?.querySelector('button'),
+        'only sections with unread chats offer Mark all as read');
+
+    state.entities.channels.myMembers = {...state.entities.channels.myMembers, [ids.TOWN]: {...unmutedTown, mention_count: 1}};
+    notifyStoreChange();
+    await wait(() => rows()[0]?.querySelector('.tgw-badge'));
+    ok(rows().length === 3 && titles()[0] === 'Town Square' && !!rows()[0]?.querySelector('.tgw-badge'),
+        'an unread favorite stays in Favorites once and keeps its unread badge');
+    ok(!!headings()[0]?.querySelector('button'), 'Favorites offers Mark all as read when a pinned chat is unread');
+    click(folder('Unread'));
+    await wait(() => sectionNames() === 'Unread');
+    ok(sectionNames() === 'Unread' && titles().includes('Town Square') && count() === '13',
+        'the unread favorite still appears in the Unread tab and counts toward its badge');
+
+    click(folder('All'));
+    updateSettings({pinFavoritesInAll: false});
+    await wait(() => sectionNames() === 'Unread messages,All messages');
+    ok(sectionNames() === 'Unread messages,All messages' && titles()[0]?.includes('Alice') && titles()[1] === 'Town Square',
+        'disabling pinning restores the two groups and puts the favorite back among unread chats');
+
+    state.entities.channels.channels = channels;
     state.entities.preferences.myPreferences = originalPreferences;
     state.entities.channels.myMembers = originalMembers;
     root.unmount();
