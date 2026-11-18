@@ -21,6 +21,7 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     ok(getAllChats(state).some((chat) => chat.id === ids.TOWN), 'muted chats remain in All');
     const headings = () => Array.from(document.querySelectorAll('.tgw-section-heading'));
     ok(headings().some((heading) => heading.textContent.includes('All messages') && heading.nextElementSibling?.textContent.includes('Town Square')), 'All keeps the muted chat outside the unread section');
+    ok(headings().every((heading) => heading.querySelector('button')?.textContent === 'Mark all as read'), 'sections offer mark all as read when their chats include unread messages, including muted chats');
     const tabs = getTabs(state);
     const initialCounts = getTabUnreadCounts(state, tabs);
     ok(initialCounts.__unread === 2 && initialCounts.__all === 13, 'default unread badge excludes muted counts while All keeps its total');
@@ -87,6 +88,7 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     notifyStoreChange();
     const titles = () => rows().map((row) => row.querySelector('.tgw-chat-row-title')?.textContent.trim());
     await wait(() => !headings().some((heading) => heading.textContent.includes('Unread messages')));
+    ok(!headings().some((heading) => heading.querySelector('button')), 'mark all as read is hidden when every chat in the section is read');
     ok(titles()[0]?.includes('Alice') && titles()[1] === 'Town Square', 'disabled pinning keeps newer conversations before older favorites');
     click(document.querySelector('.tgw-user-button'));
     await wait(() => document.querySelector('.tgw-menu'));

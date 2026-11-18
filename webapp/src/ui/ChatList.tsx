@@ -282,6 +282,7 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const [unavailablePeers, setUnavailablePeers] = useState<Record<string, boolean>>({});
     const requestedPeers = useRef(new Set<string>());
     const isUnread = isUnreadChat;
+    const hasChatsToMarkRead = (sectionChats: ChatSummary[]) => sectionChats.some((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
     const remainingChats = chats.filter((chat) => !isUnread(chat));
     if (settings.pinFavoritesInAll) {
         // Stable sorting preserves chronological order within both groups.
@@ -384,10 +385,10 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
 
     return (
         <div className="tgw-chat-list" role="list">
-            {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span><button type="button" onClick={() => onRemoveAllDrafts ? onRemoveAllDrafts() : onMarkSectionRead?.(chats)}>{sectionActionLabel || 'Mark all as read'}</button></div>}
+            {sectionTitle && <div className="tgw-section-heading"><span className="tgw-section-title">{sectionTitle}</span>{(onRemoveAllDrafts || (onMarkSectionRead && hasChatsToMarkRead(chats))) && <button type="button" onClick={() => onRemoveAllDrafts ? onRemoveAllDrafts() : onMarkSectionRead?.(chats)}>{sectionActionLabel || 'Mark all as read'}</button>}</div>}
             {groupAllChats ? allSections.map((section) => (
                 <React.Fragment key={section.key}>
-                    <div className="tgw-section-heading"><span className="tgw-section-title">{section.label}</span><button type="button" onClick={() => onMarkSectionRead?.(section.chats)}>Mark all as read</button></div>
+                    <div className="tgw-section-heading"><span className="tgw-section-title">{section.label}</span>{onMarkSectionRead && hasChatsToMarkRead(section.chats) && <button type="button" onClick={() => onMarkSectionRead(section.chats)}>Mark all as read</button>}</div>
                     {section.chats.map((chat, index) => <React.Fragment key={`${section.key}:${chat.id}`}>{index > 0 && <div className="tgw-list-divider"/>}{renderChat(chat)}</React.Fragment>)}
                 </React.Fragment>
             )) : chats.map((chat, index) => (
