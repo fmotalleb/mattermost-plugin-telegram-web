@@ -599,6 +599,12 @@
     flex-shrink: 0;
 }
 
+.tgw-chat-row-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .tgw-chat-row-inactive-peer:not(.tgw-chat-row-active) .tgw-avatar {
     filter: grayscale(.8);
     opacity: .72;
@@ -630,6 +636,19 @@
 .tgw-chat-row-time {
     font-size: 12px;
     color: var(--tgw-text-tertiary);
+}
+
+.tgw-chat-row-receipt {
+    display: inline-flex;
+    color: #237ac7;
+}
+
+.tgw-root:is(.tgw-theme-dark, .tgw-theme-midnight) .tgw-chat-row-receipt {
+    color: #75bfff;
+}
+
+.tgw-root .tgw-chat-row-active .tgw-chat-row-receipt {
+    color: #e3f1ff;
 }
 
 .tgw-chat-row-star {

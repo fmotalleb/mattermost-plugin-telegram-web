@@ -22,6 +22,7 @@ const {initSettings, updateSettings, getSettings} = require('../src/mm/settings'
 const {handleSocketEvent} = require('../src/mm/socket');
 const {api} = require('../src/mm/api');
 const {searchChats} = require('../src/mm/selectors');
+const {clearComposerDraft, saveComposerDraft} = require('../src/mm/drafts');
 const {startStockUIViewTracking} = require('../src/mm/stock-views');
 const {ensureViewStats, getViewStats} = require('../src/mm/views');
 const {TelegramUI} = require('../src/ui/TelegramUI');
@@ -1284,10 +1285,45 @@ root.render(React.createElement(TelegramUI));
     await tick(60);
     ok(!document.querySelector('.tgw-reaction'), 'reaction removed over the websocket disappears immediately');
 
-    // A post in a chat that is not open still refreshes that chat's sidebar preview.
-    handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify({...posts.p1, id: 'p-preview', create_at: Date.now(), channel_id: ids.DM, message: 'newest in the dm', root_id: '', metadata: {}})}});
-    await tick(60);
-    ok(document.body.innerHTML.includes('newest in the dm'), 'chat list preview updates for a channel that is not open');
+    console.log('\n== sidebar delivery receipts ==');
+    {
+        const dmRow = () => Array.from(document.querySelectorAll('.tgw-chat-row'))
+            .find((row) => row.querySelector('.tgw-chat-row-title')?.textContent.includes('Alice Anderson'));
+        const dmPreview = () => dmRow()?.querySelector('.tgw-chat-row-preview')?.textContent;
+        const dmReceipt = () => dmRow()?.querySelector('.tgw-chat-row-receipt');
+        const outgoing = {...posts.p2, id: 'p-sidebar-receipt', create_at: Date.now(), message: 'sent from another client'};
+        const publish = (post) => handleSocketEvent('posted', {event: 'posted', data: {post: JSON.stringify(post)}});
+        viewTracking.set(outgoing.id, new Set([ids.ME]));
+        publish(outgoing);
+        await waitFor(() => dmReceipt()?.getAttribute('aria-label') === 'Sent' && getViewStats(outgoing.id)?.seen);
+        ok(getViewStats(outgoing.id)?.seen && dmReceipt()?.getAttribute('aria-label') === 'Sent' &&
+            dmReceipt().querySelectorAll('path').length === 1, 'a post seen only by its sender shows one check');
+        ok(dmPreview() === outgoing.message, 'the outgoing preview omits the You prefix');
+        ok(document.querySelector('.tgw-chat-header-title')?.textContent.includes('Town Square'),
+            'the conversation with the outgoing preview is closed');
+        ok(dmReceipt()?.nextElementSibling?.classList.contains('tgw-chat-row-time'), 'the sidebar check is before the timestamp');
+
+        viewTracking.get(outgoing.id).add(ids.OTHER);
+        await waitFor(() => dmReceipt()?.getAttribute('aria-label') === 'Seen', 7000);
+        ok(dmReceipt()?.getAttribute('aria-label') === 'Seen' && dmReceipt().querySelectorAll('path').length === 2,
+            'the sidebar shows two checks when the recipient reads the post');
+
+        saveComposerDraft(ids.DM, 'draft over sent message');
+        await waitFor(() => dmPreview()?.includes('draft over sent message'));
+        ok(dmPreview() === 'Draft: draft over sent message' && !dmReceipt(), 'a draft hides the receipt for the last post');
+        clearComposerDraft(ids.DM);
+        await waitFor(() => dmReceipt());
+
+        updateSettings({showPreviews: false});
+        await waitFor(() => !dmReceipt());
+        ok(!dmReceipt() && dmPreview() !== outgoing.message, 'hiding previews hides delivery receipts');
+        updateSettings({showPreviews: true});
+        await waitFor(() => dmReceipt());
+
+        publish({...outgoing, id: 'p-preview', create_at: Date.now(), user_id: ids.OTHER, message: 'newest in the dm'});
+        await waitFor(() => dmPreview() === 'newest in the dm');
+        ok(dmPreview() === 'newest in the dm' && !dmReceipt(), 'a newer incoming preview clears the outgoing receipt');
+    }
 
     console.log('\n== chat preview emoji ==');
     {

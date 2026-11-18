@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-    React, ReactDOM: ReactDOMClient, container, users, tick,
+    React, ReactDOM: ReactDOMClient, container, ids, posts, users, tick,
 } = require('./harness');
 
 // The fixture's users have a `last_picture_update`, which makes the avatar component point an <img>
@@ -21,6 +21,9 @@ const {
 Object.values(users).forEach((user) => {
     delete user.last_picture_update;
 });
+
+// Show a sent receipt next to the latest message in the sidebar.
+posts.p4.user_id = ids.ME;
 
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings} = require('../src/mm/settings');
@@ -62,9 +65,23 @@ ${body}
 const docs = path.join(__dirname, '..', '..', 'docs');
 fs.mkdirSync(docs, {recursive: true});
 
+async function waitForPreview(theme) {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+        const overlay = document.querySelector(`.tgw-theme-${theme}`);
+        if (overlay?.querySelector('.tgw-chat-row-receipt') &&
+            overlay.querySelector('[data-post-id="p2"] .tgw-msg-status svg path[d^="M4 11.9"]') &&
+            overlay.querySelector('[data-post-id="p4"]')) {
+            return;
+        }
+        await tick(30);
+    }
+    throw new Error(`Timed out rendering the ${theme} UI preview`);
+}
+
 (async () => {
     root.render(React.createElement(TelegramUI));
-    await tick(150);
+    await waitForPreview('light');
 
     // A chat with an image viewer / info panel open would need interaction, so the snapshot shows
     // the default state: chat list with contacts, groups and a custom folder, plus an open chat.
@@ -72,11 +89,15 @@ fs.mkdirSync(docs, {recursive: true});
     fs.writeFileSync(path.join(docs, 'ui-preview.html'), page(light));
 
     updateSettings({theme: 'dark', accent: 'violet'});
-    await tick(120);
+    await waitForPreview('dark');
     fs.writeFileSync(path.join(docs, 'ui-preview-dark.html'), page(document.body.innerHTML));
 
     // eslint-disable-next-line no-console
     console.log('wrote docs/ui-preview.html and docs/ui-preview-dark.html');
     root.unmount();
     process.exit(0);
-})();
+})().catch((error) => {
+    console.error(error);
+    root.unmount();
+    process.exit(1);
+});

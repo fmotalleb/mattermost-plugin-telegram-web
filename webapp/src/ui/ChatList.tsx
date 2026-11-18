@@ -12,10 +12,11 @@ import type {ChatSummary} from '../mm/selectors';
 import {useSelector} from '../mm/store';
 import type {MMPost, MMUser} from '../mm/types';
 import {attachmentSummary, displayName, formatChatTime, toPlainPreview, truncate} from '../mm/utils';
+import {getOtherViewCount, usePostViews, watchUnseenPreview} from '../mm/views';
 import {useTg} from './context';
 import {isUnreadChat} from '../mm/selectors';
 import {EmojiText} from './EmojiText';
-import {Avatar, Badge, IconMute, IconStar} from './primitives';
+import {Avatar, Badge, IconCheck, IconCheckDouble, IconMute, IconStar} from './primitives';
 
 function usePreview(channelId: string): {post: MMPost | null; loading: boolean} {
     const [post, setPost] = useState<MMPost | null>(() => getCachedPreview(channelId));
@@ -32,16 +33,13 @@ function usePreview(channelId: string): {post: MMPost | null; loading: boolean} 
     return {post, loading};
 }
 
-function previewText(post: MMPost | null, isOwn: boolean, showAuthor: boolean, author: string): string {
+function previewText(post: MMPost | null, showAuthor: boolean, author: string): string {
     if (!post) {
         return '';
     }
     const body = toPlainPreview(post.message) || attachmentSummary(post.metadata?.files);
     if (!body) {
         return '';
-    }
-    if (isOwn) {
-        return `You: ${body}`;
     }
     if (showAuthor && author) {
         return `${author.split(' ')[0]}: ${body}`;
@@ -67,7 +65,7 @@ export interface ChatRowProps {
 }
 
 export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamName, draggable, dragState, onDragStart, onDragOver, onDrop, onDragEnd, peerUser: resolvedPeer, peerUnavailable}: ChatRowProps) {
-    const {timeFormat, settings, actions} = useTg();
+    const {timeFormat, settings, actions, isMobile, ui} = useTg();
     const todoCount = useTodoCount(summary.id);
     const draft = useSelector((state) => selectComposerDraft(state, summary.id)?.message || '');
     const myId = useSelector(getMyId);
@@ -80,8 +78,20 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
     const title = peerInactive ? displayName(peerUser) : peerUnavailable ? 'Unavailable account' : (summary.type === 'D' && peerUser ? displayName(peerUser) : summary.title);
     const status = useSelector((state) => (summary.type === 'D' ? getStatus(state, summary.peerIds[0]) : undefined));
 
-    const text = previewText(lastPost, lastPost?.user_id === myId, summary.type === 'G' || summary.type === 'P' || summary.type === 'O', author ? displayName(author) : '');
+    const text = previewText(lastPost, summary.type === 'G' || summary.type === 'P' || summary.type === 'O', author ? displayName(author) : '');
     const time = formatChatTime(lastPost?.create_at || summary.lastPostAt, timeFormat);
+    const savedMessages = summary.type === 'D' && summary.title === 'Saved Messages';
+    const receiptPostId = settings.showPreviews && !draft && !savedMessages &&
+        lastPost && lastPost.user_id === myId && !lastPost._pending && !lastPost._failed ? lastPost.id : '';
+    const receiptSeen = getOtherViewCount(usePostViews(receiptPostId)) > 0;
+    const watchReceipt = !receiptSeen && (!isMobile || ui.mobilePane !== 'chat') ? receiptPostId : '';
+    useEffect(() => {
+        if (watchReceipt) {
+            return watchUnseenPreview(watchReceipt);
+        }
+        return undefined;
+    }, [watchReceipt]);
+
     const unread = summary.unread > 0 || summary.mentions > 0 || summary.manuallyUnread;
     const [peekOpen, setPeekOpen] = useState(false);
     const [peekLoading, setPeekLoading] = useState(false);
@@ -181,12 +191,17 @@ export function ChatRow({summary, selected, onSelect, onContextMenu, showTeamNam
                 <span className="tgw-chat-row-top">
                     <span className="tgw-chat-row-title">
                         {summary.muted && <IconMute size={16} className="tgw-chat-row-mute"/>}
-                        {title}
+                        <span className="tgw-chat-row-title-text">{title}</span>
                         {peerInactive && <span className="tgw-chat-row-account-state">Deactivated</span>}
                         {peerUnavailable && !peerUser && <span className="tgw-chat-row-account-state">Unavailable</span>}
                     </span>
                     <span className="tgw-chat-row-meta">
                         {summary.isFavorite && <IconStar size={14} className="tgw-chat-row-star"/>}
+                        {receiptPostId && (
+                            <span className="tgw-chat-row-receipt" role="img" aria-label={receiptSeen ? 'Seen' : 'Sent'}>
+                                {receiptSeen ? <IconCheckDouble size={16}/> : <IconCheck size={16}/>}
+                            </span>
+                        )}
                         <span className="tgw-chat-row-time">{time}</span>
                     </span>
                 </span>

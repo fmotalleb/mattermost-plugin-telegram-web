@@ -8,7 +8,7 @@ import {getBlock, getPost, getReactions, loadOlder, usePostRevision} from '../mm
 import {getCustomEmoji, getMemberCount, getMyId, getTimeFormat} from '../mm/selectors';
 import {getState, useSelector} from '../mm/store';
 import type {MMChannel, MMFileInfo, MMPost, MMReaction, MMUser} from '../mm/types';
-import {ensureViewStats, getPostViewers, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
+import {ensureViewStats, getOtherViewCount, getPostViewers, getViewStats, markPostVisible, refreshViewStats, usePostViews, useViewsRevision} from '../mm/views';
 import {
     attachmentSummary,
     colorForKey,
@@ -84,11 +84,7 @@ export function MessageList(props: MessageListProps) {
     const unseenOwnIds = useMemo(
         () => posts
             .filter((post) => post.user_id === myId)
-            .filter((post) => {
-                const view = getViewStats(post.id);
-                // Unknown stats count as unseen — the refresh is what makes them arrive.
-                return !view || view.count - (view.seen ? 1 : 0) === 0;
-            })
+            .filter((post) => !getOtherViewCount(getViewStats(post.id)))
             .map((post) => post.id)
             .join(','),
         [posts, myId, viewsRevision],
@@ -418,7 +414,7 @@ function MessageRow({quick = false, post, meta, isGroup, channel, highlighted, o
     const views = usePostViews(post.id);
     // Views by other people only: my own view never counts towards the tally or the read
     // receipt (Telegram counts "somebody else looked at it", not "I am looking at it").
-    const otherViewCount = views ? Math.max(0, views.count - (views.seen ? 1 : 0)) : 0;
+    const otherViewCount = getOtherViewCount(views);
     const rowRef = useRef<HTMLDivElement | null>(null);
     const viewersWrapRef = useRef<HTMLSpanElement | null>(null);
     const [showViewers, setShowViewers] = useState(false);

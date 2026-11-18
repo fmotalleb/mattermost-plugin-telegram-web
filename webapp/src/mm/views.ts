@@ -11,6 +11,7 @@ import type {MMUser} from './types';
 
 // The plugin endpoint deliberately caps each request to protect the host database.
 const MAX_POST_IDS_PER_REQUEST = 100;
+const PREVIEW_REFRESH_MS = 5000;
 
 export interface ViewStats {
     count: number;
@@ -31,6 +32,8 @@ let fetchTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Flipped when the plugin endpoints are missing so we stop calling them. */
 let viewsDisabled = false;
+const watchedPreviews = new Map<string, number>();
+let previewTimer: ReturnType<typeof setInterval> | null = null;
 
 function notify() {
     revision += 1;
@@ -44,6 +47,45 @@ export function subscribeViews(listener: () => void): () => void {
 
 export function getViewStats(postId: string): ViewStats | undefined {
     return stats.get(postId);
+}
+
+export function getOtherViewCount(view: ViewStats | undefined): number {
+    return view ? Math.max(0, view.count - (view.seen ? 1 : 0)) : 0;
+}
+
+/** Share one batched refresh across the sidebar rows awaiting their first reader. */
+export function watchUnseenPreview(postId: string): () => void {
+    watchedPreviews.set(postId, (watchedPreviews.get(postId) || 0) + 1);
+    if (!document.hidden) {
+        refreshViewStats([postId]);
+    }
+    if (!previewTimer && !viewsDisabled) {
+        previewTimer = setInterval(() => {
+            if (viewsDisabled) {
+                stopPreviewRefresh();
+            } else if (!document.hidden) {
+                refreshViewStats(Array.from(watchedPreviews.keys()).filter((id) => !getOtherViewCount(stats.get(id))));
+            }
+        }, PREVIEW_REFRESH_MS);
+    }
+    return () => {
+        const watchers = watchedPreviews.get(postId);
+        if (watchers > 1) {
+            watchedPreviews.set(postId, watchers - 1);
+        } else {
+            watchedPreviews.delete(postId);
+        }
+        if (!watchedPreviews.size) {
+            stopPreviewRefresh();
+        }
+    };
+}
+
+function stopPreviewRefresh(): void {
+    if (previewTimer) {
+        clearInterval(previewTimer);
+        previewTimer = null;
+    }
 }
 
 /** React hook: the view stats of one post, updating live. */

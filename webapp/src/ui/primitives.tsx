@@ -59,9 +59,7 @@ export const IconStarOutline = make('M12 4.5 13.6 9h4.7l-3.8 3.4 1.2 5-3.7-2.6-3
 export const IconMute = make('M9.5 4.6A6 6 0 0 1 18 10v3.5M6.3 6.3A6 6 0 0 0 6 10v4l-2 3h13M10 20a2 2 0 0 0 4 0M3 3l18 18');
 export const IconBell = make('M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22Zm7-5.5V11a7 7 0 0 0-5-6.7V3.5a2 2 0 1 0-4 0v.8A7 7 0 0 0 5 11v5.5L3 18.5v1h18v-1l-2-2Z', {filled: true});
 export const IconCheck = make('M9.6 17.2 4.4 12l-1.4 1.4 6.6 6.6L21 8.6 19.6 7.2 9.6 17.2Z', {filled: true});
-// Telegram's double check: two parallel ticks where the second one tucks behind
-// the first — its short arm is clipped (via the mask) right where it meets the
-// first tick's stroke, leaving the thin sliver that reads as “underneath”.
+// The second tick has a shorter arm so the two strokes stay distinct.
 export const IconCheckDouble = ({size = 24, className}: IconProps) => (
     <svg
         className={className}
@@ -76,14 +74,8 @@ export const IconCheckDouble = ({size = 24, className}: IconProps) => (
         aria-hidden="true"
         focusable="false"
     >
-        <defs>
-            <mask id="tgw-check-double-clip">
-                <rect x="0" y="0" width="24" height="24" fill="#fff"/>
-                <path d="M4.94 20.04 16.94 8.04" stroke="#000" strokeWidth="0.85"/>
-            </mask>
-        </defs>
         <path d="M4 11.9 7.6 15.5 15 8.1"/>
-        <path d="M10.05 13.05 12.5 15.5 19.9 8.1" mask="url(#tgw-check-double-clip)"/>
+        <path d="M11.6 14.6 12.5 15.5 19.9 8.1"/>
     </svg>
 );
 export const IconClock = make('M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm1-13h-2v6l4.3 2.6 1-1.7-3.3-2V7Z', {filled: true});
