@@ -10,6 +10,7 @@ import {useTg} from './context';
 import {EmojiPicker} from './EmojiPicker';
 import {SendOptions} from './SendOptions';
 import {useCommandAutocomplete} from './Commands';
+import {useMentionAutocomplete} from './MentionAutocomplete';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {useSelector} from '../mm/store';
 import {clearComposerDraft, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
@@ -70,6 +71,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const sendInFlight = useRef(false);
     useEffect(() => { setUrgent(false); setRestoreSchedule(null); }, [channel.id]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const composing = useRef(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
     const recording = voice.status === 'recording';
@@ -96,13 +98,19 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
 
     const currentTeamId = useSelector((state) => state.entities?.teams?.currentTeamId);
     const commandTeamId = channel.team_id || currentTeamId || '';
-    const commandAutocomplete = useCommandAutocomplete(message, commandTeamId, channel.id, !editing, (value) => {
+    const insertAutocomplete = (value: string, caret = value.length) => {
         setComposerMessage(value);
         requestAnimationFrame(() => {
             textareaRef.current?.focus();
-            textareaRef.current?.setSelectionRange(value.length, value.length);
+            textareaRef.current?.setSelectionRange(caret, caret);
         });
-    });
+    };
+    const commandAutocomplete = useCommandAutocomplete(message, commandTeamId, channel.id, !editing, insertAutocomplete);
+    const mentions = useMentionAutocomplete(message, channel.id, channel.team_id, editing?.id, !recording, insertAutocomplete);
+    const autocomplete = commandAutocomplete.controls ? commandAutocomplete : mentions;
+    const updateMentionSelection = (area: HTMLTextAreaElement) => {
+        if (!composing.current) mentions.updateSelection(area);
+    };
 
     // Both chat surfaces observe the same Mattermost draft, including clears.
     useEffect(() => {
@@ -332,6 +340,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing) return;
         if (commandAutocomplete.onKeyDown(event)) return;
+        if (mentions.onKeyDown(event)) return;
         if (event.key === 'Escape') {
             if (editing) {
                 onCancelEdit();
@@ -528,10 +537,25 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                         spellCheck={false}
                         onChange={(event) => {
                             setComposerMessage(event.target.value);
+                            updateMentionSelection(event.currentTarget);
                             typingRef.current();
                         }}
+                        onSelect={(event) => updateMentionSelection(event.currentTarget)}
+                        onClick={(event) => updateMentionSelection(event.currentTarget)}
+                        onCompositionStart={() => {
+                            composing.current = true;
+                            mentions.dismiss();
+                        }}
+                        onCompositionEnd={(event) => {
+                            composing.current = false;
+                            updateMentionSelection(event.currentTarget);
+                        }}
+                        onBlur={(event) => mentions.onBlur(event.relatedTarget)}
                         onKeyDown={onKeyDown}
-                        {...(commandAutocomplete.controls ? {'aria-expanded': true, 'aria-autocomplete': 'list' as const, 'aria-controls': commandAutocomplete.controls, 'aria-activedescendant': commandAutocomplete.active} : {})}
+                        aria-autocomplete="list"
+                        aria-expanded={autocomplete.controls ? true : undefined}
+                        aria-controls={autocomplete.controls}
+                        aria-activedescendant={autocomplete.active}
                         onPaste={(event) => {
                             // Screenshots and copied images arrive as files on the clipboard; a
                             // textarea would silently drop them, so hand them to the upload path.
@@ -576,6 +600,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 </div>
             )}
 
+            {mentions.picker}
             {showEmoji && (
                 <EmojiPicker
                     onClose={() => setShowEmoji(false)}
