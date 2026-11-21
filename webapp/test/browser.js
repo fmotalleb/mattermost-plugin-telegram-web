@@ -575,9 +575,16 @@ class CDP {
             await cdp.waitFor('performance.getEntriesByType("resource").some(e => e.name.includes("/emoji/apple-"))', 10000, 'emoji sprite download');
             const sprite = await cdp.eval(`(() => {const e=document.querySelector('.tgw-root.tgw-use-apple-emoji .tgw-apple-emoji'); const s=getComputedStyle(e);return {image:s.backgroundImage,color:s.color,text:e.textContent};})()`);
             ok(sprite.image.includes('/emoji/apple-') && sprite.color === 'rgba(0, 0, 0, 0)' && !!sprite.text, 'server-enabled emoji paint the sprite while retaining Unicode text');
+            await cdp.eval(`(() => {const area = document.querySelector('.tgw-composer textarea'); area.focus(); area.select();})()`);
+            await cdp.type('hello world');
+            await cdp.eval('document.querySelector(".tgw-composer textarea").setSelectionRange(6, 11)');
             await cdp.clickSelector('.tgw-composer button[title=Emoji]');
             await cdp.waitFor('!!document.querySelector(".tgw-emoji-grid .tgw-apple-emoji")', 10000, 'mapped picker emoji');
             ok(await cdp.eval('getComputedStyle(document.querySelector(".tgw-emoji-grid .tgw-apple-emoji")).backgroundImage.includes("/emoji/apple-")'), 'emoji picker uses the server-selected artwork');
+            await cdp.clickSelector('.tgw-emoji-picker [data-category="people"] button[title=":thumbsup:"]');
+            await cdp.waitFor('document.activeElement.matches(".tgw-composer textarea")', 5000, 'composer focus after choosing an emoji');
+            await cdp.type('again');
+            ok(await cdp.eval('document.activeElement.value === "hello 👍 again"'), 'picking an emoji replaces the selection and returns the caret to the composer');
             await cdp.eval(`globalThis.__appleEmoji = false; window.__wsHandlers['custom_com.telegramweb.ui_ui_config_changed']({})`);
             await cdp.waitFor('!document.querySelector(".tgw-root")?.classList.contains("tgw-use-apple-emoji")', 5000, 'server disabled Apple emoji');
             ok(true, 'server changes update an open session');

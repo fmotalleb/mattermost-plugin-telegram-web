@@ -481,8 +481,38 @@ root.render(React.createElement(TelegramUI));
     }
 
     console.log('\n== emoji previews ==');
-    document.querySelector('button[title="Emoji"]')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
-    await waitFor(() => document.querySelector('.tgw-emoji-picker'));
+    {
+        const area = document.querySelector('.tgw-composer textarea');
+        const valueSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+        valueSetter.call(area, 'a replaceb');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        area.setSelectionRange(2, 9);
+        document.querySelector('.tgw-composer button[title="Emoji"]').click();
+        const picker = await waitFor(() => document.querySelector('.tgw-emoji-picker'));
+        picker?.querySelector('[data-category="people"] button[title=":thumbsup:"]')?.click();
+        await waitFor(() => document.activeElement === area && area.selectionStart === 5);
+        ok(area.value === 'a 👍 b', 'the emoji picker replaces selected text with the Unicode emoji');
+        ok(document.activeElement === area && area.selectionStart === 5 && area.selectionEnd === 5, 'the caret follows the inserted emoji');
+
+        const search = picker?.querySelector('input');
+        const searchSetter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+        searchSetter.call(search, 'technologist');
+        search.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        const result = await waitFor(() => picker?.querySelector('button[title=":technologist:"]'));
+        result?.click();
+        await waitFor(() => area.selectionStart === 11);
+        ok(area.value === 'a 👍 🧑‍💻 b', 'search results insert the complete Unicode emoji sequence');
+        searchSetter.call(search, '');
+        search.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+        const recent = await waitFor(() => picker?.querySelector('[data-category="recent"] button[title=":technologist:"]'));
+        ok(recent?.textContent === '🧑‍💻', 'recently picked emoji from search are displayed as glyphs');
+        picker?.querySelector('[data-category="custom"] button[title=":party_parrot:"]')?.click();
+        await waitFor(() => area.value.includes(':party_parrot:'));
+        ok(area.value === 'a 👍 🧑‍💻 :party_parrot: b', 'custom emoji keep the shortcode required by Mattermost');
+
+        valueSetter.call(area, '');
+        area.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+    }
     document.querySelector('.tgw-chat-header')?.dispatchEvent(new dom.window.MouseEvent('mousedown', {bubbles: true}));
     ok(!!(await waitFor(() => !document.querySelector('.tgw-emoji-picker'))), 'clicking outside closes the emoji picker');
     {

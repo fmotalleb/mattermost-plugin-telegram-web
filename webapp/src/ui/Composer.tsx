@@ -613,17 +613,13 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             {showEmoji && (
                 <EmojiPicker
                     onClose={() => setShowEmoji(false)}
-                    onPick={(name) => {
+                    onPick={(name, char) => {
                         const element = textareaRef.current;
-                        const text = `:${name}: `;
+                        const text = (char || `:${name}:`) + ' ';
                         if (element) {
-                            const start = element.selectionStart ?? message.length;
-                            const next = `${message.slice(0, start)}${text}${message.slice(element.selectionEnd ?? start)}`;
-                            setComposerMessage(next);
-                            requestAnimationFrame(() => {
-                                element.focus();
-                                element.setSelectionRange(start + text.length, start + text.length);
-                            });
+                            const {selectionStart, selectionEnd} = element;
+                            const next = `${message.slice(0, selectionStart)}${text}${message.slice(selectionEnd)}`;
+                            insertAutocomplete(next, selectionStart + text.length);
                         } else {
                             setComposerMessage((current) => `${current}${text}`);
                         }

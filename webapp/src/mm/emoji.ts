@@ -241,7 +241,7 @@ const SHORTCODE_MAP: Record<string, string> = (() => {
 })();
 
 export function emojiChar(name: string): string | undefined {
-    return SHORTCODE_MAP[name];
+    return Object.prototype.hasOwnProperty.call(SHORTCODE_MAP, name) ? SHORTCODE_MAP[name] : undefined;
 }
 
 const SHORTCODE_PATTERN = /:([\w+-]+):/g;

@@ -3,7 +3,7 @@ import {Emoji} from './Emoji';
 
 import React, {useMemo, useRef, useState} from 'react';
 import {api} from '../mm/api';
-import {EMOJI_CATEGORIES, searchEmoji} from '../mm/emoji';
+import {emojiChar, EMOJI_CATEGORIES, searchEmoji} from '../mm/emoji';
 import {getCustomEmoji} from '../mm/selectors';
 import {readLocal, useSelector, writeLocal} from '../mm/store';
 import type {MMCustomEmoji} from '../mm/types';
@@ -21,7 +21,7 @@ function readRecent(): string[] {
 }
 
 export interface EmojiPickerProps {
-    onPick: (emojiName: string) => void;
+    onPick: (emojiName: string, char?: string) => void;
     onClose: () => void;
 }
 
@@ -37,11 +37,11 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
     const customList = useMemo(() => Object.values(customEmoji || {}) as MMCustomEmoji[], [customEmoji]);
     const results = useMemo(() => searchEmoji(term), [term]);
 
-    const pick = (name: string) => {
+    const pick = (name: string, char?: string) => {
         const next = [name, ...recent.filter((entry) => entry !== name)].slice(0, 24);
         setRecent(next);
         writeLocal(RECENT_KEY, JSON.stringify(next));
-        onPick(name);
+        onPick(name, char);
     };
 
     const scrollToCategory = (categoryId: string) => {
@@ -71,7 +71,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                 <div className="tgw-emoji-body" ref={bodyRef}>
                     <div className="tgw-emoji-grid">
                         {results.map((emoji) => (
-                            <button type="button" key={emoji.name} title={`:${emoji.name}:`} onClick={() => pick(emoji.name)}>
+                            <button type="button" key={emoji.name} title={`:${emoji.name}:`} onClick={() => pick(emoji.name, emoji.char)}>
                                 <Emoji char={emoji.char}/>
                             </button>
                         ))}
@@ -118,10 +118,10 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                                                 </button>
                                             );
                                         }
-                                        const entry = findEmojiChar(name);
+                                        const char = emojiChar(name);
                                         return (
-                                            <button type="button" key={name} title={`:${name}:`} onClick={() => pick(name)}>
-                                                {entry ? <Emoji char={entry}/> : `:${name}:`}
+                                            <button type="button" key={name} title={`:${name}:`} onClick={() => pick(name, char)}>
+                                                {char ? <Emoji char={char}/> : `:${name}:`}
                                             </button>
                                         );
                                     })}
@@ -145,7 +145,7 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
                                 <div className="tgw-emoji-section">{category.label}</div>
                                 <div className="tgw-emoji-grid">
                                     {category.emojis.map((emoji) => (
-                                        <button type="button" key={`${category.id}-${emoji.name}-${emoji.char}`} title={`:${emoji.name}:`} onClick={() => pick(emoji.name)}>
+                                        <button type="button" key={`${category.id}-${emoji.name}-${emoji.char}`} title={`:${emoji.name}:`} onClick={() => pick(emoji.name, emoji.char)}>
                                             <Emoji char={emoji.char}/>
                                         </button>
                                     ))}
@@ -159,14 +159,4 @@ export function EmojiPicker({onPick, onClose}: EmojiPickerProps) {
             <span style={{display: 'none'}}>{String(isDark)}</span>
         </div>
     );
-}
-
-function findEmojiChar(name: string): string | undefined {
-    for (const category of EMOJI_CATEGORIES) {
-        const found = category.emojis.find((emoji) => emoji.name === name);
-        if (found) {
-            return found.char;
-        }
-    }
-    return undefined;
 }
