@@ -1641,6 +1641,24 @@ root.render(React.createElement(TelegramUI));
         await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)');
         ok(dom.window.__historyPushes.includes('/demo/messages/@alice'), 'switching chats pushes the new URL');
     }
+    const myId = state.entities.users.currentUserId;
+    const savedId = 'channel-saved';
+    state.entities.channels.channels = {...state.entities.channels.channels, [savedId]: {
+        id: savedId, name: `${myId}__${myId}`, type: 'D', team_id: '', display_name: '', delete_at: 0, last_post_at: 0,
+    }};
+    state.entities.channels.myMembers = {...state.entities.channels.myMembers, [savedId]: {
+        channel_id: savedId, user_id: myId, msg_count: 0, mention_count: 0, notify_props: {},
+    }};
+    notifyStoreChange();
+    folderBtn('All')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    const savedRow = await waitFor(() => Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Saved Messages')));
+    ok(!!savedRow, 'saved messages row is available');
+    savedRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Saved Messages');
+    ok(dom.window.__historyPushes.at(-1) === '/demo/messages/@me', 'saved messages navigates to the current user’s Mattermost DM route');
+    const returnDmRow = Array.from(document.querySelectorAll('.tgw-chat-row')).find((row) => row.textContent.includes('Alice Anderson'));
+    returnDmRow?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
+    await waitFor(() => document.querySelector('.tgw-chat-header-title')?.textContent === 'Alice Anderson (alley)');
 
     console.log('\n== inline code copy ==');
     let copiedText = null;

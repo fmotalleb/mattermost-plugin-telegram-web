@@ -173,7 +173,10 @@ export function TelegramUI() {
             const basename = (window as any).basename || '';
             let path = '';
             if (target.type === 'D') {
-                const peerId = (target.name || '').split('__').find((id) => id !== state.entities?.users?.currentUserId);
+                const myId = state.entities?.users?.currentUserId;
+                const members = (target.name || '').split('__');
+                const peerId = members.find((id) => id && id !== myId) ||
+                    (myId && members.length === 2 && members.every((id) => id === myId) ? myId : undefined);
                 const peer = peerId ? state.entities?.users?.profiles?.[peerId] : undefined;
                 path = `/${team?.name}/messages/@${peer?.username || peerId}`;
             } else if (target.type === 'G') {
