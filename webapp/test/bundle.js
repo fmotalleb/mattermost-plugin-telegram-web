@@ -134,8 +134,8 @@ const registry = {
     ok(registryCalls.rootComponents.length === 1, 'registered one root component');
     ok(registryCalls.headerButtons.length === 1, 'registered a channel header button');
     ok(registryCalls.menuItems.length === 1, 'registered a main menu entry');
-    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'custom_com.telegramweb.ui_todos_changed,hello,post_deleted,post_edited,post_unread,posted,reaction_added,reaction_removed',
-        'registered post, todo, and reconnect websocket events');
+    ok(Object.keys(registryCalls.wsHandlers).sort().join(',') === 'custom_com.telegramweb.ui_todos_changed,custom_com.telegramweb.ui_ui_config_changed,hello,post_deleted,post_edited,post_unread,posted,reaction_added,reaction_removed',
+        'registered post, todo, configuration, and reconnect websocket events');
 
     const body = document.body.innerHTML;
     console.log('\n== rendered UI ==');
@@ -181,6 +181,15 @@ const registry = {
     registryCalls.wsHandlers.hello({});
     await tick(120);
     ok(calls.filter((call) => call.includes('/todos/counts')).length > beforeReconnect, 'reconnecting refreshes shared todo counts');
+
+    globalThis.__appleEmoji = true;
+    registryCalls.wsHandlers['custom_com.telegramweb.ui_ui_config_changed']({});
+    await tick(120);
+    ok(document.querySelector('.tgw-root')?.classList.contains('tgw-use-apple-emoji'), 'server configuration event enables Apple artwork in an open session');
+    globalThis.__appleEmoji = false;
+    registryCalls.wsHandlers.hello({});
+    await tick(120);
+    ok(!document.querySelector('.tgw-root')?.classList.contains('tgw-use-apple-emoji'), 'reconnect reloads and applies the server-wide emoji setting');
 
     console.log('\n== toggle ==');
     dom.window.dispatchEvent(new dom.window.Event('tgw:disable'));

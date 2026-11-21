@@ -3,7 +3,9 @@ const {splitEmoji} = require('../src/mm/emoji');
 const {wrapEmojiNodes} = require('../src/ui/render');
 const {ReactionEmoji} = require('../src/ui/MessageList');
 const {Emoji} = require('../src/ui/Emoji');
-const {DEFAULT_SETTINGS} = require('../src/mm/settings');
+const {DEFAULT_SETTINGS, initSettings, getSettings, updateSettings, refreshServerSettings} = require('../src/mm/settings');
+const {setStore} = require('../src/mm/store');
+const {store, dom, payloads} = require('./harness');
 
 const root = ReactDOM.createRoot(container);
 (async () => {
@@ -49,6 +51,34 @@ const root = ReactDOM.createRoot(container);
     const cells = container.querySelectorAll('span');
     ok(Array.from(cells).slice(0, 3).every((node) => node.classList.contains('tgw-apple-emoji') && node.style.getPropertyValue('--tgw-emoji-x')), 'skin tones, family sequences and keycaps have sprite positions');
     ok(!cells[3].classList.contains('tgw-apple-emoji') && cells[3].textContent === '🫩‍🫩', 'missing Apple artwork keeps the Unicode font fallback');
+    // Old preferences must never override the administrator's value, including after hydration.
+    setStore(store);
+    dom.window.localStorage.setItem('tgw.settings.com.telegramweb.ui', JSON.stringify({appleEmoji: true}));
+    const originalFetch = global.fetch;
+    global.fetch = (url, options) => String(url).includes('/users/me/preferences') && (!options || !options.method || options.method === 'GET')
+        ? Promise.resolve({ok: true, text: async () => JSON.stringify([{category:'com.telegramweb.ui', name:'settings', value:JSON.stringify({appleEmoji:true})}])})
+        : originalFetch(url, options);
+    globalThis.__appleEmoji = false;
+    initSettings();
+    await tick(80);
+    ok(getSettings().appleEmoji === false, 'legacy local and remote opt-ins cannot override disabled server setting');
+    updateSettings({appleEmoji: true});
+    ok(getSettings().appleEmoji === false, 'user settings cannot change the server-wide emoji setting');
+    globalThis.__appleEmoji = true;
+    await refreshServerSettings();
+    ok(getSettings().appleEmoji === true, 'server setting enables emoji for users with legacy preferences');
+    dom.window.localStorage.setItem('tgw.settings.com.telegramweb.ui', JSON.stringify({appleEmoji: false}));
+    global.fetch = (url, options) => String(url).includes('/users/me/preferences') && (!options || !options.method || options.method === 'GET')
+        ? Promise.resolve({ok: true, text: async () => JSON.stringify([{category:'com.telegramweb.ui', name:'settings', value:JSON.stringify({appleEmoji:false})}])})
+        : originalFetch(url, options);
+    initSettings();
+    await tick(80);
+    ok(getSettings().appleEmoji === true, 'legacy local and remote opt-outs cannot override enabled server setting');
+    await tick(450);
+    ok(!Object.prototype.hasOwnProperty.call(JSON.parse(dom.window.localStorage.getItem('tgw.settings.com.telegramweb.ui')), 'appleEmoji'), 'server setting is not persisted as a user preference');
+    const saved = payloads.filter((entry) => entry.method === 'PUT' && /\/preferences$/.test(entry.path)).flatMap((entry) => entry.body || []).find((entry) => entry.category === 'com.telegramweb.ui');
+    ok(saved && !Object.prototype.hasOwnProperty.call(JSON.parse(saved.value), 'appleEmoji'), 'remote user preferences exclude the server setting');
+    global.fetch = originalFetch;
     root.unmount();
     report('EMOJI RENDERING TEST');
 })().catch((error) => { console.error(error); root.unmount(); process.exitCode = 1; });

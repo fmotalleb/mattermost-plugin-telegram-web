@@ -20,7 +20,9 @@ import (
 const (
 	// Endpoint path (relative to /plugins/com.telegramweb.ui): POST records views, GET reports
 	// counts plus the caller's own seen state. GET can also return viewer IDs on demand.
-	viewsPath = "/api/v1/views"
+	viewsPath            = "/api/v1/views"
+	uiConfigPath         = "/api/v1/ui-config"
+	uiConfigChangedEvent = "ui_config_changed"
 	// Searches a bounded history page; clients follow the before cursor to search older posts.
 	channelSearchPath                = "/api/v1/channel-search"
 	forwardPath                      = "/api/v1/forward"
@@ -42,6 +44,13 @@ type Plugin struct {
 	scheduleListMu    sync.Mutex
 	scheduleListCache []*scheduledPost
 	scheduleListAt    time.Time
+}
+
+// The hook also runs before activation. Publishing a change only tells clients to
+// re-read configuration; it never exposes the rest of the server configuration.
+func (p *Plugin) OnConfigurationChange() error {
+	p.API.PublishWebSocketEvent(uiConfigChangedEvent, map[string]any{}, &model.WebsocketBroadcast{})
+	return nil
 }
 
 func (p *Plugin) OnActivate() error {
@@ -70,6 +79,15 @@ func (p *Plugin) OnDeactivate() error {
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	switch {
+	case strings.HasSuffix(path, uiConfigPath):
+		if r.Method != http.MethodGet {
+			if !setResponseHeader(w, "Allow", http.MethodGet) {
+				return
+			}
+			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		p.handleUIConfig(w, r)
 	case strings.HasSuffix(path, todoPath), strings.Contains(path, todoPath+"/"):
 		p.handleTodos(w, r)
 	case strings.Contains(path, schedulePath+"/"):
@@ -132,6 +150,23 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 		}
 		http.NotFound(w, r)
 	}
+}
+
+// Only the non-sensitive UI flag is exposed to authenticated users.
+func (p *Plugin) handleUIConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Mattermost-User-Id") == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	var config struct{ UseAppleEmoji bool }
+	if err := p.API.LoadPluginConfiguration(&config); err != nil {
+		writeError(w, http.StatusInternalServerError, "configuration unavailable")
+		return
+	}
+	if !setResponseHeader(w, "Cache-Control", "no-store") {
+		return
+	}
+	writeJSON(w, map[string]bool{"appleEmoji": config.UseAppleEmoji})
 }
 
 // Forward a post with fresh file metadata so attachments remain attached to both posts.

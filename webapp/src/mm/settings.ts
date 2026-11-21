@@ -4,6 +4,7 @@
 //   1. server side defaults from plugin.json settings_schema (read from the client config)
 //   2. the user's own settings, persisted as a Mattermost user preference (survives browsers)
 //   3. a localStorage mirror so the UI paints instantly on reload
+// The server-wide Apple emoji setting is fetched separately and never overridden by user data.
 
 import {api} from './api';
 import {getState, readLocal, writeLocal} from './store';
@@ -47,7 +48,7 @@ export interface PluginSettings {
     includeMutedInUnread: boolean;
     /** Group favorites first in the All tab. Off by default. */
     pinFavoritesInAll: boolean;
-    /** Opt in to Apple artwork, which has separate usage restrictions. */
+    /** Server-wide Apple artwork setting; never a user preference. */
     appleEmoji: boolean;
     compactMode: boolean;
     animations: boolean;
@@ -83,6 +84,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 const listeners = new Set<() => void>();
 let settings: PluginSettings = {...DEFAULT_SETTINGS};
 let saveTimer: any = null;
+let configRequest = 0;
 
 export function getSettings(): PluginSettings {
     return settings;
@@ -112,7 +114,10 @@ function parse(json: string | null | undefined): Partial<PluginSettings> {
     }
     try {
         const parsed = JSON.parse(json);
-        return typeof parsed === 'object' && parsed ? parsed : {};
+        if (typeof parsed !== 'object' || !parsed) return {};
+        // Discard legacy per-user values, including values from older installations.
+        delete parsed.appleEmoji;
+        return parsed;
     } catch (err) {
         return {};
     }
@@ -157,6 +162,7 @@ function serverDefaults(): Partial<PluginSettings> {
 
 export function initSettings() {
     settings = {...DEFAULT_SETTINGS, ...serverDefaults(), ...parse(readLocal(LOCAL_KEY, null as any))};
+    void refreshServerSettings();
     emit();
 
     // Pick up the server side copy of the user's settings once the session is ready.
@@ -168,9 +174,9 @@ export function initSettings() {
                 persistRemote(settings);
                 return;
             }
-            const merged = {...DEFAULT_SETTINGS, ...serverDefaults(), ...parse(preference.value)};
+            const merged = {...DEFAULT_SETTINGS, ...serverDefaults(), ...parse(preference.value), appleEmoji: settings.appleEmoji};
             settings = merged;
-            writeLocal(LOCAL_KEY, JSON.stringify(merged));
+            writeLocal(LOCAL_KEY, JSON.stringify(userSettings(merged)));
             emit();
         })
         .catch(() => {
@@ -178,14 +184,34 @@ export function initSettings() {
         });
 }
 
+/** Re-read the server setting on startup, reconnect, and configuration changes. */
+export async function refreshServerSettings() {
+    const request = ++configRequest;
+    try {
+        const result = await api.pluginRequest<{appleEmoji: boolean}>('/api/v1/ui-config');
+        if (request !== configRequest || typeof result?.appleEmoji !== 'boolean') return;
+        if (settings.appleEmoji !== result.appleEmoji) {
+            settings = {...settings, appleEmoji: result.appleEmoji};
+            emit();
+        }
+    } catch {
+        // Retain the last known server value until a later successful refresh.
+    }
+}
+
 export function updateSettings(patch: Partial<PluginSettings>) {
-    settings = {...settings, ...patch};
-    writeLocal(LOCAL_KEY, JSON.stringify(settings));
+    settings = {...settings, ...patch, appleEmoji: settings.appleEmoji};
+    writeLocal(LOCAL_KEY, JSON.stringify(userSettings(settings)));
     emit();
     if (saveTimer) {
         clearTimeout(saveTimer);
     }
     saveTimer = setTimeout(() => persistRemote(settings), 400);
+}
+
+function userSettings(value: PluginSettings): Partial<PluginSettings> {
+    const {appleEmoji: _serverSetting, ...user} = value;
+    return user;
 }
 
 function persistRemote(value: PluginSettings) {
@@ -198,7 +224,7 @@ function persistRemote(value: PluginSettings) {
             category: PREFERENCE_CATEGORY,
             name: PREFERENCE_NAME,
             user_id: userId,
-            value: JSON.stringify(value),
+            value: JSON.stringify(userSettings(value)),
         },
     ]).catch(() => {
         // Preferences are a nicety; localStorage already holds the value.

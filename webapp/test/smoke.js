@@ -1588,6 +1588,7 @@ root.render(React.createElement(TelegramUI));
         settingsEntry?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => document.querySelector('.tgw-modal'));
         ok(!!document.querySelector('.tgw-modal'), 'the settings modal opens');
+        ok(!document.querySelector('.tgw-modal').textContent.includes('Use Apple emoji artwork'), 'server-wide emoji setting is absent from user preferences');
         const jalaliToggle = () => Array.from(document.querySelectorAll('.tgw-modal .tgw-field-check input'))
             .find((input) => ((input.nextElementSibling && input.nextElementSibling.textContent) || '').includes('Jalali'));
         ok(!!jalaliToggle(), 'settings carry a Jalali (Solar Hijri) dates toggle');

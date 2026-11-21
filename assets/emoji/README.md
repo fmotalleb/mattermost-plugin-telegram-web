@@ -32,7 +32,7 @@ python scripts/prepare-emoji-font.py /path/to/twemoji-colrv0.ttf
 
 ## Optional Apple artwork
 
-The optional “Use Apple emoji artwork” setting uses the same Apple image source
+The server-wide “Use Apple emoji artwork for all users” System Console setting uses the same Apple image source
 [documented by Telegram Web K](https://github.com/TelegramOrg/Telegram-web-k/blob/master/EMOJI.md).
 It is disabled by default. The Apple images are copyright Apple Inc.; the source
 states they are **not licensed for commercial use**. The switch does not grant

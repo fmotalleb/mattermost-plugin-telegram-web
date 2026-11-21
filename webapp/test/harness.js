@@ -274,6 +274,8 @@ global.fetch = async (url, options = {}) => {
     }
     payloads.push({method: options.method || 'GET', path: p, body: post});
 
+    if (p === '/plugins/com.telegramweb.ui/api/v1/ui-config') return json({appleEmoji: globalThis.__appleEmoji === true});
+
     // Deep search tests can exercise the public history fallback when the plugin server is absent.
     if (p === '/plugins/com.telegramweb.ui/api/v1/channel-search') return json({message: 'server component unavailable'}, 404);
 

@@ -22,9 +22,16 @@
         }
     },
     "settings_schema": {
-        "header": "Server side defaults for the Telegram Web UI plugin. Users can override these in the plugin's own settings screen inside the UI.",
-        "footer": "* These settings only provide defaults. They are read from the web app through the client config.",
+        "header": "Server-wide settings and defaults for the Telegram Web UI plugin. Users can override defaults in the plugin settings screen.",
+        "footer": "* Default settings can be overridden by users. Server-wide settings apply to everyone.",
         "settings": [
+            {
+                "key": "UseAppleEmoji",
+                "display_name": "Use Apple emoji artwork for all users",
+                "type": "bool",
+                "help_text": "Use the bundled Apple emoji artwork throughout Telegram Web UI for all users. Apple artwork is not licensed for commercial use; enabling this setting does not grant usage or redistribution rights.",
+                "default": false
+            },
             {
                 "key": "DefaultMode",
                 "display_name": "Enable Telegram Web UI by default",
