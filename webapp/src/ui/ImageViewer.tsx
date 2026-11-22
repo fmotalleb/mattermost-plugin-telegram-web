@@ -13,7 +13,7 @@ import {IconBack, IconClose, IconDownload, IconForward} from './primitives';
 type View = {scale: number; x: number; y: number};
 type Point = {x: number; y: number};
 
-function ImageCanvas({file, editing, onEdit}: {file: MMFileInfo; editing: boolean; onEdit: (source: HTMLImageElement) => void}) {
+function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; editing: boolean; onEdit: (source: HTMLImageElement) => void}) {
     const viewport = useRef<HTMLDivElement>(null);
     const source = useRef<HTMLImageElement>(null);
     const pointers = useRef(new Map<number, Point>());
@@ -120,7 +120,7 @@ function ImageCanvas({file, editing, onEdit}: {file: MMFileInfo; editing: boolea
             {!ready && !failed && <span className="tgw-image-viewer-status" role="status">Loading image…</span>}
             {failed && <div className="tgw-image-viewer-status" role="alert">Could not load image. <button type="button" onClick={() => { setFailed(false); setAttempt((value) => value + 1); }}>Retry</button></div>}
             <div className="tgw-image-viewer-stage" style={{width: image.width, height: image.height, opacity: ready ? 1 : 0, transform: `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${view.scale})`}}>
-                <img key={attempt} ref={source} src={api.fileURL(file.id)} alt={file.name || 'Image attachment'} draggable={false} onLoad={(event) => {
+                <img key={attempt} ref={source} src={src} alt={name || 'Image attachment'} draggable={false} onLoad={(event) => {
                     setFailed(false); setImage({width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight});
                 }} onError={() => { setFailed(true); setImage({width: 0, height: 0}); }}/>
             </div>
@@ -132,9 +132,6 @@ export function ImageViewer() {
     const {ui, actions, channel} = useTg();
     const target = ui.imageViewer;
     const {posts} = useChannelPosts(channel?.id);
-    const dialog = useRef<HTMLDivElement>(null);
-    const [editor, setEditor] = useState<{source: HTMLImageElement; name: string} | null>(null);
-    const wasEditing = useRef(false);
     const images = useMemo(() => {
         const list: Array<{post: MMPost; file: MMFileInfo}> = [];
         const seen = new Set<string>();
@@ -153,18 +150,33 @@ export function ImageViewer() {
     const targetKey = target ? `${target.post.id}:${target.fileId || ''}` : '';
     if (targetKey !== lastTarget.current) {
         lastTarget.current = targetKey;
-        if (editor) setEditor(null);
         const found = images.findIndex((entry) => entry.post.id === target?.post.id && (!target?.fileId || entry.file.id === target.fileId));
         setIndex(found >= 0 ? found : 0);
     }
-    const close = useCallback(() => {
-        setEditor(null);
-        actions.setUI({imageViewer: null});
-    }, [actions]);
+    const close = useCallback(() => actions.setUI({imageViewer: null}), [actions]);
     const move = useCallback((step: number) => setIndex((current) => images.length ? (current + step + images.length) % images.length : 0), [images.length]);
-    const handlers = useRef({close, move, editing: !!editor}); handlers.current = {close, move, editing: !!editor};
+    if (!target || !images.length) return null;
+    const position = Math.min(index, images.length - 1);
+    const {post, file} = images[position];
+    return <ImagePreview key={targetKey} src={api.fileURL(file.id)} name={file.name} onClose={close}
+        gallery={{caption: toPlainPreview(post.message, 1000), position, count: images.length, move}}/>;
+}
+
+interface ImagePreviewProps {
+    src: string;
+    name: string;
+    onClose: () => void;
+    gallery?: {caption: string; position: number; count: number; move: (step: number) => void};
+    onApply?: (file: File) => void;
+    onSend?: (file: File) => void;
+}
+
+export function ImagePreview({src, name, onClose, gallery, onApply, onSend}: ImagePreviewProps) {
+    const dialog = useRef<HTMLDivElement>(null);
+    const [editor, setEditor] = useState<HTMLImageElement | null>(null);
+    const wasEditing = useRef(false);
+    const handlers = useRef({onClose, gallery, editing: !!editor}); handlers.current = {onClose, gallery, editing: !!editor};
     React.useLayoutEffect(() => {
-        if (!target) return undefined;
         const previous = document.activeElement as HTMLElement;
         const controls = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]') || [])
             .filter((item) => !handlers.current.editing || !item.closest('.tgw-image-viewer-body'));
@@ -174,9 +186,13 @@ export function ImageViewer() {
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 if (handlers.current.editing) setEditor(null);
-                else handlers.current.close();
+                else handlers.current.onClose();
             }
-            if (!handlers.current.editing && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) { event.preventDefault(); event.stopImmediatePropagation(); handlers.current.move(event.key === 'ArrowLeft' ? -1 : 1); }
+            if (!handlers.current.editing && handlers.current.gallery && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                handlers.current.gallery.move(event.key === 'ArrowLeft' ? -1 : 1);
+            }
             if (event.key === 'Tab') {
                 event.preventDefault(); event.stopImmediatePropagation();
                 const items = controls();
@@ -193,35 +209,31 @@ export function ImageViewer() {
             document.removeEventListener('focusin', focus);
             if (previous?.isConnected) previous.focus({preventScroll: true});
         };
-    }, [!!target]);
+    }, []);
     React.useLayoutEffect(() => {
         if (editor) dialog.current?.querySelector<HTMLElement>('.tgw-image-editor-back')?.focus();
         else if (wasEditing.current) dialog.current?.querySelector<HTMLElement>('.tgw-image-viewer-edit')?.focus();
         wasEditing.current = !!editor;
     }, [editor]);
-    if (!target || !images.length) return null;
-    const position = Math.min(index, images.length - 1);
-    const current = images[position];
-    const caption = toPlainPreview(current.post.message, 1000);
     return createPortal(<div className="tgw-image-viewer" ref={dialog} role="dialog" aria-modal="true" aria-label={editor ? 'Image editor' : 'Image viewer'} onClick={(event) => {
         event.stopPropagation();
-        if (!editor && !(event.target as Element).closest('.tgw-image-viewer-stage, button, a, .tgw-image-viewer-caption')) close();
+        if (!editor && !(event.target as Element).closest('.tgw-image-viewer-stage, button, a, .tgw-image-viewer-caption')) onClose();
     }}>
         <header className="tgw-image-viewer-header">
-            <span className="tgw-image-viewer-name">{(editor ? editor.name : current.file.name) || 'Image attachment'}</span>
+            <span className="tgw-image-viewer-name">{editor?.alt || name || 'Image attachment'}</span>
             {editor ? <button className="tgw-image-editor-back" type="button" title="Discard edits and return to preview" onClick={() => setEditor(null)}>Back to preview</button> :
-                <a href={api.fileURL(current.file.id)} download={current.file.name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>}
-            <button type="button" className="tgw-image-viewer-close" onClick={close} title="Close" aria-label="Close image viewer"><IconClose size={24}/></button>
+                gallery && <a href={src} download={name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>}
+            <button type="button" className="tgw-image-viewer-close" onClick={onClose} title="Close" aria-label="Close image viewer"><IconClose size={24}/></button>
         </header>
-        <ImageCanvas key={current.file.id} file={current.file} editing={!!editor} onEdit={(source) => setEditor({source, name: current.file.name || ''})}/>
-        {editor && <ImageEditor source={editor.source} name={editor.name}/>}
-        {!editor && images.length > 1 && <>
-            <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-prev" onClick={() => move(-1)} title="Previous attachment" aria-label="Previous image"><IconBack size={24}/></button>
-            <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-next" onClick={() => move(1)} title="Next attachment" aria-label="Next image"><IconForward size={24}/></button>
+        <ImageCanvas key={src} src={src} name={name} editing={!!editor} onEdit={setEditor}/>
+        {editor && <ImageEditor source={editor} name={editor.alt} onApply={onApply} onSend={onSend}/>}
+        {!editor && gallery?.count > 1 && <>
+            <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-prev" onClick={() => gallery.move(-1)} title="Previous attachment" aria-label="Previous image"><IconBack size={24}/></button>
+            <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-next" onClick={() => gallery.move(1)} title="Next attachment" aria-label="Next image"><IconForward size={24}/></button>
         </>}
-        {!editor && <footer className="tgw-image-viewer-footer">
-            {caption && <div className="tgw-image-viewer-caption">{caption}</div>}
-            {images.length > 1 && <div className="tgw-image-viewer-count">{position + 1} / {images.length}</div>}
+        {!editor && gallery && <footer className="tgw-image-viewer-footer">
+            {gallery.caption && <div className="tgw-image-viewer-caption">{gallery.caption}</div>}
+            {gallery.count > 1 && <div className="tgw-image-viewer-count">{gallery.position + 1} / {gallery.count}</div>}
         </footer>}
     </div>, overlayRoot());
 }

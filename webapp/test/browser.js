@@ -721,7 +721,7 @@ class CDP {
                     window.__imageDownload = {url: this.href, name: this.download};
                 };
             })()`);
-            await cdp.clickSelector('.tgw-image-editor-download');
+            await cdp.clickSelector('.tgw-image-editor-primary');
             await cdp.waitFor('!!window.__imageDownload', 5000, 'edited PNG download');
             const downloaded = await cdp.eval(`(async () => {
                 const {url, name} = window.__imageDownload;
@@ -751,6 +751,93 @@ class CDP {
             await cdp.clickSelector('.tgw-image-editor-back');
             ok(await cdp.eval(`!document.querySelector('.tgw-image-editor') && document.querySelector('.tgw-image-viewer img').naturalWidth === 2000 &&
                 document.activeElement.matches('.tgw-image-viewer-edit')`), 'returning to the preview restores the original image and focus');
+            await cdp.clickSelector('.tgw-image-viewer-close');
+            await cdp.eval(`Array.from(document.querySelectorAll('.tgw-chat-row')).find(row => row.textContent.includes('Alice')).click()`);
+            await cdp.waitFor('!!document.querySelector(".tgw-shell-chat-open .tgw-composer")', 5000, 'conversation open in the phone layout');
+            await cdp.eval(`(async () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 48;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#163c5f';
+                ctx.fillRect(0, 0, 64, 48);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve));
+                window.__composerImageBlob = blob;
+                const transfer = new DataTransfer();
+                for (const name of ['first.png', 'second.png']) transfer.items.add(new File([blob], name, {type: 'image/png'}));
+                const input = document.querySelector('.tgw-composer input[type=file]');
+                input.files = transfer.files;
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+                const nextFetch = window.fetch;
+                window.__composerUploads = [];
+                let rejectSecond = true;
+                window.fetch = async (url, options) => {
+                    if (String(url).endsWith('/api/v4/files') && options.method === 'POST') {
+                        const file = options.body.get('files');
+                        const bitmap = await createImageBitmap(file);
+                        window.__composerUploads.push({name: file.name, width: bitmap.width, height: bitmap.height});
+                        bitmap.close();
+                        if (rejectSecond && file.name === 'second-edited.png') {
+                            rejectSecond = false;
+                            return new Response(JSON.stringify({message: 'Test upload failed'}), {status: 503});
+                        }
+                    }
+                    return nextFetch(url, options);
+                };
+            })()`);
+            await cdp.waitFor('document.querySelectorAll(".tgw-attachment-chip-preview img").length === 2', 5000, 'two pending image thumbnails');
+            await cdp.clickSelector('.tgw-attachment-chip-preview');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled")', 5000, 'composer image preview');
+            await cdp.clickSelector('.tgw-image-viewer-edit');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
+            await editorButton('Rotate ↻');
+            await editorButton('Apply edits');
+            await cdp.waitFor('!document.querySelector(".tgw-image-viewer") && !!document.querySelector(\'[aria-label="Preview first-edited.png"]\')');
+            ok(await cdp.eval('!window.__composerUploads.length && !window.__calls.includes("POST /files")'), 'applying edits updates the tray without uploading either image');
+
+            await cdp.clickSelector('.tgw-composer textarea');
+            await cdp.type('Edited image attachments');
+            await cdp.clickSelector('.tgw-attachment-chip-preview', 1);
+            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled")');
+            await cdp.clickSelector('.tgw-image-viewer-edit');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
+            await editorButton('Rotate ↻');
+            await cdp.clickSelector('.tgw-image-editor-primary');
+            await cdp.waitFor('document.querySelector(".tgw-toast")?.textContent.includes("Test upload failed")', 5000, 'failed upload notice');
+            ok(await cdp.eval(`document.querySelector('.tgw-composer textarea').value === 'Edited image attachments' &&
+                document.querySelectorAll('.tgw-attachment-chip-preview').length === 2 && !window.__calls.includes('POST /posts')`),
+            'an upload failure restores the edited attachments and caption');
+            await cdp.clickSelector('.tgw-send-button[title="Send"]');
+            await cdp.waitFor('window.__calls.includes("POST /posts")', 5000, 'message sent with edited attachments');
+            const sent = await cdp.eval(`({
+                uploads: window.__composerUploads,
+                post: window.__payloads.find(entry => entry.method === 'POST' && entry.path === '/posts').body,
+            })`);
+            ok(sent.uploads.map((file) => file.name).join(',') === 'first-edited.png,second-edited.png,second-edited.png' &&
+                sent.uploads.every((file) => file.width === 48 && file.height === 64) &&
+                sent.post.message === 'Edited image attachments' && sent.post.file_ids.length === 2,
+            'Send edited uploads the edited PNGs and a retry reuses the successful upload');
+
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
+            await cdp.eval(`(() => {
+                const row = document.querySelector('.tgw-chat-row');
+                row.dispatchEvent(new MouseEvent('mousedown', {button: 1, bubbles: true, cancelable: true}));
+                row.dispatchEvent(new MouseEvent('auxclick', {button: 1, bubbles: true, cancelable: true}));
+            })()`);
+            await cdp.waitFor('!!document.querySelector(".tgw-quick-dialog .tgw-composer input[type=file]")');
+            await cdp.eval(`(() => {
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([window.__composerImageBlob], 'quick.png', {type: 'image/png'}));
+                const input = document.querySelector('.tgw-quick-dialog .tgw-composer input[type=file]');
+                input.files = transfer.files;
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+            })()`);
+            await cdp.waitFor('!!document.querySelector(".tgw-quick-dialog .tgw-attachment-chip-preview img")');
+            await cdp.clickSelector('.tgw-quick-dialog .tgw-attachment-chip-preview');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled") && document.activeElement.matches(".tgw-image-viewer-close")', 5000, 'quick chat image preview takes focus');
+            await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+            await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+            await cdp.waitFor('!document.querySelector(".tgw-image-viewer")');
+            ok(await cdp.eval('document.activeElement.matches(".tgw-quick-dialog .tgw-attachment-chip-preview")'), 'dismissing the composer preview preserves Quick Chat and restores focus');
             ok((await cdp.eval('window.__pageErrors')).length===0,'viewer produces no browser errors');
             report('IMAGE VIEWER BROWSER TEST');
             return;

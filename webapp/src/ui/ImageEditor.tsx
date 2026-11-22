@@ -55,7 +55,14 @@ function selectedRect(start: Point, end: Point): Rect {
     return {x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(start.x - end.x), height: Math.abs(start.y - end.y)};
 }
 
-export function ImageEditor({source, name}: {source: HTMLImageElement; name: string}) {
+interface ImageEditorProps {
+    source: HTMLImageElement;
+    name: string;
+    onApply?: (file: File) => void;
+    onSend?: (file: File) => void;
+}
+
+export function ImageEditor({source, name, onApply, onSend}: ImageEditorProps) {
     const [history, setHistory] = useState<History>(() => {
         const {naturalWidth: width, naturalHeight: height} = source;
         return {past: [], current: {crop: {x: 0, y: 0, width, height}, turns: 0, width, height, strokes: []}, future: []};
@@ -149,10 +156,10 @@ export function ImageEditor({source, name}: {source: HTMLImageElement; name: str
         }
         commit({...edit, width, height});
     };
-    const download = () => {
+    const exportImage = (useFile?: (file: File) => void) => {
         if (!validSize(edit.width, edit.height)) {
             setTool('Resize');
-            setError('Resize to 8,192 px per side and 32 megapixels total or smaller to download.');
+            setError('Resize to 8,192 px per side and 32 megapixels total or smaller.');
             return;
         }
         setSaving(true);
@@ -169,15 +176,20 @@ export function ImageEditor({source, name}: {source: HTMLImageElement; name: str
             output.toBlob((blob) => {
                 if (!mounted.current) return;
                 if (!blob) { failed(); return; }
+                const filename = `${name.replace(/\.[^.]+$/, '') || 'image'}-edited.png`;
+                setSaving(false);
+                if (useFile) {
+                    useFile(new File([blob], filename, {type: blob.type}));
+                    return;
+                }
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `${name.replace(/\.[^.]+$/, '') || 'image'}-edited.png`;
+                link.download = filename;
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
                 window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-                setSaving(false);
             }, 'image/png');
         } catch {
             failed();
@@ -267,7 +279,11 @@ export function ImageEditor({source, name}: {source: HTMLImageElement; name: str
         {error && <div className="tgw-image-editor-error" role="alert">{error}</div>}
         <div className="tgw-image-viewer-tools">
             <output aria-label="Image dimensions">{edit.width} × {edit.height} px</output>
-            <button type="button" className="tgw-image-editor-download" disabled={saving} onClick={download}>{saving ? 'Preparing download…' : 'Download PNG'}</button>
+            {onApply ? <>
+                <button type="button" disabled={saving || !past.length} onClick={() => exportImage(onApply)}>Apply edits</button>
+                <button type="button" className="tgw-image-editor-primary" disabled={saving || !past.length || !onSend} onClick={() => exportImage(onSend)}>Send edited</button>
+            </> :
+                <button type="button" className="tgw-image-editor-primary" disabled={saving} onClick={() => exportImage()}>{saving ? 'Preparing download…' : 'Download PNG'}</button>}
         </div>
     </div>;
 }

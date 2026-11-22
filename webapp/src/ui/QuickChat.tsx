@@ -36,8 +36,13 @@ export function QuickChat({channelId}: {channelId: string}) {
         const initialInput = dialog.current?.querySelector<HTMLTextAreaElement>('textarea');
         if (initialInput) initialInput.focus();
         else dialog.current?.focus();
+        const hasNestedDialog = () => {
+            const {ui} = latest.current;
+            return ui.imageViewer || ui.modal === 'filePreview' || ui.modal === 'userProfile' || ui.modal === 'scheduledMessages' ||
+                dialog.current?.querySelector('.tgw-composer-image-preview');
+        };
         const onKey = (event: KeyboardEvent) => {
-            if (latest.current.ui.imageViewer || latest.current.ui.modal === 'filePreview' || latest.current.ui.modal === 'userProfile' || latest.current.ui.modal === 'scheduledMessages') return;
+            if (hasNestedDialog()) return;
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopImmediatePropagation();
@@ -52,7 +57,7 @@ export function QuickChat({channelId}: {channelId: string}) {
             }
         };
         const onFocus = (event: FocusEvent) => {
-            if (latest.current.ui.imageViewer || latest.current.ui.modal === 'filePreview' || latest.current.ui.modal === 'userProfile' || latest.current.ui.modal === 'scheduledMessages') return;
+            if (hasNestedDialog()) return;
             const target = event.target as Node;
             if (!dialog.current?.contains(target)) {
                 const input = dialog.current?.querySelector<HTMLTextAreaElement>('textarea');

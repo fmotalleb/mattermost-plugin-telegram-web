@@ -16,6 +16,9 @@ import {MessageBody} from './render';
 import {useSelector} from '../mm/store';
 import {clearComposerDraft, clearComposerDraftText, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
 import {useVoiceRecorder} from './voice';
+import {deferred} from './deferred';
+
+const ImagePreview = deferred(() => import(/* webpackChunkName: "imageviewer" */ './ImageViewer').then((module) => module.ImagePreview), 'image preview');
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
 function autoGrow(element: HTMLTextAreaElement | null) {
@@ -56,8 +59,19 @@ interface PendingFile {
     file: File;
     info?: MMFileInfo;
     error?: string;
+    staged?: boolean;
     /** Set on files that came out of the voice recorder, for the tray chip preview. */
     voice?: {durationMs: number; levels: number[]};
+}
+
+const isImage = (file: File) => fileKindOf(file.type || file.name) === 'image';
+const uploadBlocked = (entry: PendingFile) => !entry.staged && !entry.info;
+
+async function uploadAttachment(channelId: string, entry: PendingFile) {
+    const result = await api.uploadFile(channelId, entry.file, entry.clientId);
+    const info = result?.file_infos?.[0];
+    if (!info?.id) throw new Error('Upload failed');
+    return info;
 }
 
 export function Composer({quick = false, channel, replyTo, editing, rootId, onCancelReply, onCancelEdit, onSend, onSent, placeholder}: ComposerProps) {
@@ -65,6 +79,10 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const [message, setMessage] = useState(() => getComposerDraft(channel.id)?.message || '');
     const storedDraftMessage = useSelector((state) => selectComposerDraft(state, channel.id)?.message || '');
     const [files, setFiles] = useState<PendingFile[]>([]);
+    // Keep async sends and editor callbacks in sync with the tray.
+    const filesRef = useRef(files);
+    filesRef.current = files;
+    const [previewId, setPreviewId] = useState('');
     const [showEmoji, setShowEmoji] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [urgent, setUrgent] = useState(false);
@@ -77,6 +95,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const fileInputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceRecorder((message) => actions.toast(message, 'error'));
     const recording = voice.status === 'recording';
+    const isCommand = !editing && /^\/[^\s/]+/.test(message.trim());
     // Replying threads the message onto the root of the post being answered (answering a reply
     // keeps it in the same thread). Without this every reply went out as a brand new root post
     // and the "Reply to ..." bar was purely cosmetic.
@@ -172,11 +191,14 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         autoGrow(textareaRef.current);
     }, [message]);
 
-    // A take must land in the chat it was recorded in: switching away discards it.
+    // Pending attachments and voice takes belong to the conversation that created them.
     const channelRef = useRef(channel.id);
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (channelRef.current !== channel.id) {
             channelRef.current = channel.id;
+            setFiles([]);
+            filesRef.current = [];
+            setPreviewId('');
             if (voice.status === 'recording') {
                 void voice.cancel();
             }
@@ -185,6 +207,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
 
     const reset = () => {
         setShowPreview(false);
+        setPreviewId('');
         setComposerMessage('');
         setFiles([]);
         filesRef.current = [];
@@ -192,11 +215,6 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             clearComposerDraft(channel.id);
         }
     };
-
-    // Mirror of the files state for the send-failure path: the closure of an in-flight send
-    // would otherwise see the snapshot from when it started, not what is in the tray now.
-    const filesRef = useRef(files);
-    filesRef.current = files;
 
     useEffect(() => {
         const draft = ui.scheduledDraft;
@@ -227,7 +245,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         });
     };
 
-    const uploadFiles = async (incoming: FileList | File[] | null, voiceMeta?: {durationMs: number; levels: number[]}) => {
+    const attachFiles = async (incoming: FileList | File[] | null, voiceMeta?: {durationMs: number; levels: number[]}) => {
         if (!incoming) {
             return;
         }
@@ -239,12 +257,13 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             clientId: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             file,
             voice: voiceMeta,
+            staged: !voiceMeta && isImage(file),
         }));
         setFiles((current) => [...current, ...additions]);
         for (const entry of additions) {
+            if (entry.staged) continue;
             try {
-                const result = await api.uploadFile(channel.id, entry.file, entry.clientId);
-                const info = result?.file_infos?.[0];
+                const info = await uploadAttachment(channel.id, entry);
                 setFiles((current) => current.map((item) => (item.clientId === entry.clientId ? {...item, info} : item)));
             } catch (error: any) {
                 setFiles((current) => current.map((item) => (item.clientId === entry.clientId ? {...item, error: error?.message || 'Upload failed'} : item)));
@@ -255,17 +274,15 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     const stopRecording = async () => {
         const take = await voice.finish();
         if (take) {
-            await uploadFiles([take.file], {durationMs: take.durationMs, levels: take.levels});
+            await attachFiles([take.file], {durationMs: take.durationMs, levels: take.levels});
         }
     };
 
-    const send = async (scheduledAt?: number): Promise<boolean> => {
+    const send = async (scheduledAt?: number, attachments = files): Promise<boolean> => {
         if (sendInFlight.current) return false;
         const trimmed = message.trim();
-        const ready = files.filter((entry) => entry.info);
-        const readyFiles = ready.map((entry) => entry.info!.id);
-        if (!trimmed && !readyFiles.length) return false;
-        if (files.some((entry) => !entry.info)) {
+        if (!trimmed && !attachments.length) return false;
+        if (attachments.some(uploadBlocked)) {
             actions.toast('Wait for attachments to finish uploading or remove failed uploads', 'error');
             return false;
         }
@@ -273,30 +290,20 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             actions.toast('Choose a time in the future', 'error');
             return false;
         }
-        const isCommand = !editing && /^\/[^\s/]+/.test(trimmed);
         if (isCommand && scheduledAt !== undefined) {
             actions.toast('Commands cannot be scheduled', 'error');
             return false;
         }
-        if (isCommand && files.length) {
+        if (isCommand && attachments.length) {
             actions.toast('Send attachments separately from commands', 'error');
             return false;
         }
         // Snapshot the payload and free the input right away: the network round trip can take a
         // while, and anything typed into the box while it is in flight must survive — a late
         // reset used to wipe the next message the user had already started composing.
-        const voiceEntry = ready.find((entry) => entry.voice);
-        const payload = {
-            message: trimmed,
-            fileIds: readyFiles,
-            priority: urgent && !threadRootId && !isCommand && !editing
-                ? {priority: 'urgent', requested_ack: false, persistent_notifications: false} as MMPostPriority : undefined,
-            rootId: threadRootId,
-            files: ready.map((entry) => entry.info!),
-            voice: voiceEntry && voiceEntry.info
-                ? {fileId: voiceEntry.info.id, durationMs: voiceEntry.voice!.durationMs, levels: voiceEntry.voice!.levels}
-                : undefined,
-        };
+        const ready = [...attachments];
+        const priority: MMPostPriority | undefined = urgent && !threadRootId && !isCommand && !editing
+            ? {priority: 'urgent', requested_ack: false, persistent_notifications: false} : undefined;
         const wasEditing = editing;
         const destination = channel.id;
         sendInFlight.current = true;
@@ -310,20 +317,28 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             onCancelReply();
         }
         try {
+            if (!wasEditing) {
+                for (const [index, entry] of ready.entries()) {
+                    if (entry.staged) ready[index] = {...entry, info: await uploadAttachment(destination, entry), staged: false};
+                }
+            }
+            const readyFiles = ready.map((entry) => entry.info?.id).filter(Boolean);
+            const voiceEntry = ready.find((entry) => entry.voice && entry.info);
+            const voice = voiceEntry ? {fileId: voiceEntry.info.id, ...voiceEntry.voice} : undefined;
             if (wasEditing) {
                 await api.patchPost(wasEditing.id, {message: trimmed});
                 onCancelEdit();
             } else if (scheduledAt !== undefined) {
                 await api.schedulePost({channel_id: destination, message: trimmed, root_id: threadRootId || '',
-                    file_ids: readyFiles, props: payload.voice ? {voice: payload.voice} : {},
-                    priority: payload.priority, scheduled_at: scheduledAt});
+                    file_ids: readyFiles, props: voice ? {voice} : {},
+                    priority, scheduled_at: scheduledAt});
                 actions.toast(`Message scheduled for ${new Date(scheduledAt).toLocaleString()}`, 'success');
                 onSent();
             } else if (isCommand) {
                 await api.executeCommand(trimmed, channel.id, commandTeamId, threadRootId);
                 onSent();
             } else {
-                await onSend(payload);
+                await onSend({message: trimmed, fileIds: readyFiles, priority, rootId: threadRootId, files: ready.map((entry) => entry.info), voice});
                 onSent();
             }
             return true;
@@ -334,7 +349,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
             if (channelRef.current === destination && element && !messageRef.current.trim() && !filesRef.current.length) {
                 setComposerMessage(wasEditing ? (wasEditing.message || '') : trimmed);
                 setFiles(ready);
-                setUrgent(!!payload.priority);
+                setUrgent(!!priority);
                 if (replyTo && !wasEditing) actions.startReply(replyTo);
             }
             actions.toast(error?.message || (wasEditing ? 'Could not save the changes' : scheduledAt !== undefined ? 'Could not schedule the message' : 'Could not send the message'), 'error');
@@ -395,6 +410,18 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
         return placeholder || 'Write a message ...';
     }, [editing, placeholder]);
 
+    const useEditedImage = (entry: PendingFile, file: File, sendNow: boolean) => {
+        if (channelRef.current !== channel.id || !filesRef.current.some((item) => item.clientId === entry.clientId)) return;
+        const next = filesRef.current.map((item) => item.clientId === entry.clientId
+            ? {...item, file, info: undefined, error: undefined, staged: true}
+            : item);
+        setFiles(next);
+        setPreviewId('');
+        if (sendNow) void send(undefined, next);
+    };
+    const attachmentsReady = !files.some(uploadBlocked);
+    const canSendEdited = attachmentsReady && !editing && !recording && !sending && !isCommand;
+
     return (
         <div className={`tgw-composer ${editing ? 'tgw-composer-editing' : ''}`}>
             {replyTo && !editing && (
@@ -439,14 +466,16 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                             />
                         ) : (
                             <div key={entry.clientId} className={`tgw-attachment-chip ${entry.error ? 'tgw-attachment-chip-error' : ''}`}>
-                                {fileKindOf(entry.file.type || entry.file.name) === 'image' && !entry.error ? (
-                                    <img src={URL.createObjectURL(entry.file)} alt={entry.file.name}/>
+                                {isImage(entry.file) && !entry.error ? (
+                                    <ImageChip entry={entry} open={previewId === entry.clientId} onOpen={() => setPreviewId(entry.clientId)}
+                                        onClose={() => setPreviewId('')} onApply={(file) => useEditedImage(entry, file, false)}
+                                        onSend={canSendEdited ? (file) => useEditedImage(entry, file, true) : undefined}/>
                                 ) : (
                                     <span className="tgw-attachment-chip-icon">{entry.file.name.split('.').pop()?.toUpperCase().slice(0, 4) || 'FILE'}</span>
                                 )}
                                 <span className="tgw-attachment-chip-meta">
                                     <span className="tgw-attachment-chip-name">{entry.file.name}</span>
-                                    <span className="tgw-attachment-chip-size">{entry.error || (entry.info ? formatBytes(entry.info.size) : 'Uploading…')}</span>
+                                    <span className="tgw-attachment-chip-size">{entry.error || (entry.staged ? formatBytes(entry.file.size) : entry.info ? formatBytes(entry.info.size) : 'Uploading…')}</span>
                                 </span>
                                 <button
                                     type="button"
@@ -470,9 +499,9 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                 <button type="button" title="Link" onClick={() => insertMarkdown('[', '](https://)', 'link')}><IconLink size={18}/></button>
                 <button type="button" title={showPreview ? 'Close message preview' : 'Preview message'} aria-label={showPreview ? 'Close message preview' : 'Preview message'} aria-pressed={showPreview} onClick={() => setShowPreview((value) => !value)}><IconEye size={18}/></button>
                 <SendOptions key={channel.id} restoreSchedule={restoreSchedule?.channelId === channel.id ? restoreSchedule : null} urgent={urgent} onUrgent={setUrgent}
-                    priorityDisabled={!!threadRootId || /^\/[^\s/]+/.test(message.trim())}
+                    priorityDisabled={!!threadRootId || isCommand}
                     disabled={!!editing || recording} busy={sending}
-                    canSend={!!(message.trim() || files.length) && !files.some((entry) => !entry.info)}
+                    canSend={!!(message.trim() || files.length) && attachmentsReady}
                     onSchedule={async (timestamp) => { const sent = await send(timestamp); if (sent) setRestoreSchedule(null); return sent; }}/>
             </div>
 
@@ -526,7 +555,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                         multiple
                         style={{display: 'none'}}
                         onChange={(event) => {
-                            uploadFiles(event.target.files);
+                            attachFiles(event.target.files);
                             event.target.value = '';
                         }}
                     />
@@ -590,7 +619,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                                 return;
                             }
                             event.preventDefault();
-                            uploadFiles(pasted);
+                            attachFiles(pasted);
                         }}
                     />
                     {commandAutocomplete.picker}
@@ -635,6 +664,41 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     );
 }
 
+
+interface ImageChipProps {
+    entry: PendingFile;
+    open: boolean;
+    onOpen: () => void;
+    onClose: () => void;
+    onApply: (file: File) => void;
+    onSend?: (file: File) => void;
+}
+
+function ImageChip({entry, open, onOpen, onClose, onApply, onSend}: ImageChipProps) {
+    const {file, info} = entry;
+    const [objectURL, setObjectURL] = useState<{file: File; url: string} | null>(null);
+    const uploadedURL = info && !file.size ? api.fileURL(info.id) : '';
+    useEffect(() => {
+        if (uploadedURL || typeof URL.createObjectURL !== 'function') return;
+        try {
+            const url = URL.createObjectURL(file);
+            setObjectURL({file, url});
+            return () => URL.revokeObjectURL(url);
+        } catch {
+            // The local preview is unavailable when the host cannot create a blob URL.
+        }
+    }, [file, uploadedURL]);
+    const src = uploadedURL || (objectURL?.file === file ? objectURL.url : '');
+    return <>
+        <button className="tgw-attachment-chip-preview" type="button" aria-label={`Preview ${file.name}`} title="Preview and edit image" onClick={() => { if (src) onOpen(); }}>
+            {src ? <img src={src} alt=""/> : <span className="tgw-attachment-chip-icon">IMG</span>}
+            <span className="tgw-attachment-chip-preview-icon" aria-hidden="true"><IconEye size={12}/></span>
+        </button>
+        {open && src && <div className="tgw-composer-image-preview">
+            <ImagePreview src={src} name={file.name} onClose={onClose} onApply={onApply} onSend={onSend}/>
+        </div>}
+    </>;
+}
 
 /** Tray chip for a freshly recorded take: play it back before sending or throw it away. */
 function VoiceChip({entry, onRemove}: {entry: PendingFile; onRemove: () => void}) {

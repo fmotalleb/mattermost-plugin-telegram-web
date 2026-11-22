@@ -2478,6 +2478,24 @@
     display: inline-flex;
 }
 
+.tgw-attachment-chip .tgw-attachment-chip-preview {
+    position: relative;
+    flex: none;
+    padding: 0;
+    border-radius: 6px;
+}
+
+.tgw-attachment-chip-preview-icon {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 4px;
+    color: #fff;
+    background: rgba(0,0,0,.65);
+}
+
 .tgw-attachment-chip-error {
     background: rgba(229, 84, 75, 0.15);
 }
@@ -3665,8 +3683,8 @@
 .tgw-root .tgw-image-editor input[type="range"] { width: 88px; }
 .tgw-root .tgw-image-editor input:focus-visible { outline: 2px solid #70b9ff; }
 .tgw-root .tgw-image-viewer .tgw-image-editor button[aria-pressed="true"] { background: #223c57; box-shadow: inset 0 0 0 1px #70b9ff; }
-.tgw-root .tgw-image-viewer .tgw-image-editor-download { background: #a8d5ff; color: #0c111a; }
-.tgw-root .tgw-image-viewer .tgw-image-editor-download:hover { background: #d5ebff; }
+.tgw-root .tgw-image-viewer .tgw-image-editor-primary { background: #a8d5ff; color: #0c111a; }
+.tgw-root .tgw-image-viewer .tgw-image-editor-primary:hover { background: #d5ebff; }
 .tgw-root .tgw-image-editor-viewport {
     display: grid;
     place-items: center;
