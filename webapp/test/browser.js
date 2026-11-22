@@ -654,7 +654,7 @@ class CDP {
             await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
             await cdp.clickSelector('.tgw-attachment-image');
             await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.naturalWidth > 0',10000,'reopened image load');
-            const backdrop = await cdp.eval(`(() => {
+            const backdrop = await cdp.waitFor(`(() => {
                 const canvas = document.querySelector('.tgw-image-viewer-viewport');
                 const bounds = canvas.getBoundingClientRect();
                 const image = canvas.querySelector('img').getBoundingClientRect();
@@ -663,11 +663,94 @@ class CDP {
                     {x: (bounds.left + image.left) / 2, y: bounds.top + bounds.height / 3},
                 ];
                 return points.find(({x, y}) => document.elementFromPoint(x, y) === canvas);
-            })()`);
-            if (!backdrop) throw new Error('expected empty canvas space around the fitted image');
+            })()`, 5000, 'empty canvas space around the fitted image');
             await cdp.click(backdrop.x, backdrop.y);
             await cdp.waitFor('!document.querySelector(".tgw-image-viewer")',5000,'backdrop click closes the viewer');
             ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-attachment-image")'),'backdrop dismissal restores focus to the attachment');
+
+            await cdp.clickSelector('.tgw-attachment-image');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-next")');
+            await cdp.clickSelector('.tgw-image-viewer-next');
+            await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.src.includes("file-2") && !!document.querySelector(".tgw-image-viewer-edit:enabled")');
+            await cdp.clickSelector('.tgw-image-viewer-edit');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
+            const editorButton = (label) => cdp.eval(`Array.from(document.querySelectorAll('.tgw-image-editor button')).find(b => b.textContent === ${JSON.stringify(label)}).click()`);
+            const dimensions = () => cdp.eval('document.querySelector(\'[aria-label="Image dimensions"]\').textContent');
+            const pixel = (x, y) => cdp.eval(`(() => {
+                const canvas = document.querySelector('.tgw-image-editor canvas');
+                return Array.from(canvas.getContext('2d').getImageData(Math.floor(canvas.width * ${x}), Math.floor(canvas.height * ${y}), 1, 1).data);
+            })()`);
+            const drag = async (left, top, right, bottom) => {
+                const rect = await cdp.eval('document.querySelector(".tgw-image-editor canvas").getBoundingClientRect().toJSON()');
+                const start = {x: rect.x + left * rect.width, y: rect.y + top * rect.height};
+                const end = {x: rect.x + right * rect.width, y: rect.y + bottom * rect.height};
+                await cdp.send('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, ...start});
+                await cdp.send('Input.dispatchMouseEvent', {type: 'mouseMoved', button: 'left', buttons: 1, ...end});
+                await cdp.send('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', buttons: 0, clickCount: 1, ...end});
+            };
+            const original = await pixel(.5, .5);
+            await drag(.35, .5, .65, .5);
+            const pen = await pixel(.5, .5);
+            ok(pen[0] > 245 && pen[1] < 75, 'pen paints on the image');
+            await editorButton('Undo');
+            ok(String(await pixel(.5, .5)) === String(original), 'undo restores the original pixels');
+            await editorButton('Redo');
+            ok(String(await pixel(.5, .5)) === String(pen), 'redo restores the pen stroke');
+            await editorButton('Marker');
+            const beforeMarker = await pixel(.5, .6);
+            await drag(.35, .6, .65, .6);
+            const marker = await pixel(.5, .6);
+            ok(marker[2] < beforeMarker[2] && marker[2] > 64, 'marker blends with the image');
+            await editorButton('Rotate ↻');
+            ok(await dimensions() === '1200 × 2000 px', 'rotation swaps the dimensions');
+            await editorButton('Crop');
+            await drag(.25, .25, .75, .75);
+            await editorButton('Apply crop');
+            ok(await dimensions() === '600 × 1000 px', 'crop uses the rotated image coordinates');
+            await editorButton('Resize');
+            await cdp.eval('document.querySelector(".tgw-image-editor input[type=number]").select()');
+            await cdp.type('300');
+            await editorButton('Apply size');
+            ok(await dimensions() === '300 × 500 px', 'resize preserves the aspect ratio by default');
+
+            await cdp.eval(`(() => {
+                const click = HTMLAnchorElement.prototype.click;
+                HTMLAnchorElement.prototype.click = function () {
+                    if (!this.download.endsWith('-edited.png')) return click.call(this);
+                    HTMLAnchorElement.prototype.click = click;
+                    window.__imageDownload = {url: this.href, name: this.download};
+                };
+            })()`);
+            await cdp.clickSelector('.tgw-image-editor-download');
+            await cdp.waitFor('!!window.__imageDownload', 5000, 'edited PNG download');
+            const downloaded = await cdp.eval(`(async () => {
+                const {url, name} = window.__imageDownload;
+                const blob = await (await nativeFetch(url)).blob();
+                const bitmap = await createImageBitmap(blob);
+                const canvas = document.createElement('canvas');
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0);
+                const pen = Array.from(ctx.getImageData(150, 250, 1, 1).data);
+                return {width: bitmap.width, height: bitmap.height, type: blob.type, name, pen};
+            })()`);
+            ok(downloaded.width === 300 && downloaded.height === 500 && downloaded.type === 'image/png' &&
+                downloaded.name.endsWith('-edited.png') && downloaded.pen[0] > 245 && downloaded.pen[1] < 75,
+            `download contains the resized, annotated PNG (${JSON.stringify(downloaded)})`);
+
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+            await sleep(100);
+            ok(await cdp.eval(`(() => {
+                const canvas = document.querySelector('.tgw-image-editor canvas').getBoundingClientRect();
+                const controls = [...document.querySelectorAll('.tgw-image-editor button, .tgw-image-editor input')];
+                return canvas.width > 150 && canvas.height > 300 && canvas.left >= 0 && canvas.right <= innerWidth &&
+                    controls.every(el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; });
+            })()`), 'editing canvas and controls fit the phone viewport');
+            fs.writeFileSync('/tmp/tgw-image-editor-mobile.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+            await cdp.clickSelector('.tgw-image-editor-back');
+            ok(await cdp.eval(`!document.querySelector('.tgw-image-editor') && document.querySelector('.tgw-image-viewer img').naturalWidth === 2000 &&
+                document.activeElement.matches('.tgw-image-viewer-edit')`), 'returning to the preview restores the original image and focus');
             ok((await cdp.eval('window.__pageErrors')).length===0,'viewer produces no browser errors');
             report('IMAGE VIEWER BROWSER TEST');
             return;

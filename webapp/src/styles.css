@@ -3649,6 +3649,49 @@
     .tgw-root .tgw-image-viewer-next { right: 8px; }
 }
 
+.tgw-root .tgw-image-editor {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 4px 8px;
+}
+.tgw-root .tgw-image-editor .tgw-image-viewer-tools { gap: 6px; padding: 4px; font-size: 13px; }
+.tgw-root .tgw-image-editor .tgw-image-viewer-tools button { padding-inline: 8px; }
+.tgw-root .tgw-image-editor label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+.tgw-root .tgw-image-editor input { accent-color: #70b9ff; }
+.tgw-root .tgw-image-editor input[type="number"] { width: 6em; padding: 4px; border: 1px solid #627086; border-radius: 4px; background: #171f2d; color: #fff; }
+.tgw-root .tgw-image-editor input[type="color"] { width: 36px; height: 30px; padding: 2px; border: 1px solid #627086; border-radius: 4px; background: #171f2d; }
+.tgw-root .tgw-image-editor input[type="range"] { width: 88px; }
+.tgw-root .tgw-image-editor input:focus-visible { outline: 2px solid #70b9ff; }
+.tgw-root .tgw-image-viewer .tgw-image-editor button[aria-pressed="true"] { background: #223c57; box-shadow: inset 0 0 0 1px #70b9ff; }
+.tgw-root .tgw-image-viewer .tgw-image-editor-download { background: #a8d5ff; color: #0c111a; }
+.tgw-root .tgw-image-viewer .tgw-image-editor-download:hover { background: #d5ebff; }
+.tgw-root .tgw-image-editor-viewport {
+    display: grid;
+    place-items: center;
+    flex: 1;
+    min-height: 0;
+    margin: 4px 8px;
+    container-type: size;
+}
+.tgw-root .tgw-image-editor-stage {
+    position: relative;
+    overflow: hidden;
+    background-color: #fff;
+    background-image: conic-gradient(#e4e8ef 25%, #fff 0 50%, #e4e8ef 0 75%, #fff 0);
+    background-size: 16px 16px;
+}
+.tgw-root .tgw-image-editor-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.tgw-root .tgw-image-editor-stage canvas:not([data-tool="Resize"]) { cursor: crosshair; }
+.tgw-root .tgw-image-editor-selection {
+    position: absolute;
+    pointer-events: none;
+    box-shadow: 0 0 0 200vmax rgba(0,0,0,.6), inset 0 0 0 1px #fff;
+    border: 1px solid #1b2634;
+}
+.tgw-root .tgw-image-editor-error { text-align: center; color: #ffacac; padding: 4px; }
+
 .tgw-toasts {
     position: fixed;
     left: 50%;
