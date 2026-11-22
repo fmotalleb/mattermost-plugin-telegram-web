@@ -13,7 +13,15 @@ import {IconBack, IconClose, IconDownload, IconForward} from './primitives';
 type View = {scale: number; x: number; y: number};
 type Point = {x: number; y: number};
 
-function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; editing: boolean; onEdit: (source: HTMLImageElement) => void}) {
+interface ImageCanvasProps {
+    src: string;
+    name: string;
+    editing: boolean;
+    onEdit?: (source: HTMLImageElement) => void;
+    onReady?: (source: HTMLImageElement) => void;
+}
+
+function ImageCanvas({src, name, editing, onEdit, onReady}: ImageCanvasProps) {
     const viewport = useRef<HTMLDivElement>(null);
     const source = useRef<HTMLImageElement>(null);
     const pointers = useRef(new Map<number, Point>());
@@ -53,6 +61,7 @@ function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; e
     }, []);
     React.useLayoutEffect(() => { reset(); pointers.current.clear(); setDragging(false); }, [fit, size.width, size.height]);
     useEffect(() => {
+        if (!onEdit) return;
         const element = viewport.current;
         const wheel = (event: WheelEvent) => {
             event.preventDefault(); event.stopPropagation();
@@ -69,14 +78,14 @@ function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; e
         element?.addEventListener('wheel', wheel, {passive: false});
         document.addEventListener('keydown', keydown);
         return () => { element?.removeEventListener('wheel', wheel); document.removeEventListener('keydown', keydown); };
-    }, []);
+    }, [onEdit]);
     const endPointer = (event: React.PointerEvent<HTMLDivElement>) => {
         pointers.current.delete(event.pointerId);
         if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         setDragging(pointers.current.size > 0);
     };
     return <div className="tgw-image-viewer-body" style={editing ? {display: 'none'} : undefined}>
-        <div className="tgw-image-viewer-tools" role="toolbar" aria-label="Image zoom controls">
+        {onEdit && <div className="tgw-image-viewer-tools" role="toolbar" aria-label="Image zoom controls">
             <button type="button" aria-label="Zoom out" disabled={!ready || view.scale <= minimum} onClick={() => zoom(view.scale / 1.25)}>−</button>
             <output aria-live="polite">{ready ? `${Math.round(view.scale * 100)}%` : '…'}</output>
             <button type="button" aria-label="Zoom in" disabled={!ready || view.scale >= 8} onClick={() => zoom(view.scale * 1.25)}>+</button>
@@ -84,8 +93,8 @@ function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; e
             <button type="button" disabled={!ready} onClick={() => { setView(constrain({scale: 1, x: 0, y: 0})); }}>100%</button>
             <span className="tgw-image-viewer-hint">Scroll to zoom · Drag to pan</span>
             <button type="button" className="tgw-image-viewer-edit" disabled={!ready} onClick={() => onEdit(source.current)}>Edit</button>
-        </div>
-        <div className={`tgw-image-viewer-viewport${dragging ? ' tgw-image-viewer-dragging' : ''}`} ref={viewport} tabIndex={0} aria-label="Image canvas; scroll to zoom, drag to pan"
+        </div>}
+        <div className={`tgw-image-viewer-viewport${dragging ? ' tgw-image-viewer-dragging' : ''}`} ref={viewport} tabIndex={onEdit ? 0 : undefined} aria-label={onEdit ? 'Image canvas; scroll to zoom, drag to pan' : undefined}
             onClick={(event) => {
                 // Pointer capture can produce a canvas click after a pan or pinch.
                 if (ready && event.detail > 0 && event.target === event.currentTarget && !backdropPress.current) event.stopPropagation();
@@ -121,7 +130,9 @@ function ImageCanvas({src, name, editing, onEdit}: {src: string; name: string; e
             {failed && <div className="tgw-image-viewer-status" role="alert">Could not load image. <button type="button" onClick={() => { setFailed(false); setAttempt((value) => value + 1); }}>Retry</button></div>}
             <div className="tgw-image-viewer-stage" style={{width: image.width, height: image.height, opacity: ready ? 1 : 0, transform: `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${view.scale})`}}>
                 <img key={attempt} ref={source} src={src} alt={name || 'Image attachment'} draggable={false} onLoad={(event) => {
-                    setFailed(false); setImage({width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight});
+                    const loaded = event.currentTarget;
+                    setFailed(false); setImage({width: loaded.naturalWidth, height: loaded.naturalHeight});
+                    if (loaded.naturalWidth && loaded.naturalHeight) onReady?.(loaded);
                 }} onError={() => { setFailed(true); setImage({width: 0, height: 0}); }}/>
             </div>
         </div>
@@ -174,8 +185,10 @@ interface ImagePreviewProps {
 export function ImagePreview({src, name, onClose, gallery, onApply, onSend}: ImagePreviewProps) {
     const dialog = useRef<HTMLDivElement>(null);
     const [editor, setEditor] = useState<HTMLImageElement | null>(null);
+    const editorOnly = !!onApply;
     const wasEditing = useRef(false);
-    const handlers = useRef({onClose, gallery, editing: !!editor}); handlers.current = {onClose, gallery, editing: !!editor};
+    const handlers = useRef({onClose, gallery, editing: !!editor, editorOnly});
+    handlers.current = {onClose, gallery, editing: !!editor, editorOnly};
     React.useLayoutEffect(() => {
         const previous = document.activeElement as HTMLElement;
         const controls = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]') || [])
@@ -185,7 +198,7 @@ export function ImagePreview({src, name, onClose, gallery, onApply, onSend}: Ima
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                if (handlers.current.editing) setEditor(null);
+                if (handlers.current.editing && !handlers.current.editorOnly) setEditor(null);
                 else handlers.current.onClose();
             }
             if (!handlers.current.editing && handlers.current.gallery && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
@@ -211,21 +224,23 @@ export function ImagePreview({src, name, onClose, gallery, onApply, onSend}: Ima
         };
     }, []);
     React.useLayoutEffect(() => {
+        if (editorOnly) return;
         if (editor) dialog.current?.querySelector<HTMLElement>('.tgw-image-editor-back')?.focus();
         else if (wasEditing.current) dialog.current?.querySelector<HTMLElement>('.tgw-image-viewer-edit')?.focus();
         wasEditing.current = !!editor;
-    }, [editor]);
-    return createPortal(<div className="tgw-image-viewer" ref={dialog} role="dialog" aria-modal="true" aria-label={editor ? 'Image editor' : 'Image viewer'} onClick={(event) => {
+    }, [editor, editorOnly]);
+    return createPortal(<div className="tgw-image-viewer" ref={dialog} role="dialog" aria-modal="true" aria-label={editor || editorOnly ? 'Image editor' : 'Image viewer'} onClick={(event) => {
         event.stopPropagation();
-        if (!editor && !(event.target as Element).closest('.tgw-image-viewer-stage, button, a, .tgw-image-viewer-caption')) onClose();
+        if (!editorOnly && !editor && !(event.target as Element).closest('.tgw-image-viewer-stage, button, a, .tgw-image-viewer-caption')) onClose();
     }}>
         <header className="tgw-image-viewer-header">
             <span className="tgw-image-viewer-name">{editor?.alt || name || 'Image attachment'}</span>
-            {editor ? <button className="tgw-image-editor-back" type="button" title="Discard edits and return to preview" onClick={() => setEditor(null)}>Back to preview</button> :
-                gallery && <a href={src} download={name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>}
-            <button type="button" className="tgw-image-viewer-close" onClick={onClose} title="Close" aria-label="Close image viewer"><IconClose size={24}/></button>
+            {editor && !editorOnly && <button className="tgw-image-editor-back" type="button" title="Discard edits and return to preview" onClick={() => setEditor(null)}>Back to preview</button>}
+            {!editor && gallery && <a href={src} download={name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>}
+            <button type="button" className="tgw-image-viewer-close" onClick={onClose} title="Close" aria-label={editorOnly ? 'Close image editor' : 'Close image viewer'}><IconClose size={24}/></button>
         </header>
-        <ImageCanvas key={src} src={src} name={name} editing={!!editor} onEdit={setEditor}/>
+        <ImageCanvas key={src} src={src} name={name} editing={!!editor}
+            onEdit={editorOnly ? undefined : setEditor} onReady={editorOnly ? setEditor : undefined}/>
         {editor && <ImageEditor source={editor} name={editor.alt} onApply={onApply} onSend={onSend}/>}
         {!editor && gallery?.count > 1 && <>
             <button type="button" className="tgw-image-viewer-nav tgw-image-viewer-prev" onClick={() => gallery.move(-1)} title="Previous attachment" aria-label="Previous image"><IconBack size={24}/></button>

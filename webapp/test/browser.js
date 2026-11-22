@@ -786,19 +786,16 @@ class CDP {
             })()`);
             await cdp.waitFor('document.querySelectorAll(".tgw-attachment-chip-preview img").length === 2', 5000, 'two pending image thumbnails');
             await cdp.clickSelector('.tgw-attachment-chip-preview');
-            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled")', 5000, 'composer image preview');
-            await cdp.clickSelector('.tgw-image-viewer-edit');
-            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")', 5000, 'composer thumbnail opens the editor');
+            ok(await cdp.eval('!document.querySelector(".tgw-image-viewer-edit, .tgw-image-editor-back")'), 'pending images open directly in edit mode');
             await editorButton('Rotate ↻');
             await editorButton('Apply edits');
-            await cdp.waitFor('!document.querySelector(".tgw-image-viewer") && !!document.querySelector(\'[aria-label="Preview first-edited.png"]\')');
+            await cdp.waitFor('!document.querySelector(".tgw-image-viewer") && !!document.querySelector(\'[aria-label="Edit first-edited.png"]\')');
             ok(await cdp.eval('!window.__composerUploads.length && !window.__calls.includes("POST /files")'), 'applying edits updates the tray without uploading either image');
 
             await cdp.clickSelector('.tgw-composer textarea');
             await cdp.type('Edited image attachments');
             await cdp.clickSelector('.tgw-attachment-chip-preview', 1);
-            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled")');
-            await cdp.clickSelector('.tgw-image-viewer-edit');
             await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
             await editorButton('Rotate ↻');
             await cdp.clickSelector('.tgw-image-editor-primary');
@@ -833,11 +830,11 @@ class CDP {
             })()`);
             await cdp.waitFor('!!document.querySelector(".tgw-quick-dialog .tgw-attachment-chip-preview img")');
             await cdp.clickSelector('.tgw-quick-dialog .tgw-attachment-chip-preview');
-            await cdp.waitFor('!!document.querySelector(".tgw-image-viewer-edit:enabled") && document.activeElement.matches(".tgw-image-viewer-close")', 5000, 'quick chat image preview takes focus');
+            await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas") && document.activeElement.matches(".tgw-image-viewer-close")', 5000, 'quick chat image editor takes focus');
             await cdp.send('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
             await cdp.send('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
             await cdp.waitFor('!document.querySelector(".tgw-image-viewer")');
-            ok(await cdp.eval('document.activeElement.matches(".tgw-quick-dialog .tgw-attachment-chip-preview")'), 'dismissing the composer preview preserves Quick Chat and restores focus');
+            ok(await cdp.eval('document.activeElement.matches(".tgw-quick-dialog .tgw-attachment-chip-preview")'), 'dismissing the composer editor preserves Quick Chat and restores focus');
             ok((await cdp.eval('window.__pageErrors')).length===0,'viewer produces no browser errors');
             report('IMAGE VIEWER BROWSER TEST');
             return;

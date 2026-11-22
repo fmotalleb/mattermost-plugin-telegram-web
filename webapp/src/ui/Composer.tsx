@@ -18,7 +18,7 @@ import {clearComposerDraft, clearComposerDraftText, getComposerDraft, saveCompos
 import {useVoiceRecorder} from './voice';
 import {deferred} from './deferred';
 
-const ImagePreview = deferred(() => import(/* webpackChunkName: "imageviewer" */ './ImageViewer').then((module) => module.ImagePreview), 'image preview');
+const PendingImageEditor = deferred(() => import(/* webpackChunkName: "imageviewer" */ './ImageViewer').then((module) => module.ImagePreview), 'image editor');
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
 function autoGrow(element: HTMLTextAreaElement | null) {
@@ -690,12 +690,12 @@ function ImageChip({entry, open, onOpen, onClose, onApply, onSend}: ImageChipPro
     }, [file, uploadedURL]);
     const src = uploadedURL || (objectURL?.file === file ? objectURL.url : '');
     return <>
-        <button className="tgw-attachment-chip-preview" type="button" aria-label={`Preview ${file.name}`} title="Preview and edit image" onClick={() => { if (src) onOpen(); }}>
+        <button className="tgw-attachment-chip-preview" type="button" aria-label={`Edit ${file.name}`} title="Edit image" onClick={() => { if (src) onOpen(); }}>
             {src ? <img src={src} alt=""/> : <span className="tgw-attachment-chip-icon">IMG</span>}
-            <span className="tgw-attachment-chip-preview-icon" aria-hidden="true"><IconEye size={12}/></span>
+            <span className="tgw-attachment-chip-preview-icon" aria-hidden="true"><IconEdit size={12}/></span>
         </button>
         {open && src && <div className="tgw-composer-image-preview">
-            <ImagePreview src={src} name={file.name} onClose={onClose} onApply={onApply} onSend={onSend}/>
+            <PendingImageEditor src={src} name={file.name} onClose={onClose} onApply={onApply} onSend={onSend}/>
         </div>}
     </>;
 }
