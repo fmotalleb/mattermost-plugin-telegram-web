@@ -1383,10 +1383,33 @@
     text-decoration: none;
 }
 
-.tgw-message-text :is(ul, ol) {
+.tgw-root :is(.tgw-message-text, .tgw-message-body) :is(ul, ol) {
     padding-inline-start: 1.5em;
     padding-inline-end: 0;
     margin-inline: 0;
+}
+
+/* Mattermost styles ordered lists as table rows or supplies its own CSS markers.
+   Use native markers so numbering follows the writing direction of the list. */
+.tgw-root :is(.tgw-message-text, .tgw-message-body) ol.markdown__list {
+    display: block;
+    list-style: decimal outside;
+}
+
+.tgw-root :is(.tgw-message-text, .tgw-message-body) ol.markdown__list:dir(rtl) {
+    padding-inline-end: 0 !important; /* Override the host component's inline padding-left. */
+}
+
+.tgw-root :is(.tgw-message-text, .tgw-message-body) ol.markdown__list > li {
+    display: list-item;
+}
+
+.tgw-root :is(.tgw-message-text, .tgw-message-body) ol.markdown__list > li::before {
+    content: none;
+}
+
+.tgw-root :is(.tgw-message-text, .tgw-message-body) ol.markdown__list > li:not(.list-item--task-list)::marker {
+    content: normal;
 }
 
 /* Native checkbox semantics and keyboard behavior, with a theme-aware painted control. */

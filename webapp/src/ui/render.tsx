@@ -48,7 +48,7 @@ function markdownTaskStates(message: string): boolean[] {
     return states;
 }
 
-function wireTaskCheckboxes(node: React.ReactNode, states: boolean[], onToggle?: MessageBodyProps['onTaskToggle']): React.ReactNode {
+function normalizeHostLists(node: React.ReactNode, states: boolean[], onToggle?: MessageBodyProps['onTaskToggle']): React.ReactNode {
     let index = 0;
     const visit = (child: React.ReactNode): React.ReactNode => {
         if (Array.isArray(child)) {
@@ -68,6 +68,13 @@ function wireTaskCheckboxes(node: React.ReactNode, states: boolean[], onToggle?:
             });
         }
         if (props.children !== undefined) {
+            if (child.type === 'ol' && props.start == null) {
+                // Older Mattermost formatters store the starting number in a CSS counter.
+                const counter = /^list (-?\d+)$/.exec(props.style?.counterReset || '');
+                if (counter) {
+                    return React.cloneElement(child as React.ReactElement<any>, {start: Number(counter[1]) + 1}, visit(props.children));
+                }
+            }
             return React.cloneElement(child as React.ReactElement<any>, undefined, visit(props.children));
         }
         return child;
@@ -274,7 +281,7 @@ function FormattedBody({message, postId, mentionKeys, className, onTaskToggle}: 
         // bare-domain links it creates pass through the emoji walk untouched.
         rendered = styleAllMentions(wrapEmojiNodes(linkifyNodes(rendered)));
         rendered = isolateLatinRuns(rendered);
-        rendered = wireTaskCheckboxes(rendered, markdownTaskStates(message), onTaskToggle);
+        rendered = normalizeHostLists(rendered, markdownTaskStates(message), onTaskToggle);
     } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[telegram-web-ui] post formatting failed, using the fallback renderer', error);
@@ -307,25 +314,28 @@ export function renderFallback(message: string, mentionKeys?: Array<{key: string
             return;
         }
         const lines = block.split('\n');
+        const listItem = /^ {0,3}([-*+]\s+|\d+[.)]\s+)(.*)$/;
         let plain: string[] = [];
         const flush = () => {
             if (plain.length) nodes.push(...renderInline(plain.join('\n'), blockIndex * 10000 + nodes.length, mentionKeys));
             plain = [];
         };
         for (let i = 0; i < lines.length;) {
-            const match = /^ {0,3}([-*+]\s+|\d+[.)]\s+)(.*)$/.exec(lines[i]);
+            const match = listItem.exec(lines[i]);
             if (!match) { plain.push(lines[i++]); continue; }
             flush();
             const ordered = /^\d/.test(match[1]);
             const items: React.ReactNode[] = [];
             while (i < lines.length) {
-                const item = /^ {0,3}([-*+]\s+|\d+[.)]\s+)(.*)$/.exec(lines[i]);
+                let next = i;
+                while (next < lines.length && !lines[next].trim()) next++;
+                const item = listItem.exec(lines[next] || '');
                 if (!item || /^\d/.test(item[1]) !== ordered) break;
-                items.push(<li key={i}>{renderInline(item[2], blockIndex * 10000 + i, mentionKeys)}</li>);
-                i++;
+                items.push(<li key={next}>{renderInline(item[2], blockIndex * 10000 + next, mentionKeys)}</li>);
+                i = next + 1;
             }
             const key = `list-${blockIndex}-${i}`;
-            nodes.push(ordered ? <ol key={key} dir="auto">{items}</ol> : <ul key={key} dir="auto">{items}</ul>);
+            nodes.push(ordered ? <ol key={key} dir="auto" start={parseInt(match[1], 10)}>{items}</ol> : <ul key={key} dir="auto">{items}</ul>);
         }
         flush();
     });

@@ -9,6 +9,7 @@
  *
  *   npm run test:browser        (needs google-chrome; override the binary with CHROME_PATH)
  *   TGW_IMAGE_VIEWER_ONLY=1 npm run test:browser   (focused image layout/zoom/pan checks)
+ *   TGW_PREVIEW_ONLY=1 npm run test:browser   (Markdown preview and list markers)
  *   TGW_THREAD_TIMES_ONLY=1 npm run test:browser   (thread timestamps and narrow layout)
  */
 
@@ -640,6 +641,63 @@ class CDP {
             await cdp.waitFor(`document.querySelector('.tgw-composer-preview li')?.textContent.includes('English item')`, 5000, 'updated preview');
             const ltr = await cdp.eval(`(() => {const list=document.querySelector('.tgw-composer-preview ul'), item=list.querySelector('li'); return {list:getComputedStyle(list).direction,marker:getComputedStyle(item,'::marker').direction,start:getComputedStyle(list).paddingLeft,end:getComputedStyle(list).paddingRight};})()`);
             ok(ltr.list === 'ltr' && ltr.marker === 'ltr' && parseFloat(ltr.start) > 0 && parseFloat(ltr.end) === 0, `English list markers use the left side (${JSON.stringify(ltr)})`);
+
+            const draft = '7. **سرویس شماره‌دار**\n\n8. کد پروژه\n\n9. آدرس GitLab';
+            const setDraft = () => cdp.eval(`(() => {
+                const area = document.querySelector('.tgw-composer textarea');
+                Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(area, ${JSON.stringify(draft)});
+                area.dispatchEvent(new Event('input', {bubbles: true}));
+            })()`);
+            const checkNumberedList = async (selector, label) => {
+                const list = await cdp.eval(`(() => {
+                    const list = document.querySelector(${JSON.stringify(selector)});
+                    const item = list.querySelector('li');
+                    return {start: list.start, items: list.children.length, display: getComputedStyle(item).display,
+                        type: getComputedStyle(item).listStyleType, before: getComputedStyle(item, '::before').content,
+                        marker: getComputedStyle(item, '::marker').direction, end: getComputedStyle(list).paddingLeft};
+                })()`);
+                const {root} = await cdp.send('DOM.getDocument');
+                const {nodeId} = await cdp.send('DOM.querySelector', {nodeId: root.nodeId, selector});
+                const {nodes} = await cdp.send('Accessibility.queryAXTree', {nodeId, role: 'ListMarker'});
+                const markers = nodes.map(node => node.name?.value.trim());
+                ok(list.start === 7 && list.items === 3 && list.display === 'list-item' && list.type === 'decimal' && list.before === 'none' &&
+                    list.marker === 'rtl' && parseFloat(list.end) === 0 && markers.join(', ') === '. 7, . 8, . 9',
+                `${label} paints 7–9 on the right (${JSON.stringify({list, markers})})`);
+            };
+
+            await cdp.eval(`(() => {
+                const host = document.createElement('style');
+                host.textContent = 'ol.markdown__list { display: table; padding: 0; counter-reset: list }' +
+                    'ol.markdown__list > li { display: table-row; counter-increment: list }' +
+                    'ol.markdown__list > li::before { display: table-cell; content: counter(list) "." }';
+                document.head.appendChild(host);
+                window.PostUtils = {
+                    formatText: text => text,
+                    messageHtmlToComponent: (text, options) => {
+                        if (text !== ${JSON.stringify(draft)}) return text;
+                        const props = options.postId ? {start: 7, style: {counterReset: 'list 6', paddingLeft: '2.5ch'}} : {style: {counterReset: 'list 6'}};
+                        return React.createElement('ol', {...props, className: 'markdown__list'},
+                            React.createElement('li', null, React.createElement('p', null, React.createElement('strong', null, 'سرویس شماره‌دار'))),
+                            React.createElement('li', null, React.createElement('p', null, 'کد پروژه')),
+                            React.createElement('li', null, React.createElement('p', null, 'آدرس GitLab')));
+                    },
+                };
+                window.__orderedListHostStyle = host;
+            })()`);
+            await setDraft();
+            await cdp.waitFor('!!document.querySelector(".tgw-composer-preview ol li strong")', 5000, 'host-rendered ordered preview');
+            await checkNumberedList('.tgw-composer-preview ol', 'Legacy Mattermost preview');
+
+            await cdp.eval(`window.__orderedListHostStyle.textContent = 'ol.markdown__list > li { counter-increment: list }' +
+                'ol.markdown__list > li::marker { content: counter(list) ".  " }'`);
+            await cdp.clickSelector('.tgw-send-button[title="Send"]');
+            await cdp.waitFor('!!document.querySelector("[data-post-id] ol li strong")', 5000, 'sent ordered list');
+            await checkNumberedList('[data-post-id] ol', 'Current Mattermost sent message');
+            await cdp.eval('delete window.PostUtils');
+            await setDraft();
+            await cdp.clickSelector('[aria-label="Preview message"]');
+            await cdp.waitFor('!!document.querySelector(".tgw-composer-preview ol li strong")', 5000, 'fallback ordered preview');
+            await checkNumberedList('.tgw-composer-preview ol', 'Built-in Markdown preview');
             report('MESSAGE PREVIEW BROWSER TEST');
             return;
         }
