@@ -789,7 +789,8 @@ class CDP {
             await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")', 5000, 'composer thumbnail opens the editor');
             ok(await cdp.eval('!document.querySelector(".tgw-image-viewer-edit, .tgw-image-editor-back")'), 'pending images open directly in edit mode');
             await editorButton('Rotate ↻');
-            await editorButton('Apply edits');
+            ok(await cdp.eval('document.querySelector(".tgw-image-editor-primary").textContent === "Apply edits"'), 'Apply edits is the primary composer action');
+            await cdp.clickSelector('.tgw-image-editor-primary');
             await cdp.waitFor('!document.querySelector(".tgw-image-viewer") && !!document.querySelector(\'[aria-label="Edit first-edited.png"]\')');
             ok(await cdp.eval('!window.__composerUploads.length && !window.__calls.includes("POST /files")'), 'applying edits updates the tray without uploading either image');
 
@@ -798,7 +799,7 @@ class CDP {
             await cdp.clickSelector('.tgw-attachment-chip-preview', 1);
             await cdp.waitFor('!!document.querySelector(".tgw-image-editor canvas")');
             await editorButton('Rotate ↻');
-            await cdp.clickSelector('.tgw-image-editor-primary');
+            await editorButton('Send edited');
             await cdp.waitFor('document.querySelector(".tgw-toast")?.textContent.includes("Test upload failed")', 5000, 'failed upload notice');
             ok(await cdp.eval(`document.querySelector('.tgw-composer textarea').value === 'Edited image attachments' &&
                 document.querySelectorAll('.tgw-attachment-chip-preview').length === 2 && !window.__calls.includes('POST /posts')`),

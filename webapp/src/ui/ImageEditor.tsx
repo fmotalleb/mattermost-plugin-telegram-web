@@ -280,8 +280,8 @@ export function ImageEditor({source, name, onApply, onSend}: ImageEditorProps) {
         <div className="tgw-image-viewer-tools">
             <output aria-label="Image dimensions">{edit.width} × {edit.height} px</output>
             {onApply ? <>
-                <button type="button" disabled={saving || !past.length} onClick={() => exportImage(onApply)}>Apply edits</button>
-                <button type="button" className="tgw-image-editor-primary" disabled={saving || !past.length || !onSend} onClick={() => exportImage(onSend)}>Send edited</button>
+                <button type="button" className="tgw-image-editor-primary" disabled={saving || !past.length} onClick={() => exportImage(onApply)}>Apply edits</button>
+                <button type="button" disabled={saving || !past.length || !onSend} onClick={() => exportImage(onSend)}>Send edited</button>
             </> :
                 <button type="button" className="tgw-image-editor-primary" disabled={saving} onClick={() => exportImage()}>{saving ? 'Preparing download…' : 'Download PNG'}</button>}
         </div>
