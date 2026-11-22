@@ -1,7 +1,8 @@
-const {dom, React, ReactDOM, container, store, state, tick, ok, report, payloads, holdPosts, ids, notifyStoreChange} = require('./harness');
+const {dom, React, ReactDOM, container, store, state, tick, ok, report, calls, payloads, holdPosts, ids, notifyStoreChange, setServerDrafts} = require('./harness');
+const {api} = require('../src/mm/api');
 const {setStore} = require('../src/mm/store');
 const {initSettings, updateSettings} = require('../src/mm/settings');
-const {saveComposerDraft, getComposerDraft} = require('../src/mm/drafts');
+const {clearComposerDraft, saveComposerDraft, getComposerDraft} = require('../src/mm/drafts');
 const {receivePost} = require('../src/mm/posts');
 const {TelegramUI} = require('../src/ui/TelegramUI');
 setStore(store);
@@ -48,10 +49,31 @@ const type = async (node, value) => {
     const area = modal.querySelector('textarea');
     ok(area.value === 'shared draft', 'quick chat hydrates main draft');
     await type(area, 'updated together');
-    ok(main.value === 'updated together', 'main composer follows quick chat draft');
+    ok(await wait(() => main.value === 'updated together'), 'main composer follows quick chat draft');
     saveComposerDraft('channel-dm', 'host updated draft');
     await wait(() => area.value === 'host updated draft' && main.value === area.value);
     ok(area.value === 'host updated draft' && main.value === area.value, 'both composers follow external draft updates');
+
+    state.entities.general.config.AllowSyncedDrafts = 'true';
+    setServerDrafts([{channel_id: ids.DM, message: 'host updated draft'}]);
+    const draftFetches = () => calls.filter((call) => call === `GET /users/me/teams/${ids.TEAM}/drafts`).length;
+    const previousFetches = draftFetches();
+    clearComposerDraft(ids.TOWN);
+    await wait(() => draftFetches() > previousFetches);
+    const originalDelete = api.deleteDraft;
+    let finishDelete;
+    const deleteGate = new Promise((resolve) => { finishDelete = resolve; });
+    api.deleteDraft = async (...args) => { await deleteGate; return originalDelete.apply(api, args); };
+    const fetchesBeforeClear = draftFetches();
+    await type(area, '');
+    ok(await wait(() => !getComposerDraft(ids.DM)?.show && main.value === '' && area.value === ''), 'clearing the input removes the local draft from both composers');
+    const refreshedBeforeDelete = await wait(() => draftFetches() > fetchesBeforeClear);
+    finishDelete();
+    const draftsTab = () => Array.from(document.querySelectorAll('.tgw-folder')).find((tab) => tab.textContent.startsWith('Drafts'));
+    const deleted = await wait(() => !draftsTab() && calls.includes(`DELETE /users/me/channels/${ids.DM}/drafts`));
+    ok(refreshedBeforeDelete && deleted, 'clearing the input deletes the synced draft even if the sidebar refreshes before deletion finishes');
+    api.deleteDraft = originalDelete;
+
     receivePost({id: 'quick-incoming', channel_id: 'channel-dm', user_id: 'user-alice', message: 'live quick message', create_at: Date.now(), update_at: Date.now(), props: {}});
     await wait(() => modal.textContent.includes('live quick message'));
     ok(modal.textContent.includes('live quick message'), 'live incoming messages reach quick chat');
@@ -69,7 +91,6 @@ const type = async (node, value) => {
     fire(row, 'auxclick', 1);
     await wait(() => document.querySelector('.tgw-quick-dialog textarea'));
     ok(document.querySelector('.tgw-quick-dialog textarea').value === 'next draft', 'reopen retains shared draft');
-    const {api} = require('../src/mm/api');
     const originalSend = api.createPost;
     api.createPost = async () => { throw new Error('test send failure'); };
     const reopened = document.querySelector('.tgw-quick-dialog');

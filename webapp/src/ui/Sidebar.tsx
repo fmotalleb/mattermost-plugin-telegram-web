@@ -28,7 +28,7 @@ import {displayName, formatChatTime, statusLabel, toPlainPreview, truncate} from
 import {EmojiText} from './EmojiText';
 import {markChannelUnreadFromLastPost} from '../mm/unread';
 import {setChannelFavorite} from '../mm/favorites';
-import {clearComposerDraft, selectChannelDrafts} from '../mm/drafts';
+import {clearComposerDraft, selectChannelDrafts, subscribeSyncedDraftDeletion} from '../mm/drafts';
 import {useTodoCounts} from '../mm/todos';
 import {updateSettings} from '../mm/settings';
 import {ChatList} from './ChatList';
@@ -218,6 +218,8 @@ export function Sidebar() {
     const currentTeamId = useSelector(getCurrentTeamId);
     const draftStorage = useSelector((state) => state.storage?.storage);
     const [serverDrafts, setServerDrafts] = useState<MMServerDraft[]>([]);
+    const [draftsRefresh, setDraftsRefresh] = useState(0);
+    useEffect(() => subscribeSyncedDraftDeletion(() => setDraftsRefresh((current) => current + 1)), []);
     const localDrafts = useMemo(() => selectChannelDrafts({storage: {storage: draftStorage}} as any).map((draft) => ({
         channel_id: draft.channelId,
         root_id: draft.rootId || '',
@@ -257,7 +259,7 @@ export function Sidebar() {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [currentTeamId, draftStorage]);
+    }, [currentTeamId, draftStorage, draftsRefresh]);
 
     const folderTabs = useMemo(() => {
         const result = tabs.slice();

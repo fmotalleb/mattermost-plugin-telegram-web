@@ -1,15 +1,18 @@
 // Keep plugin-composer drafts in Mattermost's own storage slice. Mattermost's composer
 // keys channel drafts as `draft_<channelId>` and thread drafts as `comment_draft_<rootId>`.
 
+import {api} from './api';
 import {getState, getStore} from './store';
 import type {MMFileInfo, MMState} from './types';
 
 const CHANNEL_DRAFT_PREFIX = 'draft_';
 const COMMENT_DRAFT_PREFIX = 'comment_draft_';
+const syncedDraftDeletionListeners = new Set<() => void>();
 
 export interface ComposerDraft {
     message: string;
     fileInfos: MMFileInfo[];
+    file_infos?: MMFileInfo[];
     uploadsInProgress: string[];
     channelId: string;
     rootId: string;
@@ -56,7 +59,7 @@ export function saveComposerDraft(channelId: string, message: string, rootId = '
     const now = Date.now();
     const value: ComposerDraft = {
         message,
-        fileInfos: current?.fileInfos || [],
+        fileInfos: current?.fileInfos || current?.file_infos || [],
         uploadsInProgress: current?.uploadsInProgress || [],
         channelId,
         rootId,
@@ -85,8 +88,7 @@ export function clearComposerDraft(channelId: string, rootId = '') {
     if (!dispatch) {
         return;
     }
-    // Match Mattermost's removeDraft action: an empty item clears the synced entry while
-    // preserving the storage key used by its draft selectors and local-storage middleware.
+    // Use Mattermost's empty draft value so its selectors and local-storage middleware see the clear.
     dispatch({
         type: 'SET_GLOBAL_ITEM',
         data: {
@@ -99,4 +101,27 @@ export function clearComposerDraft(channelId: string, rootId = '') {
         type: 'SET_DRAFT_SOURCE',
         data: {key, isRemote: false},
     });
+}
+
+export async function clearComposerDraftText(channelId: string) {
+    const current = getComposerDraft(channelId);
+    if ((current?.fileInfos || current?.file_infos)?.length || current?.uploadsInProgress?.length) {
+        saveComposerDraft(channelId, '');
+        return;
+    }
+
+    clearComposerDraft(channelId);
+    const {entities} = getState();
+    if (!current?.message || entities?.general?.config?.AllowSyncedDrafts !== 'true' ||
+        entities?.preferences?.myPreferences?.['advanced_settings--sync_drafts']?.value === 'false') {
+        return;
+    }
+
+    await api.deleteDraft(channelId);
+    syncedDraftDeletionListeners.forEach((listener) => listener());
+}
+
+export function subscribeSyncedDraftDeletion(listener: () => void) {
+    syncedDraftDeletionListeners.add(listener);
+    return () => { syncedDraftDeletionListeners.delete(listener); };
 }

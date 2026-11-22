@@ -208,7 +208,7 @@ export interface MMState {
         files: {files: Record<string, MMFileInfo>; fileIdsByPostId?: Record<string, string[]>};
     };
     views?: any;
-    websocket?: {connected: boolean};
+    websocket?: {connected: boolean; connectionId?: string};
 }
 
 export interface StoreLike {

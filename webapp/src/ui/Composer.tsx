@@ -14,7 +14,7 @@ import {useMentionAutocomplete} from './MentionAutocomplete';
 import {IconAttach, IconBold, IconClose, IconCode, IconEdit, IconEmoji, IconEye, IconItalic, IconLink, IconMic, IconPause, IconPlay, IconQuote, IconSend, IconStop, IconStrike, IconTrash} from './primitives';
 import {MessageBody} from './render';
 import {useSelector} from '../mm/store';
-import {clearComposerDraft, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
+import {clearComposerDraft, clearComposerDraftText, getComposerDraft, saveComposerDraft, selectComposerDraft} from '../mm/drafts';
 import {useVoiceRecorder} from './voice';
 
 /** Grows (and shrinks) the textarea to its content, clamped to one line..320px. */
@@ -91,11 +91,16 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
     }, 3000));
     const messageRef = useRef(message);
     messageRef.current = message;
-    const setComposerMessage = (next: string | ((current: string) => string)) => {
+    const setComposerMessage = (next: string | ((current: string) => string), removeEmptyDraft = false) => {
         const value = typeof next === 'function' ? next(messageRef.current) : next;
         messageRef.current = value;
         setMessage(value);
-        if (!editing) saveComposerDraft(channel.id, value);
+        if (editing) return;
+        if (removeEmptyDraft && !value) {
+            void clearComposerDraftText(channel.id).catch(() => actions.toast('Could not remove the synced draft', 'error'));
+        } else {
+            saveComposerDraft(channel.id, value);
+        }
     };
 
     const currentTeamId = useSelector((state) => state.entities?.teams?.currentTeamId);
@@ -545,7 +550,7 @@ export function Composer({quick = false, channel, replyTo, editing, rootId, onCa
                         rows={1}
                         spellCheck={false}
                         onChange={(event) => {
-                            setComposerMessage(event.target.value);
+                            setComposerMessage(event.target.value, true);
                             updateMentionSelection(event.currentTarget);
                             typingRef.current();
                         }}

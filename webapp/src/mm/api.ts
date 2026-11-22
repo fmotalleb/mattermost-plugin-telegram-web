@@ -44,6 +44,7 @@ export class APIError extends Error {
 
 interface RequestOptions {
     method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    headers?: Record<string, string>;
     body?: any;
     /** when true the body is sent as-is (FormData) */
     raw?: boolean;
@@ -118,6 +119,7 @@ export class MattermostAPI {
         const headers: Record<string, string> = {
             'X-Requested-With': 'XMLHttpRequest',
             Accept: 'application/json',
+            ...options.headers,
         };
 
         if (this.token) {
@@ -228,7 +230,12 @@ export class MattermostAPI {
 
     deleteDraft(channelId: string, rootId = ''): Promise<any> {
         const path = `/users/me/channels/${encodeURIComponent(channelId)}/drafts`;
-        return this.request(`${path}${rootId ? `/${encodeURIComponent(rootId)}` : ''}`, {method: 'DELETE'});
+        // Match the host client so the delete event is not echoed to this connection.
+        const connectionId = getState().websocket?.connectionId;
+        return this.request(`${path}${rootId ? `/${encodeURIComponent(rootId)}` : ''}`, {
+            method: 'DELETE',
+            headers: connectionId ? {'Connection-Id': connectionId} : undefined,
+        });
     }
 
     getUserByUsername(username: string): Promise<MMUser> {
