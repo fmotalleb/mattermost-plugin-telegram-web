@@ -15,6 +15,7 @@ type Point = {x: number; y: number};
 function ImageCanvas({file}: {file: MMFileInfo}) {
     const viewport = useRef<HTMLDivElement>(null);
     const pointers = useRef(new Map<number, Point>());
+    const backdropPress = useRef<Point | null>(null);
     const [size, setSize] = useState({width: 0, height: 0});
     const [image, setImage] = useState({width: 0, height: 0});
     const [view, setView] = useState<View>({scale: 1, x: 0, y: 0});
@@ -82,11 +83,17 @@ function ImageCanvas({file}: {file: MMFileInfo}) {
             <span className="tgw-image-viewer-hint">Scroll to zoom · Drag to pan</span>
         </div>
         <div className={`tgw-image-viewer-viewport${dragging ? ' tgw-image-viewer-dragging' : ''}`} ref={viewport} tabIndex={0} aria-label="Image canvas; scroll to zoom, drag to pan"
+            onClick={(event) => {
+                // Pointer capture can produce a canvas click after a pan or pinch.
+                if (ready && event.detail > 0 && event.target === event.currentTarget && !backdropPress.current) event.stopPropagation();
+            }}
             onDoubleClick={() => { const scale = Math.abs(view.scale - fit) < 0.001 ? Math.max(1, fit * 2) : fit; setView(constrain({scale, x: 0, y: 0})); }}
             onPointerDown={(event) => {
                 if (event.button !== 0 || !ready) return;
                 event.preventDefault();
-                pointers.current.set(event.pointerId, {x: event.clientX, y: event.clientY});
+                const point = {x: event.clientX, y: event.clientY};
+                backdropPress.current = pointers.current.size === 0 && event.target === event.currentTarget ? point : null;
+                pointers.current.set(event.pointerId, point);
                 event.currentTarget.setPointerCapture?.(event.pointerId);
                 setDragging(true);
             }} onPointerMove={(event) => {
@@ -94,6 +101,8 @@ function ImageCanvas({file}: {file: MMFileInfo}) {
                 if (!old) return;
                 const before = Array.from(pointers.current.values());
                 const point = {x: event.clientX, y: event.clientY};
+                const press = backdropPress.current;
+                if (press && Math.hypot(point.x - press.x, point.y - press.y) > 5) backdropPress.current = null;
                 pointers.current.set(event.pointerId, point);
                 if (pointers.current.size === 1) {
                     setView((current) => constrain({...current, x: current.x + point.x - old.x, y: current.y + point.y - old.y}));
@@ -173,7 +182,10 @@ export function ImageViewer() {
     const position = Math.min(index, images.length - 1);
     const current = images[position];
     const caption = toPlainPreview(current.post.message, 1000);
-    return createPortal(<div className="tgw-image-viewer" ref={dialog} role="dialog" aria-modal="true" aria-label="Image viewer" onClick={(event) => event.stopPropagation()}>
+    return createPortal(<div className="tgw-image-viewer" ref={dialog} role="dialog" aria-modal="true" aria-label="Image viewer" onClick={(event) => {
+        event.stopPropagation();
+        if (!(event.target as Element).closest('.tgw-image-viewer-stage, button, a, .tgw-image-viewer-caption')) close();
+    }}>
         <header className="tgw-image-viewer-header">
             <span className="tgw-image-viewer-name">{current.file.name || 'Image attachment'}</span>
             <a href={api.fileURL(current.file.id)} download={current.file.name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>

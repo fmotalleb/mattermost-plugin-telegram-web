@@ -617,6 +617,8 @@ class CDP {
                 return {windowWidth:innerWidth,windowHeight:innerHeight,canvasWidth:canvas.width,canvasHeight:canvas.height,full:dialog.width===innerWidth&&dialog.height===innerHeight, fits:image.left>=canvas.left-1&&image.top>=canvas.top-1&&image.right<=canvas.right+1&&image.bottom<=canvas.bottom+1,large:image.width>innerWidth*.65||image.height>innerHeight*.65,width:image.width,height:image.height,zoom:document.querySelector('.tgw-image-viewer output').textContent};
             })()`);
             ok(fit.full&&fit.canvasWidth>fit.windowWidth*.65&&fit.canvasHeight>fit.windowHeight*.6&&fit.fits&&fit.large,`viewer has a visible fitted image despite legacy host styles (${JSON.stringify(fit)})`);
+            await cdp.clickSelector('.tgw-image-viewer img');
+            ok(await cdp.eval('!!document.querySelector(".tgw-image-viewer")'),'clicking the image keeps the viewer open');
             await cdp.clickSelector('.tgw-image-viewer-tools button[aria-label="Zoom in"]');await sleep(50);
             const zoomed=await cdp.eval('document.querySelector(".tgw-image-viewer img").getBoundingClientRect().width');
             ok(zoomed>fit.width,'zoom controls enlarge the actual image');
@@ -649,6 +651,23 @@ class CDP {
             ok(await cdp.eval('document.querySelector(".tgw-image-viewer-stage").style.transform.includes("0px")'),'navigation resets image pan');
             await cdp.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await sleep(50);
             ok(await cdp.eval('!document.querySelector(".tgw-image-viewer")'),'Escape dismisses the built viewer');
+            await cdp.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+            await cdp.clickSelector('.tgw-attachment-image');
+            await cdp.waitFor('document.querySelector(".tgw-image-viewer img")?.naturalWidth > 0',10000,'reopened image load');
+            const backdrop = await cdp.eval(`(() => {
+                const canvas = document.querySelector('.tgw-image-viewer-viewport');
+                const bounds = canvas.getBoundingClientRect();
+                const image = canvas.querySelector('img').getBoundingClientRect();
+                const points = [
+                    {x: bounds.left + bounds.width / 2, y: (bounds.top + image.top) / 2},
+                    {x: (bounds.left + image.left) / 2, y: bounds.top + bounds.height / 3},
+                ];
+                return points.find(({x, y}) => document.elementFromPoint(x, y) === canvas);
+            })()`);
+            if (!backdrop) throw new Error('expected empty canvas space around the fitted image');
+            await cdp.click(backdrop.x, backdrop.y);
+            await cdp.waitFor('!document.querySelector(".tgw-image-viewer")',5000,'backdrop click closes the viewer');
+            ok(await cdp.eval('document.activeElement === document.querySelector(".tgw-attachment-image")'),'backdrop dismissal restores focus to the attachment');
             ok((await cdp.eval('window.__pageErrors')).length===0,'viewer produces no browser errors');
             report('IMAGE VIEWER BROWSER TEST');
             return;
