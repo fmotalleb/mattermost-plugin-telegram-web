@@ -9,6 +9,7 @@
  *
  *   npm run test:browser        (needs google-chrome; override the binary with CHROME_PATH)
  *   TGW_IMAGE_VIEWER_ONLY=1 npm run test:browser   (focused image layout/zoom/pan checks)
+ *   TGW_THREAD_TIMES_ONLY=1 npm run test:browser   (thread timestamps and narrow layout)
  */
 
 const fs = require('fs');
@@ -567,6 +568,44 @@ class CDP {
 
         const bootErrors = await cdp.eval('window.__pageErrors');
         ok(bootErrors.length === 0, `bundle booted without page errors${bootErrors.length ? ` (${bootErrors[0]})` : ''}`);
+
+        if (process.env.TGW_THREAD_TIMES_ONLY) {
+            await cdp.eval(`(() => {
+                const now = Date.now();
+                const root = {...posts.p1, id: 'thread-date-root', create_at: now - 40 * 86400000, message: 'Older thread message', metadata: {}};
+                const replies = [
+                    {...root, id: 'thread-date-yesterday', root_id: root.id, create_at: now - 25 * 3600000, message: 'Over 24 hours ago'},
+                    {...root, id: 'thread-date-recent', root_id: root.id, create_at: now - 23 * 3600000, message: 'Under 24 hours ago'},
+                ];
+                for (const post of [root, ...replies]) window.__wsHandlers.posted({data: {post: JSON.stringify(post)}});
+            })()`);
+            const threadLink = '[data-post-id="thread-date-root"] .tgw-thread-link';
+            await cdp.waitFor(`!!document.querySelector('${threadLink}')`, 5000, 'thread link for the older message');
+            const chatDate = await cdp.eval(`document.querySelector('[data-post-id="thread-date-root"]').previousElementSibling.querySelector('.tgw-date-label').textContent`);
+            await cdp.clickSelector(threadLink);
+            await cdp.waitFor('document.querySelectorAll(".tgw-thread-post time").length === 3', 5000, 'three thread timestamps');
+            const stamps = await cdp.eval(`Array.from(document.querySelectorAll('.tgw-thread-post time'), node => ({
+                label: node.textContent, time: node.title, dateTime: node.dateTime,
+            }))`);
+            ok(stamps[0].label === chatDate, `the older root shows the same date as the chat (${chatDate})`);
+            ok(stamps.slice(0, 2).every(({label, time, dateTime}) =>
+                /\d{1,2}:\d{2}/.test(time) && !label.includes(time) && !!Date.parse(dateTime)), 'posts over a day old reveal their time on hover');
+            ok(/\d{1,2}:\d{2}/.test(stamps[2].label), 'a reply under a day old still shows the time');
+
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+            await cdp.waitFor('!!document.querySelector(".tgw-shell-mobile .tgw-thread-panel")', 5000, 'thread at phone width');
+            ok(await cdp.eval(`(() => {
+                const panel = document.querySelector('.tgw-thread-panel');
+                const bounds = panel.getBoundingClientRect();
+                return Array.from(panel.querySelectorAll('time, .tgw-thread-goto')).every(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.left >= bounds.left && rect.right <= bounds.right;
+                });
+            })()`), 'timestamps and message links fit in the narrow thread panel');
+            fs.writeFileSync('/tmp/tgw-thread-times-mobile.png', Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png'})).data, 'base64'));
+            report('THREAD TIMES BROWSER TEST');
+            return;
+        }
 
         if (process.env.TGW_APPLE_EMOJI_ONLY) {
             ok(!webappRequests.some(url => url.includes('/emoji/apple-')), 'Apple artwork is not downloaded while disabled on the server');

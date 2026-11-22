@@ -9,7 +9,7 @@ import {api} from '../mm/api';
 import {getBlock, receivePost, useChannelPosts} from '../mm/posts';
 import {useSelector} from '../mm/store';
 import type {MMChannel, MMPost} from '../mm/types';
-import {displayName, formatTime, toPlainPreview} from '../mm/utils';
+import {DAY, displayName, formatDateSeparator, formatMessageStamp, formatTime} from '../mm/utils';
 import {useTg} from './context';
 import {Attachment, filesOfPost} from './MessageList';
 import {MessageBody} from './render';
@@ -113,6 +113,7 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
         }
     };
 
+    const now = Date.now();
     return (
         <aside className="tgw-thread-panel">
             <header className="tgw-info-header">
@@ -128,16 +129,22 @@ export function ThreadPanel({rootId, channel, onClose}: ThreadPanelProps) {
                     const author = profiles?.[post.user_id];
                     const isRoot = index === 0;
                     const files = filesOfPost(post);
+                    const time = formatTime(post.create_at, timeFormat);
+                    const older = now - post.create_at >= DAY;
+                    const stamp = older ? formatDateSeparator(post.create_at, timeFormat) : formatMessageStamp(post.create_at, timeFormat);
                     return (
                         <div key={post.id} className={`tgw-thread-post ${isRoot ? 'tgw-thread-root' : ''}`}>
                             <Avatar userId={post.user_id} name={author ? displayName(author) : ''} size={36}/>
                             <div className="tgw-thread-post-body">
                                 <div className="tgw-thread-post-head">
                                     <span className="tgw-thread-author">{author ? displayName(author) : 'User'}</span>
-                                    <span className="tgw-thread-time">{formatTime(post.create_at, timeFormat)}</span>
-                                    {post.edit_at > 0 && <span className="tgw-thread-time" title={formatTime(post.edit_at, timeFormat)}>edited</span>}
-                                    {post._failed && <span className="tgw-thread-failed">failed</span>}
                                     <button type="button" className="tgw-thread-goto" onClick={() => goToMessage(post)}>Go to message</button>
+                                </div>
+                                <div className="tgw-thread-post-meta">
+                                    {post.create_at > 0 && <time className="tgw-thread-time" dateTime={new Date(post.create_at).toISOString()}
+                                        title={older ? time : undefined} aria-label={older ? `${stamp}, ${time}` : undefined}>{stamp}</time>}
+                                    {post.edit_at > 0 && <span className="tgw-thread-time" title={formatMessageStamp(post.edit_at, timeFormat)}>edited</span>}
+                                    {post._failed && <span className="tgw-thread-failed">failed</span>}
                                 </div>
                                 {post.message ? <MessageBody message={post.message} postId={post.id}/> : <span className="tgw-thread-empty">Attachment</span>}
                                 {files.length > 0 && (
