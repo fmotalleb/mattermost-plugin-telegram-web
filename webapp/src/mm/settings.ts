@@ -46,6 +46,8 @@ export interface PluginSettings {
     quietUnreadCounts: boolean;
     /** Include muted chats and channels without mentions in unread lists. Off by default. */
     includeMutedInUnread: boolean;
+    /** Group unread chats near the top of the All tab. Off by default. */
+    pinUnreadInAll: boolean;
     /** Group favorites first in the All tab. Off by default. */
     pinFavoritesInAll: boolean;
     /** Server-wide Apple artwork setting; never a user preference. */
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     showPreviews: true,
     quietUnreadCounts: false,
     includeMutedInUnread: false,
+    pinUnreadInAll: false,
     pinFavoritesInAll: false,
     appleEmoji: false,
     compactMode: false,

@@ -263,7 +263,7 @@ export interface ChatListProps {
     emptyTitle?: string;
     emptyBody?: string;
     prefetchLimit?: number;
-    /** Group the All tab into pinned favorites, unread chats and remaining chats. */
+    /** Use the All tab's section layout and optional pinning. */
     groupAllChats?: boolean;
     sectionTitle?: string;
     onMarkSectionRead?: (chats: ChatSummary[]) => void;
@@ -284,13 +284,14 @@ export function ChatList({chats, selectedChannelId, onSelect, onContextMenu, sho
     const requestedPeers = useRef(new Set<string>());
     const hasChatsToMarkRead = (sectionChats: ChatSummary[]) => sectionChats.some((chat) => chat.unread > 0 || chat.mentions > 0 || chat.manuallyUnread);
     const pinFavorites = groupAllChats && settings.pinFavoritesInAll;
+    const pinUnread = groupAllChats && settings.pinUnreadInAll;
     const favoriteOrder = new Map((pinnedFavorites?.chats || []).map((chat, index) => [chat.id, index]));
     const pinnedChats = chats.filter((chat) => chat.isFavorite).sort((a, b) => (favoriteOrder.get(a.id) ?? Infinity) - (favoriteOrder.get(b.id) ?? Infinity));
     const unpinnedChats = pinFavorites ? chats.filter((chat) => !chat.isFavorite) : chats;
     const allSections = [
         {key: 'favorites', label: 'Favorites', chats: pinFavorites ? pinnedChats : []},
-        {key: 'unread', label: 'Unread messages', chats: unpinnedChats.filter(isUnreadChat)},
-        {key: 'chats', label: 'All messages', chats: unpinnedChats.filter((chat) => !isUnreadChat(chat))},
+        {key: 'unread', label: 'Unread messages', chats: pinUnread ? unpinnedChats.filter(isUnreadChat) : []},
+        {key: 'chats', label: 'All messages', chats: pinUnread ? unpinnedChats.filter((chat) => !isUnreadChat(chat)) : unpinnedChats},
     ].filter((section) => section.chats.length > 0);
 
     // Warm up the sidebar previews for the rows the user actually looks at.

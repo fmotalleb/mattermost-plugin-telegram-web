@@ -13,15 +13,50 @@ const click = (node) => node?.dispatchEvent(new dom.window.MouseEvent('click', {
 const folder = (label) => Array.from(document.querySelectorAll('.tgw-folder')).find((node) => node.textContent.startsWith(label));
 const count = () => folder('Unread')?.querySelector('.tgw-folder-badge')?.textContent;
 const rows = () => Array.from(document.querySelectorAll('.tgw-sidebar-body .tgw-chat-row'));
-const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check')).find((label) => label.textContent.includes('Include muted chats in unread messages'))?.querySelector('input');
+const titles = () => rows().map((row) => row.querySelector('.tgw-chat-row-title')?.textContent.trim());
+const headings = () => Array.from(document.querySelectorAll('.tgw-section-heading'));
+const sectionNames = () => headings().map((heading) => heading.querySelector('.tgw-section-title').textContent).join(',');
+const checkboxWithLabel = (text) => Array.from(document.querySelectorAll('.tgw-field-check')).find((label) => label.textContent.includes(text))?.querySelector('input');
+const checkbox = () => checkboxWithLabel('Include muted chats in unread messages');
+const unreadPinCheckbox = () => checkboxWithLabel('Pin unread chats to the top of All messages');
+const openSettings = async () => {
+    click(document.querySelector('.tgw-user-button'));
+    await wait(() => document.querySelector('.tgw-menu'));
+    click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((button) => button.textContent.trim() === 'Settings'));
+};
 (async () => {
     await wait(() => folder('Unread'));
+    console.log('== unread pinning setting ==');
+    const originalChannels = state.entities.channels.channels;
+    state.entities.channels.channels = {...originalChannels, [ids.TOWN]: {
+        ...originalChannels[ids.TOWN], last_post_at: originalChannels[ids.DM].last_post_at + 1000,
+    }};
+    notifyStoreChange();
+    await wait(() => titles()[0] === 'Town Square');
+    ok(DEFAULT_SETTINGS.pinUnreadInAll === false && !getSettings().pinUnreadInAll, 'unread pinning defaults to off');
+    ok(sectionNames() === 'All messages' && titles()[0] === 'Town Square' && titles()[1]?.includes('Alice'), 'All keeps chats in latest-message order by default');
+    ok(headings()[0]?.querySelector('button')?.textContent === 'Mark all as read', 'the combined All section can mark its chats as read');
+    await openSettings();
+    await wait(() => unreadPinCheckbox());
+    ok(unreadPinCheckbox() && !unreadPinCheckbox().checked, 'Chats settings exposes unread pinning unchecked');
+    click(unreadPinCheckbox());
+    await wait(() => sectionNames() === 'Unread messages,All messages');
+    ok(sectionNames() === 'Unread messages,All messages' && titles()[0]?.includes('Alice') && titles()[1] === 'Town Square', 'enabling unread pinning moves the older unread chat ahead of the newer muted chat');
+    ok(headings().every((heading) => heading.querySelector('button')?.textContent === 'Mark all as read'), 'both sections offer mark all as read for their unread chats, including muted chats');
+    const savedUnreadPin = () => payloads.some((request) => request.path === '/users/me/preferences' && request.body?.some((preference) => preference.name === 'settings' && JSON.parse(preference.value).pinUnreadInAll === true));
+    await wait(savedUnreadPin);
+    ok(savedUnreadPin(), 'unread pinning persists as a Mattermost user preference');
+    ok(JSON.parse(dom.window.localStorage.getItem('tgw.settings.com.telegramweb.ui')).pinUnreadInAll === true, 'unread pinning is mirrored locally');
+    click(unreadPinCheckbox());
+    await wait(() => sectionNames() === 'All messages');
+    ok(!getSettings().pinUnreadInAll && sectionNames() === 'All messages' && titles()[0] === 'Town Square', 'disabling unread pinning restores latest-message order immediately');
+    click(document.querySelector('[role="dialog"] [title="Close"]'));
+    state.entities.channels.channels = originalChannels;
+    notifyStoreChange();
+
     ok(DEFAULT_SETTINGS.includeMutedInUnread === false && getSettings().includeMutedInUnread === false, 'muted unread inclusion is disabled for default and existing settings');
     ok(!getUnreadChats(state).some((chat) => chat.id === ids.TOWN), 'default unread scope excludes muted channels even with mentions');
     ok(getAllChats(state).some((chat) => chat.id === ids.TOWN), 'muted chats remain in All');
-    const headings = () => Array.from(document.querySelectorAll('.tgw-section-heading'));
-    ok(headings().some((heading) => heading.textContent.includes('All messages') && heading.nextElementSibling?.textContent.includes('Town Square')), 'All keeps the muted chat outside the unread section');
-    ok(headings().every((heading) => heading.querySelector('button')?.textContent === 'Mark all as read'), 'sections offer mark all as read when their chats include unread messages, including muted chats');
     const tabs = getTabs(state);
     const initialCounts = getTabUnreadCounts(state, tabs);
     ok(initialCounts.__unread === 2 && initialCounts.__all === 13, 'default unread badge excludes muted counts while All keeps its total');
@@ -30,9 +65,7 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     click(folder('Unread'));
     await wait(() => rows().length === 1);
     ok(rows().length === 1 && !rows().some((row) => row.textContent.includes('Town Square')), 'Unread tab hides muted chats by default');
-    click(document.querySelector('.tgw-user-button'));
-    await wait(() => document.querySelector('.tgw-menu'));
-    click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((button) => button.textContent.trim() === 'Settings'));
+    await openSettings();
     await wait(() => checkbox());
     ok(checkbox() && !checkbox().checked, 'Chats settings exposes an unchecked muted-chats option');
     click(checkbox());
@@ -72,10 +105,11 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     updateSettings({includeMutedInUnread: true});
     await wait(() => rows().length === 2 && count() === '13');
     ok(rows().length === 2 && count() === '13', 'enabling muted inclusion also includes non-tagging unmuted channels');
-    updateSettings({includeMutedInUnread: false});
+    updateSettings({includeMutedInUnread: false, pinUnreadInAll: true});
     click(folder('All'));
     await wait(() => document.querySelectorAll('.tgw-section-heading').length === 2);
     ok(headings().some((heading) => heading.textContent.includes('All messages') && heading.nextElementSibling?.textContent.includes('Town Square')), 'unmentioned channels remain in All outside its unread section');
+    updateSettings({pinUnreadInAll: false});
     console.log('== favorite pinning setting ==');
     ok(DEFAULT_SETTINGS.pinFavoritesInAll === false && getSettings().pinFavoritesInAll === false, 'favorite pinning is disabled for default and existing settings');
     state.entities.channels.myMembers = Object.fromEntries(Object.entries(originalMembers).map(([id, member]) => [id, {
@@ -86,14 +120,11 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
         [`favorite_channel--${ids.TOWN}`]: {category: 'favorite_channel', name: ids.TOWN, user_id: ids.ME, value: 'true'},
     };
     notifyStoreChange();
-    const titles = () => rows().map((row) => row.querySelector('.tgw-chat-row-title')?.textContent.trim());
-    await wait(() => !headings().some((heading) => heading.textContent.includes('Unread messages')));
+    await wait(() => headings().length === 1 && !headings()[0].querySelector('button'));
     ok(!headings().some((heading) => heading.querySelector('button')), 'mark all as read is hidden when every chat in the section is read');
     ok(titles()[0]?.includes('Alice') && titles()[1] === 'Town Square', 'disabled pinning keeps newer conversations before older favorites');
-    click(document.querySelector('.tgw-user-button'));
-    await wait(() => document.querySelector('.tgw-menu'));
-    click(Array.from(document.querySelectorAll('.tgw-menu-item')).find((button) => button.textContent.trim() === 'Settings'));
-    const pinCheckbox = () => Array.from(document.querySelectorAll('.tgw-field-check')).find((label) => label.textContent.includes('Pin favorites to the top of All messages'))?.querySelector('input');
+    await openSettings();
+    const pinCheckbox = () => checkboxWithLabel('Pin favorites to the top of All messages');
     await wait(() => pinCheckbox());
     ok(pinCheckbox() && !pinCheckbox().checked, 'Chats settings exposes favorite pinning unchecked');
     click(pinCheckbox());
@@ -127,7 +158,10 @@ const checkbox = () => Array.from(document.querySelectorAll('.tgw-field-check'))
     notifyStoreChange();
     updateSettings({pinFavoritesInAll: true});
 
-    const sectionNames = () => headings().map((heading) => heading.querySelector('.tgw-section-title').textContent).join(',');
+    await wait(() => sectionNames() === 'Favorites,All messages' && titles().length === 3);
+    ok(sectionNames() === 'Favorites,All messages' && titles()[0] === 'Town Square' && titles()[1]?.includes('Alice'),
+        'favorites can stay pinned with unread pinning off');
+    updateSettings({pinUnreadInAll: true});
     await wait(() => sectionNames() === 'Favorites,Unread messages,All messages');
     ok(sectionNames() === 'Favorites,Unread messages,All messages' && titles()[0] === 'Town Square' &&
         titles()[1]?.includes('Alice') && titles()[2] === 'Read channel',

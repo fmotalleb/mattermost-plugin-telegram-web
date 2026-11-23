@@ -227,6 +227,10 @@ export function SettingsModal() {
                         <span>Pin favorites to the top of All messages</span>
                     </label>
                     <label className="tgw-field tgw-field-check">
+                        <input type="checkbox" checked={settings.pinUnreadInAll} onChange={(event) => updateSettings({pinUnreadInAll: event.target.checked})}/>
+                        <span>Pin unread chats to the top of All messages</span>
+                    </label>
+                    <label className="tgw-field tgw-field-check">
                         <input type="checkbox" checked={settings.folderTabs} onChange={(event) => updateSettings({folderTabs: event.target.checked})}/>
                         <span>Show folders (Mattermost categories)</span>
                     </label>
