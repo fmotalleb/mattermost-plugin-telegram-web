@@ -45,35 +45,27 @@ func (p *Plugin) createIndex(db *sql.DB, statement string) {
 	}
 }
 
-// recordView upserts a (user, post) view, keeping the most recent viewed_at. The update-then-insert
-// shape keeps the SQL portable across Postgres and MySQL.
+// recordView atomically upserts a (user, post) view, keeping the most recent viewed_at.
 func (p *Plugin) recordView(userID, postID, channelID string, viewedAt int64) error {
 	db, err := p.client.Store.GetMasterDB()
 	if err != nil {
 		return err
 	}
 
-	result, err := db.Exec(`
-		UPDATE `+viewTrackingTable+`
-		   SET viewed_at = GREATEST(viewed_at, `+p.ph(1)+`)
-		 WHERE user_id = `+p.ph(2)+` AND post_id = `+p.ph(3),
-		viewedAt, userID, postID)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil || affected > 0 {
+	const insert = `INSERT INTO ` + viewTrackingTable + ` (user_id, post_id, channel_id, viewed_at)`
+	if p.client.Store.DriverName() == "postgres" {
+		_, err := db.Exec(insert+`
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (user_id, post_id) DO UPDATE
+			SET viewed_at = GREATEST(`+viewTrackingTable+`.viewed_at, EXCLUDED.viewed_at)`,
+			userID, postID, channelID, viewedAt)
 		return err
 	}
 
-	_, err = db.Exec(`
-		INSERT INTO `+viewTrackingTable+` (user_id, post_id, channel_id, viewed_at)
-		VALUES (`+p.ph(1)+`, `+p.ph(2)+`, `+p.ph(3)+`, `+p.ph(4)+`)`,
-		userID, postID, channelID, viewedAt)
-	if err != nil && p.client.Store.DriverName() == "postgres" && strings.Contains(err.Error(), "duplicate key") {
-		// Lost a race with the same (user, post): someone else inserted between UPDATE and INSERT.
-		return nil
-	}
+	_, err = db.Exec(insert+`
+		VALUES (?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE viewed_at = GREATEST(viewed_at, ?)`,
+		userID, postID, channelID, viewedAt, viewedAt)
 	return err
 }
 
