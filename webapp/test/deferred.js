@@ -13,9 +13,20 @@ const View=deferred(()=>{requests++;return new Promise((done)=>{resolve=done;});
     root.render(null);await tick(20);root.render(React.createElement(View,{name:'Bob'}));await tick(20);
     ok(requests===1&&container.textContent==='Hello Bob','reopening reuses the loaded module');
     let attempts=0;
-    const Retry=deferred(()=>++attempts===1?Promise.reject(new Error('offline')):Promise.resolve(()=>React.createElement('span',null,'Recovered')),'retry view');
-    root.render(React.createElement(Retry));await wait(()=>container.querySelector('[role="alert"]'));
-    ok(container.querySelector('[role="alert"]')?.textContent.includes('Could not load'),'failed chunks show a recoverable error');
+    const chunkError = Object.assign(new Error('Missing dialog script'), {name: 'ChunkLoadError', request: '/plugins/com.telegramweb.ui/public/webapp/modals.old.js'});
+    const Retry=deferred(()=>++attempts===1?Promise.reject(chunkError):Promise.resolve(()=>React.createElement('span',null,'Recovered')),'dialog');
+    const originalError = console.error;
+    const loggedErrors = [];
+    console.error = (...args) => loggedErrors.push(args);
+    try {
+        root.render(React.createElement(Retry));await wait(()=>container.querySelector('[role="alert"]'));
+    } finally {
+        console.error = originalError;
+    }
+    const alert = container.querySelector('[role="alert"]');
+    ok(alert?.textContent.includes('Could not load dialog.') && Array.from(alert.querySelectorAll('button')).some((button) => button.textContent === 'Reload Mattermost'),
+        'a missing dialog chunk offers a full page reload');
+    ok(loggedErrors.length === 1 && loggedErrors[0][1] === chunkError, 'the failed chunk is reported once with its original error');
     container.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));await tick(30);
     ok(attempts===2&&container.textContent==='Recovered','Retry requests a failed chunk again');
     let complete;

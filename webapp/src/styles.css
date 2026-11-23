@@ -4692,5 +4692,5 @@ body.tgw-root-active {
 .tgw-root .tgw-todo-error { padding: 10px 14px; color: var(--tgw-danger, #d43c48); }
 
 /* Brief feedback while an optional view is loaded from the plugin's local assets. */
-.tgw-root .tgw-lazy-status { position: fixed; z-index: 1200; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--tgw-border); border-radius: 12px; background: var(--tgw-bg); color: var(--tgw-text); box-shadow: var(--tgw-shadow-strong); }
+.tgw-root .tgw-lazy-status { position: fixed; z-index: 1200; right: 20px; bottom: 20px; max-width: calc(100% - 40px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--tgw-border); border-radius: 12px; background: var(--tgw-bg); color: var(--tgw-text); box-shadow: var(--tgw-shadow-strong); }
 .tgw-root .tgw-lazy-status button { color: var(--tgw-accent); border: 0; background: transparent; cursor: pointer; }
