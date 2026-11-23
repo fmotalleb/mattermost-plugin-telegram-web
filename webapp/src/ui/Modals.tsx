@@ -2,6 +2,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {canSaveFileAs, saveFileAs} from '../mm/file-download';
 import {filePreviewKind} from '../mm/file-preview';
 import {api} from '../mm/api';
 import {useScheduledPosts} from '../mm/scheduled';
@@ -762,9 +763,10 @@ export function FilePreviewModal({file}: {file: MMFileInfo}) {
         load().catch((err) => { if (!controller.signal.aborted) setError(err.message || 'Could not load this file.'); });
         return () => controller.abort();
     }, [file.id, file.size, kind, attempt]);
-    return <ModalShell title={file.name} width={1000} manageFocus onClose={actions.closeModal} footer={
-        <a className="tgw-button" href={`${api.fileURL(file.id)}?download=1`} target="_blank" rel="noopener noreferrer"><IconDownload size={18}/>Download</a>
-    }>
+    return <ModalShell title={file.name} width={1000} manageFocus onClose={actions.closeModal} footer={<>
+        {canSaveFileAs() && <button type="button" className="tgw-button" onClick={() => saveFileAs(file, actions.toast)}>Save as…</button>}
+        <a className="tgw-button" href={api.fileDownloadURL(file.id)} download={file.name}><IconDownload size={18}/>Download</a>
+    </>}>
         <div className="tgw-file-preview">
             {kind === 'pdf' ? <PDFPreview file={file}/>
                 : error ? <div role="alert">{error} <button type="button" className="tgw-button" onClick={() => setAttempt(attempt + 1)}>Retry</button></div>

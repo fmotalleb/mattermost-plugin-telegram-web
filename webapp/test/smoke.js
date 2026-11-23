@@ -734,6 +734,38 @@ root.render(React.createElement(TelegramUI));
         menuItem('Copy download URL: photo-one.png')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));
         await waitFor(() => !document.querySelector('.tgw-menu'));
         ok(copiedURLs[0] === 'https://mattermost.example.com/api/v4/files/file-1?download=1', 'download URL is absolute and points to the file');
+        window.desktopAPI = {};
+        let suggestedName;
+        let savedContents = '';
+        let saveCompleted = false;
+        let downloadRequest;
+        const originalFetch = global.fetch;
+        global.fetch = async (url, options) => {
+            if (String(url).endsWith('/files/file-2?download=1')) {
+                downloadRequest = options;
+                return new Response('attachment contents');
+            }
+            return originalFetch(url, options);
+        };
+        window.showSaveFilePicker = async (options) => {
+            suggestedName = options.suggestedName;
+            return {createWritable: async () => new WritableStream({
+                write(chunk) { savedContents += Buffer.from(chunk).toString(); },
+                close() { saveCompleted = true; },
+            })};
+        };
+        try {
+            p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 140, clientY: 210}));
+            await waitFor(() => menuItem('Save as… photo-two.jpg'));
+            menuItem('Save as… photo-two.jpg')?.click();
+            await waitFor(() => saveCompleted);
+            ok(suggestedName === 'photo-two.jpg' && downloadRequest?.credentials === 'same-origin' && savedContents === 'attachment contents',
+                'desktop Save as suggests the selected filename and streams the authenticated attachment into the selected file');
+        } finally {
+            global.fetch = originalFetch;
+            delete window.desktopAPI;
+            delete window.showSaveFilePicker;
+        }
         p1row?.dispatchEvent(new dom.window.MouseEvent('contextmenu', {bubbles: true, clientX: 140, clientY: 210}));
         await waitFor(() => document.querySelector('.tgw-menu'));
         menuItem('Forward')?.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true}));

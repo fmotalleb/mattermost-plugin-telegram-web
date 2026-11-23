@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
+import {canSaveFileAs, saveFileAs} from '../mm/file-download';
 import {useChannelPosts} from '../mm/posts';
 import type {MMFileInfo, MMPost} from '../mm/types';
 import {fileKindOf, toPlainPreview} from '../mm/utils';
@@ -170,14 +171,15 @@ export function ImageViewer() {
     const position = Math.min(index, images.length - 1);
     const {post, file} = images[position];
     return <ImagePreview key={targetKey} src={api.fileURL(file.id)} name={file.name} onClose={close}
-        gallery={{caption: toPlainPreview(post.message, 1000), position, count: images.length, move}}/>;
+        gallery={{file, caption: toPlainPreview(post.message, 1000), position, count: images.length, move,
+            saveAs: canSaveFileAs() ? () => saveFileAs(file, actions.toast) : undefined}}/>;
 }
 
 interface ImagePreviewProps {
     src: string;
     name: string;
     onClose: () => void;
-    gallery?: {caption: string; position: number; count: number; move: (step: number) => void};
+    gallery?: {file: MMFileInfo; caption: string; position: number; count: number; move: (step: number) => void; saveAs?: () => void};
     onApply?: (file: File) => void;
     onSend?: (file: File) => void;
 }
@@ -236,7 +238,10 @@ export function ImagePreview({src, name, onClose, gallery, onApply, onSend}: Ima
         <header className="tgw-image-viewer-header">
             <span className="tgw-image-viewer-name">{editor?.alt || name || 'Image attachment'}</span>
             {editor && !editorOnly && <button className="tgw-image-editor-back" type="button" title="Discard edits and return to preview" onClick={() => setEditor(null)}>Back to preview</button>}
-            {!editor && gallery && <a href={src} download={name} target="_blank" rel="noopener noreferrer" aria-label="Download image" title="Download image"><IconDownload size={20}/></a>}
+            {!editor && gallery && <>
+                {gallery.saveAs && <button type="button" onClick={gallery.saveAs}>Save as…</button>}
+                <a href={api.fileDownloadURL(gallery.file.id)} download={name} aria-label="Download image" title="Download image"><IconDownload size={20}/></a>
+            </>}
             <button type="button" className="tgw-image-viewer-close" onClick={onClose} title="Close" aria-label={editorOnly ? 'Close image editor' : 'Close image viewer'}><IconClose size={24}/></button>
         </header>
         <ImageCanvas key={src} src={src} name={name} editing={!!editor}

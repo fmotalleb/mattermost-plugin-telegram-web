@@ -88,16 +88,35 @@ const close = async () => {
     ok(document.querySelector('pre')?.textContent.includes('<script>') && !dialog()?.querySelector('script') && !window.executed,
         'text is readable and markup is never executed');
     ok(document.querySelector('pre')?.textContent.includes('فارسی'), 'UTF-8 text is preserved');
-    ok(dialog()?.querySelector('a')?.href.endsWith('/files/preview-text?download=1'), 'modal preserves a download action');
+    const downloadLink = dialog()?.querySelector('a');
+    const archiveLink = document.querySelector('.tgw-attachment-file[href*="preview-zip"]');
+    ok(downloadLink?.href.endsWith('/files/preview-text?download=1') && downloadLink.download === 'notes.txt' && !downloadLink.target,
+        'the preview downloads through the current window with the attachment filename');
+    ok(archiveLink?.href.endsWith('/files/preview-zip?download=1') && archiveLink.download === 'archive.zip' && !archiveLink.target,
+        'binary attachments download through the current window');
     ok(requests[0]?.options.credentials === 'same-origin', 'previews use authenticated same-origin requests');
     ok(engineLoads === 0, 'opening a text file does not load the PDF engine');
     const firstSignal = requests[0].options.signal;
     await close();
     ok(!dialog() && firstSignal.aborted, 'Escape closes the modal and aborts its request');
+    window.desktopAPI = {};
+    let pickerOptions;
+    window.showSaveFilePicker = async (options) => {
+        pickerOptions = options;
+        throw new dom.window.DOMException('Cancelled', 'AbortError');
+    };
     failNext = true;
     open('report.pdf');
     await wait(() => document.querySelector('[role="alert"]'));
     ok(!!document.querySelector('[role="alert"]'), 'failed PDF download shows an error');
+    const saveAs = Array.from(dialog().querySelectorAll('button')).find((node) => node.textContent === 'Save as…');
+    const beforeSaveAs = requests.length;
+    click(saveAs);
+    await tick(20);
+    ok(pickerOptions?.suggestedName === 'report.pdf' && requests.length === beforeSaveAs,
+        'the desktop preview offers Save as after a preview failure and cancellation sends no file request');
+    delete window.desktopAPI;
+    delete window.showSaveFilePicker;
     click(Array.from(dialog().querySelectorAll('button')).find((node) => node.textContent === 'Retry'));
     await wait(() => rendered.length > 0);
     ok(!!document.querySelector('canvas') && !document.querySelector('object,iframe'), 'retry renders PDF pages without the native desktop viewer');

@@ -4,6 +4,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {api} from '../mm/api';
+import {canSaveFileAs, saveFileAs} from '../mm/file-download';
 import {getBlock, getReactions, loadChannel, receivePost, receiveReaction} from '../mm/posts';
 import {getAllChats, getChatSummary, getMyId, getSiteURL, getTabs, getTimeFormat} from '../mm/selectors';
 import {getState, readLocal, useSelector, writeLocal} from '../mm/store';
@@ -558,15 +559,26 @@ function buildPostMenu(post: MMPost | undefined, handlers: BuildMenuHandlers, ur
                 .catch(() => handlers.toast('Could not copy URL', 'error')),
         });
     }
-    filesOfPost(post).forEach((file) => {
-        items.splice(items.findIndex((item) => item !== 'separator' && item.key === 'unread'), 0, {
+    const files = filesOfPost(post);
+    const fileItems: MenuItem[] = [];
+    const showSaveAs = canSaveFileAs();
+    files.forEach((file) => {
+        if (showSaveAs) {
+            fileItems.push({
+                key: `save-as-${file.id}`,
+                label: files.length === 1 ? 'Save as…' : `Save as… ${file.name}`,
+                onClick: () => saveFileAs(file, handlers.toast),
+            });
+        }
+        fileItems.push({
             key: `copy-download-${file.id}`,
-            label: filesOfPost(post).length === 1 ? 'Copy download URL' : `Copy download URL: ${file.name}`,
-            onClick: () => copyToClipboard(new URL(`${api.fileURL(file.id)}?download=1`, window.location.origin).href)
+            label: files.length === 1 ? 'Copy download URL' : `Copy download URL: ${file.name}`,
+            onClick: () => copyToClipboard(new URL(api.fileDownloadURL(file.id), window.location.origin).href)
                 .then(() => handlers.toast('Download URL copied', 'success'))
                 .catch(() => handlers.toast('Could not copy download URL', 'error')),
         });
     });
+    items.splice(items.findIndex((item) => item !== 'separator' && item.key === 'unread'), 0, ...fileItems);
     // Keep the context menu compact; open reactor names and times from its Reactions submenu.
     const reactions = getReactions(getBlock(post.channel_id), post.id)
         .slice()

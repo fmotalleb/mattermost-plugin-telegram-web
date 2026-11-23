@@ -55,7 +55,9 @@ const pointer = (type,id,x,y) => {
     document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));await tick(40);
     ok(document.querySelector('.tgw-image-viewer img').src.includes('file-2'),'arrow keys navigate between attachments');
     await load(600,1200);ok(output()==='50%'&&transform().includes('0px'),'navigation fits the next image and clears pan');
-    ok(document.querySelector('[aria-label="Download image"]').href.includes('file-2'),'download follows the displayed image');
+    const downloadLink = document.querySelector('[aria-label="Download image"]');
+    ok(downloadLink.href.endsWith('/files/file-2?download=1') && downloadLink.download === 'photo-two.jpg' && !downloadLink.target,
+        'download follows the displayed image and stays in the current window');
     canvasWidth=300;canvasHeight=500;window.dispatchEvent(new dom.window.Event('resize'));await tick(30);
     ok(output()==='42%','resizing refits the image to a mobile-sized canvas');
     document.querySelector('.tgw-image-viewer img').dispatchEvent(new dom.window.Event('error'));await tick(20);

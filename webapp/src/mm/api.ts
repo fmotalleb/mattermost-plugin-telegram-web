@@ -171,11 +171,17 @@ export class MattermostAPI {
 
     // ---------------------------------------------------------------- files (binary, keeps cookies)
 
-    async getFilePreview(fileId: string, maxBytes: number, signal: AbortSignal): Promise<Blob> {
+    async getFileResponse(fileId: string, signal: AbortSignal, {download = false} = {}): Promise<Response> {
         const headers: Record<string, string> = {'X-Requested-With': 'XMLHttpRequest'};
         if (this.token) headers.Authorization = `Bearer ${this.token}`;
-        const response = await fetch(this.fileURL(fileId), {credentials: 'same-origin', headers, signal});
+        const url = download ? this.fileDownloadURL(fileId) : this.fileURL(fileId);
+        const response = await fetch(url, {credentials: 'same-origin', headers, signal});
         if (!response.ok) throw new APIError('Could not load this file. Please try again.', response.status);
+        return response;
+    }
+
+    async getFilePreview(fileId: string, maxBytes: number, signal: AbortSignal): Promise<Blob> {
+        const response = await this.getFileResponse(fileId, signal);
         if (Number(response.headers.get('Content-Length')) > maxBytes) {
             await response.body?.cancel();
             throw new Error('This file is too large to preview. Please download it instead.');
@@ -203,6 +209,10 @@ export class MattermostAPI {
 
     fileURL(fileId: string, thumbnail = false): string {
         return this.getURL(`/files/${fileId}${thumbnail ? '/thumbnail' : ''}`);
+    }
+
+    fileDownloadURL(fileId: string): string {
+        return `${this.fileURL(fileId)}?download=1`;
     }
 
     previewURL(fileId: string): string {

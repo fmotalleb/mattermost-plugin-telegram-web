@@ -801,7 +801,7 @@ export function Attachment({file, post, onOpenImage}: {file: MMFileInfo; post: M
         );
     }
     return (
-        <a className="tgw-attachment-file" href={`${url}?download=1`} target="_blank" rel="noopener noreferrer"
+        <a className="tgw-attachment-file" href={api.fileDownloadURL(file.id)} download={file.name}
             aria-label={previewable ? `Preview ${file.name}` : undefined}
             onClick={previewable ? (event) => {
                 if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
