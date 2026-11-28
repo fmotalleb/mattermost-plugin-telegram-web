@@ -15,23 +15,27 @@ const participantIsAuthor = new Set([
     'system_join_team', 'system_leave_team', 'system_remove_from_team',
 ]);
 
-function SystemUserLink({person: {username, userId}, original}: {person: Participant; original: string}) {
-    const {actions} = useTg();
+function useParticipantProfile({username, userId}: Participant): MMUser | undefined {
     const cached = useSelector((state) => {
         const profiles = state.entities?.users?.profiles;
-        return userId ? profiles?.[userId] : Object.values(profiles || {}).find((user) => user.username === username);
+        if (userId) return profiles?.[userId];
+        return username ? Object.values(profiles || {}).find((user) => user.username === username) : undefined;
     });
-    const [loaded, setLoaded] = useState<MMUser>();
+    const key = userId ? `id:${userId}` : `username:${username}`;
+    const [loaded, setLoaded] = useState<{key: string; user?: MMUser}>();
     useEffect(() => {
-        if (cached) return;
+        if (cached || (!userId && !username)) return;
         let cancelled = false;
         api.getUserProfile({userId, username}).then((user) => {
-            if (!cancelled) setLoaded(user);
+            if (!cancelled) setLoaded({key, user});
         }).catch(() => undefined);
         return () => { cancelled = true; };
-    }, [cached, userId, username]);
+    }, [cached, key, userId, username]);
+    return cached || (loaded?.key === key ? loaded.user : undefined);
+}
 
-    const user = cached || loaded;
+function SystemUserLink({person: {username, userId}, user, original}: {person: Participant; user?: MMUser; original: string}) {
+    const {actions} = useTg();
     const name = displayName(user);
     const originalIsId = original.replace(/^@/, '') === userId;
     const fallback = originalIsId ? (user?.username || username || 'User') : original;
@@ -45,17 +49,18 @@ function SystemUserLink({person: {username, userId}, original}: {person: Partici
 export function SystemMessage({post}: {post: MMPost}) {
     const props = post.props || {};
     const added = props.addedUsername || props.addedUserId;
+    const removed = !added && (props.removedUsername || props.removedUserId);
     const actorIsAuthor = added || participantIsAuthor.has(post.type);
-    const actor = {username: props.username, userId: props.userId || (actorIsAuthor ? post.user_id : undefined)};
-    const participants: Participant[] = [actor];
-    if (added) {
-        participants.unshift({username: props.addedUsername, userId: props.addedUserId});
-    } else if (props.removedUsername || props.removedUserId) {
-        participants[0] = {username: props.removedUsername || props.username, userId: props.removedUserId || props.userId};
-    }
-    const aliases = participants.flatMap((person) => [person.username, person.userId]
+    const actor = removed ? {} : {username: props.username, userId: props.userId || (actorIsAuthor ? post.user_id : undefined)};
+    const affected = removed ? {username: props.removedUsername || props.username, userId: props.removedUserId || props.userId}
+        : {username: props.addedUsername, userId: props.addedUserId};
+    const actorProfile = useParticipantProfile(actor);
+    const affectedProfile = useParticipantProfile(affected);
+    const participants = [{person: affected, user: affectedProfile}, {person: actor, user: actorProfile}];
+    // Older posts can carry the user ID while the username appears only in the message.
+    const aliases = participants.flatMap(({person, user}) => [person.username || user?.username, person.userId]
         .filter((value) => typeof value === 'string' && value.length)
-        .map((value) => ({person, value})))
+        .map((value) => ({person, user, value})))
         .sort((a, b) => b.value.length - a.value.length);
     const fallback = post.type === 'system_add_to_channel' && props.addedUsername && props.username
         ? `${props.addedUsername} added to the channel by ${props.username}.`
@@ -73,9 +78,9 @@ export function SystemMessage({post}: {post: MMPost}) {
         });
         if (!match) continue;
         const end = tokenStart + match.value.length;
-        const {person} = match;
+        const {person, user} = match;
         parts.push(text.slice(start, index));
-        parts.push(<SystemUserLink key={`${index}:${person.userId}:${person.username}`} person={person} original={text.slice(index, end)}/>);
+        parts.push(<SystemUserLink key={index} person={person} user={user} original={text.slice(index, end)}/>);
         start = end;
         index = end - 1;
     }

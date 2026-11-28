@@ -93,6 +93,14 @@ const render = async (post) => { root.render(React.createElement(Surface, {post,
     ok(opened.userId === departed.id, 'the display name on a leave message opens the departed user’s profile');
     click(directChatButton());
     await wait(() => !document.querySelector('[role="dialog"]'));
+    await render({id: 'legacy-left', type: 'system_leave_channel', user_id: departed.id,
+        message: '@dornicaseif left the channel.'});
+    ok(document.querySelector('.tgw-system-post').textContent === 'Morteza Seif left the channel.', 'leave messages with only the author ID also use the profile display name');
+    await render({id: 'legacy-join', type: 'system_join_channel', user_id: ids.OTHER, message: 'alice joined the channel.'});
+    ok(document.querySelector('.tgw-system-post').textContent === 'Alice Anderson (alley) joined the channel.', 'join messages with only the author ID use the cached display name');
+    await render({id: 'legacy-invite', type: 'system_add_to_channel', user_id: ids.ME,
+        message: 'dornicaseif added to the channel by me.', props: {addedUserId: departed.id}});
+    ok(document.querySelector('.tgw-system-post').textContent === 'Morteza Seif added to the channel by Mia Meyer.', 'invite messages with only participant IDs use both display names');
     await render({id: 'removed', type: 'system_remove_from_channel', user_id: ids.ME,
         message: 'departed-user was removed from the channel.', props: {removedUserId: departed.id}});
     ok(document.querySelector('.tgw-system-post').textContent === 'Morteza Seif was removed from the channel.', 'a removal message identifies the removed user when its text contains a raw ID');
