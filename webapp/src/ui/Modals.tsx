@@ -598,9 +598,7 @@ export function UserProfileModal({payload}: {payload: {userId?: string; username
         setLoaded(null);
         setError(false);
         if (cached) return;
-        const request = payload.userId ? api.getUsersByIds([payload.userId]).then((users) => users[0])
-            : api.getUserByUsername(payload.username || '');
-        request.then((user) => {
+        api.getUserProfile(payload).then((user) => {
             if (!cancelled) { setLoaded(user || null); setError(!user); }
         }).catch(() => { if (!cancelled) setError(true); });
         return () => { cancelled = true; };

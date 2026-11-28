@@ -74,6 +74,7 @@ function buildQuery(query?: Record<string, any>): string {
 export class MattermostAPI {
     private token = '';
     private basePath = '/api/v4';
+    private pendingProfiles = new Map<string, Promise<MMUser | undefined>>();
 
     constructor() {
         if (typeof window !== 'undefined') {
@@ -254,6 +255,18 @@ export class MattermostAPI {
 
     getUsersByIds(ids: string[]): Promise<MMUser[]> {
         return this.request<MMUser[]>('/users/ids', {method: 'POST', body: ids});
+    }
+
+    getUserProfile({userId, username}: {userId?: string; username?: string}): Promise<MMUser | undefined> {
+        if (!userId && !username) return Promise.resolve(undefined);
+        const key = userId ? `id:${userId}` : `username:${username}`;
+        let request = this.pendingProfiles.get(key);
+        if (!request) {
+            request = (userId ? this.getUsersByIds([userId]).then((users) => users.find((user) => user.id === userId))
+                : this.getUserByUsername(username)).finally(() => this.pendingProfiles.delete(key));
+            this.pendingProfiles.set(key, request);
+        }
+        return request;
     }
 
     getUsersInTeam(teamId: string, page = 0, perPage = 60): Promise<MMUser[]> {
